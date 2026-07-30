@@ -1,22 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>MONESPACE.CPI</title>
-      <meta name="description" content="Connects investors with MSMEs for crowdfunding, offering real-time payment tracking and tailored user experiences based on membership status." />
-      <meta name="robots" content="noindex, nofollow" />
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      
-    </head>
+    <title>MONESPACE.CPI — Financement immobilier au Sénégal | Compagnie Prestige Immobilier</title>
+    <meta
+      name="description"
+      content="Financez votre projet immobilier au Sénégal avec la Compagnie Prestige Immobilier : simulez votre prêt, déposez votre demande en ligne et suivez votre dossier, vos décaissements et votre chantier. Ouvert aux fonctionnaires, au secteur privé et à la diaspora."
+    />
+    <meta name="author" content="Compagnie Prestige Immobilier" />
+    <link rel="canonical" href="__SITE_URL__/" />
 
-    <body>
-      
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-      
-    </body>
-  </html>
-  
+    <!-- Le contenu est en français et destiné au Sénégal. -->
+    <meta name="language" content="fr" />
+    <meta name="geo.region" content="SN" />
+    <meta name="geo.placename" content="Dakar" />
+
+    <!--
+      L'application est un espace authentifié : seules la page d'accueil et les
+      écrans de connexion / inscription ont vocation à être indexés. Les routes
+      internes sont écartées via public/robots.txt.
+    -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+
+    <!-- Partage social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MONESPACE.CPI" />
+    <meta property="og:locale" content="fr_SN" />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:title" content="MONESPACE.CPI — Financement immobilier au Sénégal" />
+    <meta
+      property="og:description"
+      content="Simulez votre prêt, déposez votre demande et suivez votre dossier, vos décaissements et votre chantier — en ligne, avec la Compagnie Prestige Immobilier."
+    />
+    <meta property="og:image" content="__SITE_URL__/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MONESPACE.CPI — votre projet immobilier, financé et suivi en ligne" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MONESPACE.CPI — Financement immobilier au Sénégal" />
+    <meta
+      name="twitter:description"
+      content="Simulez votre prêt, déposez votre demande et suivez votre dossier, vos décaissements et votre chantier."
+    />
+    <meta name="twitter:image" content="__SITE_URL__/og-image.jpg" />
+
+    <!-- Icônes & installation -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#7B1A2E" />
+    <meta name="apple-mobile-web-app-title" content="MONESPACE.CPI" />
+
+    <!--
+      Les polices sont chargées depuis Google Fonts par un @import CSS
+      (src/styles/fonts.css) : ces préconnexions ouvrent la connexion en
+      parallèle du CSS et raccourcissent d'autant le premier rendu.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "__SITE_URL__/#organisation",
+            "name": "Compagnie Prestige Immobilier",
+            "alternateName": "CPI Immobilier",
+            "url": "__SITE_URL__/",
+            "logo": "__SITE_URL__/icon-512.png",
+            "image": "__SITE_URL__/og-image.jpg",
+            "description": "Compagnie de financement et d'accompagnement de projets immobiliers au Sénégal.",
+            "areaServed": { "@type": "Country", "name": "Sénégal" },
+            "address": { "@type": "PostalAddress", "addressLocality": "Dakar", "addressCountry": "SN" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "__SITE_URL__/#site",
+            "url": "__SITE_URL__/",
+            "name": "MONESPACE.CPI",
+            "inLanguage": "fr",
+            "publisher": { "@id": "__SITE_URL__/#organisation" }
+          },
+          {
+            "@type": "Service",
+            "name": "Financement immobilier",
+            "serviceType": "Prêt immobilier et accompagnement de projet",
+            "provider": { "@id": "__SITE_URL__/#organisation" },
+            "areaServed": { "@type": "Country", "name": "Sénégal" },
+            "audience": {
+              "@type": "Audience",
+              "audienceType": "Fonctionnaires, salariés du secteur privé et diaspora sénégalaise"
+            },
+            "description": "Simulation de prêt, dépôt et instruction du dossier de financement, orientation vers les banques partenaires, décaissements et suivi de chantier."
+          }
+        ]
+      }
+    </script>
+
+    <style>
+      html, body { height: 100%; margin: 0; }
+      #root { height: 100%; }
+      /* Contenu de repli : lisible sans JavaScript, et par les robots qui
+         n'exécutent pas de script. */
+      .cpi-noscript {
+        max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        line-height: 1.6; color: #1a1a1a;
+      }
+      .cpi-noscript h1 { color: #7B1A2E; font-size: 1.75rem; margin-bottom: .5rem; }
+      .cpi-noscript h2 { font-size: 1.125rem; margin-top: 2rem; }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <noscript>
+      <div class="cpi-noscript">
+        <h1>MONESPACE.CPI — Compagnie Prestige Immobilier</h1>
+        <p>
+          <strong>Financez votre projet immobilier au Sénégal.</strong> La Compagnie Prestige
+          Immobilier accompagne les fonctionnaires, les salariés du secteur privé et la diaspora
+          sénégalaise, de la simulation du prêt jusqu'à la remise des clés.
+        </p>
+
+        <h2>Ce que vous pouvez faire dans votre espace</h2>
+        <ul>
+          <li>Simuler votre prêt immobilier : mensualités, durée et tableau d'amortissement.</li>
+          <li>Déposer votre demande de financement et vos pièces justificatives.</li>
+          <li>Suivre l'instruction de votre dossier étape par étape.</li>
+          <li>Consulter vos contrats et actes établis par le CPI, et les signer en ligne.</li>
+          <li>Suivre vos décaissements bancaires et l'avancement de votre chantier.</li>
+        </ul>
+
+        <h2>JavaScript est nécessaire</h2>
+        <p>
+          Cette application nécessite JavaScript pour fonctionner. Merci de l'activer dans votre
+          navigateur, puis de recharger la page.
+        </p>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -2,7 +2,7 @@
 
 Plateforme de financement immobilier pour le Sénégal (fonctionnaires, secteur privé, diaspora). Application **React + Vite** avec trois espaces distincts et un design system maison.
 
-🎨 **Design d'origine (Figma)** : https://www.figma.com/design/ZxadxXNEWOPOWFg1xKdZux/Crowdfunding-Platform-UI-UX-Design--Community-
+🎨 [**Design d'origine (Figma)**](https://www.figma.com/design/ZxadxXNEWOPOWFg1xKdZux/Crowdfunding-Platform-UI-UX-Design--Community-)
 
 > Cette application **nécessite l'API Laravel** [`cpi-chues-backend`](../backend) : toutes les données métier y vivent. Un hébergement statique seul (GitHub Pages…) ne suffit plus.
 
@@ -75,6 +75,31 @@ npm run build      # tsc --noEmit && vite build → dist/
 `build` lance le contrôle de types **avant** Vite : une erreur de type arrête la construction, elle n'est jamais ignorée. Le build produit `dist/`, à servir derrière un hébergement pointant vers l'API.
 
 Chargement optimisé : l'espace connecté (dashboards + Recharts) est chargé **à la demande** ; la landing et la connexion restent légères.
+
+---
+
+## Référencement & mesure d'audience
+
+L'application est un espace authentifié : **seule la page d'accueil est indexable**, tout le reste exige une connexion. Le référencement porte donc sur cette page, sur la présence de marque et sur le partage social.
+
+En place : langue `fr`, titre et description orientés « financement immobilier au Sénégal », URL canonique, Open Graph et Twitter Card (carte 1200×630), données structurées Schema.org (`Organization`, `WebSite`, `Service`), jeu complet d'icônes, manifeste d'application, préconnexions aux polices, contenu de repli `<noscript>`, `robots.txt` et `sitemap.xml`.
+
+`robots.txt` et `sitemap.xml` sont **générés au build** (voir `seoAndAnalytics()` dans `vite.config.ts`) : ils contiennent l'adresse du site, alors que les fichiers de `public/` sont copiés sans substitution.
+
+### Deux variables de build
+
+| Variable | Effet | Défaut |
+| --- | --- | --- |
+| `VITE_SITE_URL` | Adresse publique : URL canonique, balises sociales, données structurées, `sitemap.xml`, `robots.txt` | `https://monespace.cpi.sn` |
+| `VITE_GTAG_ID` | Identifiant de mesure Google Analytics (`G-…`) | vide — **aucun script de suivi n'est injecté** |
+
+```bash
+VITE_SITE_URL=https://votre-domaine.sn VITE_GTAG_ID=G-XXXXXXXXXX npm run build
+```
+
+> ⚠️ `VITE_SITE_URL` doit pointer sur le domaine de production. Une URL canonique erronée est pire que pas d'URL du tout : les moteurs suivraient une adresse inexistante.
+
+Tant que `VITE_GTAG_ID` est vide, la page ne contient **aucune** balise de suivi et n'émet aucune requête vers Google. Une fois l'identifiant fourni, le marqueur est ajouté avec `anonymize_ip`. Si vous mesurez des visiteurs situés dans l'Union européenne, prévoyez en plus une bannière de consentement — l'injection actuelle ne gère pas le consentement préalable.
 
 ---
 
