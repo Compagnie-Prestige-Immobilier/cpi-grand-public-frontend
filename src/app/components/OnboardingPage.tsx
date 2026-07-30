@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Landmark, Briefcase, UserCircle, Lock } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { auth, type UserData, type OnboardingInput } from '../api/endpoints';
 import { apiErrorMessage } from '../api/client';
 
 type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
 
-const PROFIL_OPTIONS: { type: ProfilType; label: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }[] = [
+const PROFIL_OPTIONS: { type: ProfilType; label: string; icon: LucideIcon }[] = [
   { type: 'fonctionnaire', label: 'Fonctionnaire', icon: Landmark },
   { type: 'prive', label: 'Secteur privé', icon: Briefcase },
   { type: 'autre', label: 'Autre profil', icon: UserCircle },

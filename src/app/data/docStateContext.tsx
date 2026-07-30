@@ -241,7 +241,6 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
   const history:    ActivityEntry[] = allHistory[selectedClientId] ?? [];
   const dossierEtape: number        = allEtapes[selectedClientId] ?? 0;
 
-  const nameFor = (clientId: string) => allClients.find(c => c.id === clientId)?.name ?? clientId;
 
   /**
    * Rafraîchit les vues qui dépendent des pièces après une mutation.

@@ -4,10 +4,11 @@ import {
   ShieldCheck, LogIn, Clock, FileX, FileCheck, CreditCard,
   BellOff, Check, ChevronRight, Info,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useNavigate } from '../contexts/NavigationContext';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
-import type { HistoEntry } from '../data/demoStore';
+import type { ActivityEntry } from '../data/activityLog';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ const INITIAL_NOTIFS: Notif[] = [];
 // ─── Type config ──────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<NotifType, {
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   color: string;
   bg: string;
   border: string;
@@ -119,7 +120,7 @@ const CATEGORIES: { id: NotifCategory; label: string }[] = [
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 // Convertit une trace d'envoi de l'agent (type 'notification') en notification client.
-function agentEntryToNotif(e: HistoEntry): Notif {
+function agentEntryToNotif(e: ActivityEntry): Notif {
   const m = e.action.match(/«\s*(.*?)\s*»/);
   const message = m ? m[1] : e.action;
   const canal = e.action.split(' envoyé')[0] || 'Notification';

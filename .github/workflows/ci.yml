@@ -12,6 +12,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  types:
+    name: Types (tsc --noEmit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # Toute la couche API repose sur les types générés par le backend : une
+      # erreur de type y est une erreur d'exécution. Contrôle bloquant, en mode
+      # strict, et jamais ignoré (`npm run build` lance tsc avant Vite).
+      - name: Vérifier les types
+        run: npm run typecheck
+
   build:
     name: Build (Vite)
     runs-on: ubuntu-latest
@@ -27,9 +48,9 @@ jobs:
       - name: Installer les dépendances
         run: npm ci --ignore-scripts
 
-      # Le build est le seul filet du projet côté types : Rollup échoue sur un
-      # import ou un export introuvable. C'est exactement ce qui a rattrapé une
-      # migration laissée à mi-chemin — il doit donc rester bloquant.
+      # `build` = `tsc --noEmit && vite build` : les erreurs de type arrêtent la
+      # construction, et Rollup échoue en plus sur un import ou un export
+      # introuvable — ce qui a déjà rattrapé une migration laissée à mi-chemin.
       - name: Compiler l'application
         run: npm run build
 
@@ -105,21 +126,9 @@ jobs:
           echo "✓ Types générés présents."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Étape suivante conseillée : un vrai contrôle de types.
-#
-# Le dépôt n'a ni tsconfig.json ni TypeScript installé — `npm run build` passe
-# par esbuild, qui transpile sans vérifier les types. Une erreur de type ne
-# casse donc jamais la construction, alors que toute la couche API repose
-# désormais sur les types générés par le backend.
-#
-# Pour l'activer :
-#   1. npm i -D typescript @types/react @types/react-dom
-#   2. ajouter un tsconfig.json (strict, jsx: react-jsx, moduleResolution: bundler)
-#   3. ajouter le script  "typecheck": "tsc --noEmit"
-#   4. ajouter ici un travail qui lance `npm run typecheck`
-#
-# Prévoyez du travail de remise à niveau : des erreurs préexistantes subsistent
-# (variance de LucideProps.size, comparaisons de dates dans les tableaux de
-# bord, import d'image .png sans déclaration de module). Commencez donc en
-# non bloquant — `continue-on-error: true` — puis resserrez.
+# `src/app/components/ui/**` (hors index.tsx) est exclu du contrôle de types :
+# échafaudage shadcn/Figma jamais importé, aux specifiers versionnés
+# (`lucide-react@0.487.0`…) que ni Vite ni tsc ne savent résoudre. Le jour où
+# l'un de ces composants sert vraiment, corrigez ses imports et retirez
+# l'exclusion de tsconfig.json plutôt que de contourner le contrôle.
 # ─────────────────────────────────────────────────────────────────────────────

@@ -23,11 +23,22 @@
 
     // Même alias que vite.config.ts.
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/app/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"],
-  // Matériel de référence figé, non livré : hors du périmètre de vérification.
-  "exclude": ["node_modules", "dist", "src/imports/pasted_text/**"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/types/**/*.d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    // Matériel de référence figé, non livré.
+    "src/imports/pasted_text/**",
+    // Échafaudage shadcn/Figma jamais importé, aux specifiers versionnés
+    // (`lucide-react@0.487.0`…) que ni Vite ni tsc ne savent résoudre.
+    // `ui/index.tsx`, lui, est le vrai design system : il reste vérifié, car
+    // ClientDashboardHome l'importe et `exclude` n'écarte pas un fichier
+    // atteint par un import.
+    "src/app/components/ui/**"
+  ]
 }

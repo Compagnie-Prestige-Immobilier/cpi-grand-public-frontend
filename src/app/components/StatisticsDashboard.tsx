@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import {
   TrendingUp, TrendingDown, FileText, CheckCircle2, XCircle,
-  Clock, Banknote, Users, BarChart3, ArrowUpRight, ArrowDownRight,
-  Calendar, Download, Filter,
-  Eye, MousePointerClick, Repeat, Activity, Percent, UserCheck, UserPlus, Timer, Gauge,
+  Clock, Banknote, Users, BarChart3, Download, Eye, MousePointerClick, Repeat, Activity, Percent, UserCheck, UserPlus, Timer, Gauge,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
-  CartesianGrid, Legend, FunnelChart, Funnel, LabelList
+  PieChart, Pie, Cell, CartesianGrid
 } from 'recharts';
-import type { AuthUser, UserRole } from '../App';
+import type { AuthUser } from '../App';
 import { useClientContext } from '../contexts/ClientContext';
 import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
@@ -44,7 +42,7 @@ const PERIODS = ['3 mois', '6 mois', '12 mois', 'Tout'];
 // ─── Helper components ──────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, delta, positive, icon: Icon, color }: {
   label: string; value: string; sub: string; delta?: string; positive?: boolean;
-  icon: React.ComponentType<{ className?: string }>; color: string;
+  icon: LucideIcon; color: string;
 }) {
   return (
     <div className="bg-white p-5" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
@@ -93,7 +91,7 @@ function EmptyChart({ height = 200, label = 'Aucune donnée pour le moment' }: {
 // « à connecter » (métrique nécessitant un outil de mesure d'audience / le backend).
 function MetricTile({ label, value, hint, source, icon: Icon }: {
   label: string; value?: string; hint: string; source: 'real' | 'analytics';
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  icon: LucideIcon;
 }) {
   const isReal = source === 'real';
   return (
@@ -144,7 +142,6 @@ export default function StatisticsDashboard({ user }: Props) {
   const [activeTab, setActiveTab] = useState<'volume' | 'financier' | 'agents' | 'entonnoir' | 'audience'>('volume');
 
   const isAdmin = user.role === 'admin';
-  const isAgentCPI = user.role === 'agent-cpi';
 
   // ── Métriques RÉELLES du portefeuille (clients suivis) ─────────────────────
   const { allClients } = useClientContext();
@@ -246,8 +243,8 @@ export default function StatisticsDashboard({ user }: Props) {
     : allClients.length;
   const totalUtilisateurs = allClients.length;
 
-  type AudienceMetric = { label: string; hint: string; source: 'real' | 'analytics'; value?: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
-  const audienceFamilies: { title: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; metrics: AudienceMetric[] }[] = [
+  type AudienceMetric = { label: string; hint: string; source: 'real' | 'analytics'; value?: string; icon: LucideIcon };
+  const audienceFamilies: { title: string; icon: LucideIcon; metrics: AudienceMetric[] }[] = [
     {
       title: 'Acquisition', icon: UserPlus, metrics: [
         { label: 'Nouveaux utilisateurs', hint: `Inscriptions · ${period.toLowerCase()}`, source: 'real', value: String(nouveauxUtilisateurs), icon: UserPlus },

@@ -5,6 +5,7 @@ import {
   BarChart3, ShieldCheck, CreditCard, BookOpen, FolderOpen, LifeBuoy,
   Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import cpiLogo from '../../imports/image.png';
 import type { AuthUser, UserRole } from '../App';
 import { ClientProvider } from '../contexts/ClientContext';
@@ -49,7 +50,7 @@ const ROLE_COLORS: Record<UserRole, { bg: string; text: string }> = {
   'admin': { bg: 'rgba(139,92,246,0.12)', text: '#7C3AED' },
 };
 
-type NavItem = { id: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { id: string; label: string; icon: LucideIcon };
 
 function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
   if (role === 'client-fonctionnaire' || role === 'client-public') return [

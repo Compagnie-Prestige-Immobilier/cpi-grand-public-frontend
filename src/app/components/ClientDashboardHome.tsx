@@ -5,8 +5,9 @@ import {
   ArrowUpRight, TrendingUp, ChevronRight, Sparkles,
   MapPin, User, UserPlus, Calculator, CircleDot, Image as ImageIcon,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
-import type { HistoActionType } from '../data/demoStore';
+import type { ActivityType } from '../data/activityLog';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { useDossierJourney } from '../data/dossierJourney';
@@ -20,7 +21,10 @@ import {
 interface Props { user: AuthUser; }
 
 // Maps the client's real activity history (useClientData().historique) to an icon + tone
-const HISTO_ICON: Record<HistoActionType, React.ComponentType<{ size?: number }>> = {
+// Le journal serveur porte deux familles de plus que l'ancien journal local
+// (« compte » et « banque ») : la table doit les couvrir, sans quoi ces entrées
+// s'afficheraient sans icône.
+const HISTO_ICON: Record<ActivityType, LucideIcon> = {
   validation: CheckCircle,
   document: FileText,
   notification: Bell,
@@ -29,11 +33,14 @@ const HISTO_ICON: Record<HistoActionType, React.ComponentType<{ size?: number }>
   commentaire: MessageSquare,
   depot: FileUp,
   refus: AlertTriangle,
+  compte: UserPlus,
+  banque: CreditCard,
 };
-const HISTO_TONE: Record<HistoActionType, string> = {
+const HISTO_TONE: Record<ActivityType, string> = {
   validation: 'success', document: 'primary', notification: 'accent',
   photo: 'primary', decaissement: 'success', commentaire: 'muted',
   depot: 'primary', refus: 'danger',
+  compte: 'primary', banque: 'accent',
 };
 
 const TONE: Record<string, string> = {
@@ -67,7 +74,10 @@ export default function ClientDashboardHome({ user }: Props) {
   const issueDoc  = requisDocs.find(d => d.status === 'refuse' || d.status === 'a-remplacer');
   const validDocs = requisDocs.filter(d => d.status === 'accepte').length;
   const totalDocs = requisDocs.length;
-  const alerteBadge: 'none' | 'warning' | 'danger' = issueDoc ? 'warning' : 'none';
+  // Une pièce refusée ou à remplacer produit un avertissement. Le niveau
+  // « danger » était déclaré mais jamais atteint : les branches associées
+  // étaient mortes, on s'en tient donc aux deux états réellement possibles.
+  const alerteBadge: 'none' | 'warning' = issueDoc ? 'warning' : 'none';
 
   // Parcours du dossier (6 étapes) — étape active dérivée de l'état réel.
   const { activeStep, nextEtape, steps, submitted, reachedSignature } = useDossierJourney();
@@ -98,8 +108,8 @@ export default function ClientDashboardHome({ user }: Props) {
   const endDate = new Date(Date.now() + moisRestants * 30 * 86400000)
     .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-  const alertColor = alerteBadge === 'danger' ? 'var(--destructive)' : alerteBadge === 'warning' ? 'var(--accent)' : 'var(--success)';
-  const alertBg    = alerteBadge === 'danger' ? 'rgba(192,57,43,0.1)' : alerteBadge === 'warning' ? 'rgba(200,146,26,0.1)' : 'rgba(26,107,68,0.1)';
+  const alertColor = alerteBadge === 'warning' ? 'var(--accent)' : 'var(--success)';
+  const alertBg    = alerteBadge === 'warning' ? 'rgba(200,146,26,0.1)' : 'rgba(26,107,68,0.1)';
 
   return (
     <div style={{ fontFamily: 'var(--font-sans)', color: 'var(--foreground)', width: '100%', padding: '0 0 64px' }}>
@@ -333,7 +343,7 @@ export default function ClientDashboardHome({ user }: Props) {
       {/* ── INLINE ALERT ──────────────────────────────────────────────────────── */}
       {alerteBadge !== 'none' && (
         <div style={{ marginBottom: 20 }}>
-          <InlineAlert type={alerteBadge === 'danger' ? 'danger' : 'warning'}>
+          <InlineAlert type="warning">
             Action requise : un document a été refusé. Veuillez le remplacer dès que possible.
           </InlineAlert>
         </div>

@@ -7,10 +7,11 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, Clock, AlertCircle, AlertTriangle, Info,
-  ChevronRight, ArrowUpRight, Upload, X, Eye, Download,
+  ChevronRight, Upload, X, Eye, Download,
   Loader2, Inbox, FileX, WifiOff, Search,
 } from 'lucide-react';
 
+import type { LucideIcon } from 'lucide-react';
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKENS
 // All values reference CSS variables so the design system respects the
@@ -743,7 +744,7 @@ export function ActionRow({
 
 export type DocStatus = 'accepte' | 'en-attente' | 'verification' | 'refuse' | 'a-remplacer' | 'non-depose';
 
-const DOC_STATUS_CFG: Record<DocStatus, { label: string; variant: StatusVariant; icon: React.ComponentType<{ size?: number }> }> = {
+const DOC_STATUS_CFG: Record<DocStatus, { label: string; variant: StatusVariant; icon: LucideIcon }> = {
   'accepte':      { label: 'Validé',       variant: 'success', icon: CheckCircle2 },
   'en-attente':   { label: 'En attente',   variant: 'warning', icon: Clock        },
   'verification': { label: 'En cours',     variant: 'info',    icon: Loader2      },
@@ -873,7 +874,7 @@ export function MediaThumb({
 
 type EmptyType = 'empty' | 'no-docs' | 'no-notifs' | 'no-chantier' | 'error' | 'offline' | 'no-results';
 
-const EMPTY_CFG: Record<EmptyType, { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; title: string; sub: string }> = {
+const EMPTY_CFG: Record<EmptyType, { icon: LucideIcon; title: string; sub: string }> = {
   'empty':       { icon: Inbox,   title: 'Aucune donnée',           sub: "Rien à afficher pour le moment."                  },
   'no-docs':     { icon: FileX,   title: 'Aucun document',          sub: "Vos documents apparaîtront ici une fois déposés." },
   'no-notifs':   { icon: Inbox,   title: 'Aucune notification',     sub: "Vous êtes à jour. Revenez plus tard."             },

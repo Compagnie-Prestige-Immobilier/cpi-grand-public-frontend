@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp, Users, FileText, CheckCircle2,
-  Clock, AlertCircle, XCircle, ArrowUpRight,
-  Shield, Banknote, ChevronRight, Server, Bell, Upload,
+  Clock, AlertCircle, XCircle, Shield, Banknote, ChevronRight, Server, Bell, Upload,
   Search, Download, Activity, X, ArrowRight, RefreshCw, PenLine,
   UserPlus, Copy, Mail, Plus, Trash2, Building2, Landmark,
   Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import type { AuthUser } from '../App';
 import { useNavigate } from '../contexts/NavigationContext';
@@ -62,7 +62,7 @@ function parseFrDate(date: string, now: Date): Date | null {
   return new Date(Number(m[3]), monthIdx, Number(m[1]));
 }
 
-const ACT_ICON: Record<string, { El: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
+const ACT_ICON: Record<string, { El: LucideIcon; color: string }> = {
   validation:   { El: CheckCircle2, color: A.green },
   refus:        { El: XCircle,      color: A.red },
   document:     { El: FileText,     color: A.bordeaux },
@@ -137,12 +137,16 @@ export default function AdminDashboard({ user, activeNav }: Props) {
   // Diagramme d'évolution RÉEL : inscriptions + activité + validations par période.
   const evolutionData = useMemo(() => {
     const now2 = new Date();
-    const events = activityAll
-      .map(e => ({ d: parseFrDate(e.date, now2), type: e.type }))
-      .filter((e): e is { d: Date; type: string } => e.d !== null);
-    const inscriptions = allClients
-      .map(c => (c.dateInscription ? parseFrDate(c.dateInscription, now2) : null))
-      .filter((d): d is Date => d !== null);
+    // flatMap plutôt qu'un map suivi d'un prédicat : les entrées dont la date
+    // est illisible disparaissent, et `d` reste une vraie Date pour la suite.
+    const events = activityAll.flatMap(e => {
+      const d = parseFrDate(e.date, now2);
+      return d ? [{ d, type: e.type }] : [];
+    });
+    const inscriptions = allClients.flatMap(c => {
+      const d = c.dateInscription ? parseFrDate(c.dateInscription, now2) : null;
+      return d ? [d] : [];
+    });
     type Bucket = { label: string; test: (d: Date) => boolean };
     const buckets: Bucket[] = [];
     if (granularity === 'mensuel') {
@@ -181,7 +185,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
   ].filter(a => a.count > 0);
 
   // Raccourcis vers tous les espaces de gestion de la plateforme.
-  const shortcuts: { label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; nav: string }[] = [
+  const shortcuts: { label: string; icon: LucideIcon; nav: string }[] = [
     { label: 'Toutes les demandes', icon: FileText,   nav: 'demandes' },
     { label: 'Utilisateurs',        icon: Users,      nav: 'utilisateurs' },
     { label: 'Partenaires',         icon: Shield,     nav: 'partenaires' },
@@ -299,7 +303,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
     { label: 'Complétude moyenne des dossiers', pct: completude,     hint: 'Part des pièces requises validées',        color: A.gold },
   ];
 
-  type LoadMetric = { label: string; value: number; hint: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string };
+  type LoadMetric = { label: string; value: number; hint: string; icon: LucideIcon; color: string };
   // Panneau « Charge & file d'attente » (pilotage des techniciens).
   const chargeMetrics: LoadMetric[] = [
     { label: 'Dossiers actifs',        value: rEnCours,   hint: 'Non finalisés, en cours de traitement', icon: FileText,    color: A.gold },
@@ -310,7 +314,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
   ];
 
   // Santé technique : front mesurable ; serveur/BDD viendront du backend (prévu).
-  const systemHealth: { label: string; value: string; ok: boolean | null; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }[] = [
+  const systemHealth: { label: string; value: string; ok: boolean | null; icon: LucideIcon }[] = [
     { label: 'Plateforme',                     value: 'Opérationnelle',        ok: true,    icon: Activity },
     { label: 'Interface (front)',              value: 'À jour · build déployé', ok: true,   icon: Zap },
     { label: 'Connexion sécurisée (HTTPS)',    value: httpsOk ? 'Actif' : 'Non sécurisé', ok: httpsOk, icon: Shield },
@@ -861,7 +865,7 @@ function SystemeView() {
   const integrations: {
     label: string;
     note: string;
-    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+    icon: LucideIcon;
     ok: boolean;
   }[] = [
     { label: 'API / Backend REST', note: 'API Laravel — persistance centralisée', icon: Server, ok: true },
@@ -1458,7 +1462,6 @@ function DemandesView({ agentName }: { agentName: string }) {
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: A.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Orientation banques</div>
             {(() => {
               const clientId = selected.c.id;
-              const clientName = selected.c.name;
               const assigned = assignMap[clientId] ?? [];
               const available = banks.filter(b => !assigned.some(a => a.bankId === b.id));
               const busy = assignMutation.isPending || statusMutation.isPending || removeMutation.isPending;
@@ -1905,7 +1908,6 @@ function PartnersView() {
 
   const removeBank = () => {
     if (!confirmDel) return;
-    const removedName = confirmDel.name;
     deleteMutation.mutate(confirmDel.id, {
       onSuccess: () => {
         setConfirmDel(null);

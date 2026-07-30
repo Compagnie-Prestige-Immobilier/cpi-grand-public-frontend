@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Building2, Shield, Users, ChevronRight, CheckCircle2,
+  Shield, Users, ChevronRight, CheckCircle2,
   Star, ArrowRight, Phone, Mail, MapPin, Menu, X,
   TrendingUp, Clock, FileText, Award, Facebook, Instagram, Linkedin
 } from 'lucide-react';

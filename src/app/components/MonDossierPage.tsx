@@ -10,6 +10,7 @@ import {
   FileSignature, ScrollText, Handshake, Mail as MailIcon,
   ClipboardList, Archive, X, ShieldCheck, Loader2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { useClientData } from '../data/useClientData';
 import { useMesBanquesQuery, toBankAssignment, type BankStatus } from '../data/bankRegistry';
@@ -28,7 +29,7 @@ interface RequisDossier {
   requirement: string;
   accent: string;
   accentBg: string;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   status: DossierStatus;
   date?: string;
   agent?: string;
@@ -66,7 +67,7 @@ const REQUIS_DOSSIERS: RequisDossier[] = [
 interface CpiFolder {
   id: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   docs: Array<{ id: string; nom: string; date: string; statut: string; canSign: boolean; version: string; format?: string; taille?: string; categorie: string }>;
 }
 
@@ -80,7 +81,7 @@ const CPI_STATUS_LABEL: Record<string, string> = {
   archive:    'Archivé',
 };
 
-const CPI_CATEGORY_CFG: Record<string, { label: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
+const CPI_CATEGORY_CFG: Record<string, { label: string; icon: LucideIcon }> = {
   contrats:     { label: 'Contrats',           icon: ScrollText    },
   conventions:  { label: 'Conventions',         icon: Handshake     },
   bancaires:    { label: 'Documents bancaires', icon: CreditCard    },
@@ -108,7 +109,7 @@ function computeCpiDocs(docs: CpiDoc[]): CpiFolder['docs'] {
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
+const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
   'accepte':      { label: 'Validé',          color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
   'refuse':       { label: 'Refusé',          color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: XCircle },
   'a-remplacer':  { label: 'À corriger',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: RefreshCw },
@@ -163,7 +164,7 @@ function DossierStatusBadge({ status }: { status: DossierStatus }) {
 }
 
 function ActionBtn({ icon: Icon, label, variant = 'ghost', disabled, onClick }: {
-  icon: React.ComponentType<{ size?: number }>;
+  icon: LucideIcon;
   label: string; variant?: 'ghost' | 'primary' | 'sign';
   disabled?: boolean; onClick?: () => void;
 }) {
@@ -188,7 +189,7 @@ function ActionBtn({ icon: Icon, label, variant = 'ghost', disabled, onClick }: 
 
 // Section shell — a titled card the whole page is built from.
 function Section({ icon: Icon, iconBg, iconColor, title, subtitle, right, children }: {
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   iconBg: string; iconColor: string; title: string; subtitle?: string;
   right?: React.ReactNode; children: React.ReactNode;
 }) {
@@ -910,7 +911,7 @@ function HistoriqueSection() {
     validation: 'success', refus: 'warning', commentaire: 'comment',
     document: 'info', notification: 'info', photo: 'info', decaissement: 'info', depot: 'info',
   };
-  const iconMap: Record<string, { bg: string; color: string; El: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
+  const iconMap: Record<string, { bg: string; color: string; El: LucideIcon }> = {
     success: { bg: 'rgba(26,107,68,0.12)',  color: 'var(--success)',     El: CheckCircle2 },
     warning: { bg: 'rgba(192,57,43,0.10)',  color: 'var(--destructive)', El: AlertCircle },
     comment: { bg: 'rgba(200,146,26,0.10)', color: 'var(--accent)',      El: MessageSquare },

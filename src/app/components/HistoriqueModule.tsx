@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CheckCircle2, FileText, Bell, Camera, Banknote, MessageSquare, Upload, AlertCircle, Filter, Search, UserPlus, Landmark, Download } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
 import { useClientContext } from '../contexts/ClientContext';
@@ -19,7 +20,7 @@ interface HistoryEntry {
   cible?: string;
 }
 
-const TYPE_CFG: Record<ActionType, { icon: React.ComponentType<{ size?: number }>; color: string; bg: string }> = {
+const TYPE_CFG: Record<ActionType, { icon: LucideIcon; color: string; bg: string }> = {
   validation:    { icon: CheckCircle2,  color: 'var(--success)',           bg: 'rgba(26,107,68,0.10)'    },
   document:      { icon: FileText,      color: 'var(--primary)',           bg: 'var(--secondary)'        },
   notification:  { icon: Bell,          color: '#8B5CF6',                  bg: 'rgba(139,92,246,0.10)'   },
@@ -80,7 +81,6 @@ export default function HistoriqueModule() {
   // /staff/historique répond 403 à un client : l'écran est réservé au personnel.
   const historiqueQuery = useHistoriqueQuery(role === 'agent-cpi' || role === 'super-admin');
 
-  const clientName = (cid: string) => allClients.find(c => c.id === cid)?.name ?? cid;
 
   // Historique réel agrégé : pièces + documents CPI + journal transverse. Depuis
   // la Phase 6 les trois viennent du même journal serveur (Spatie Activity Log) ;

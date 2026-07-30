@@ -6,8 +6,9 @@ import {
   Printer, Send, MapPin, Banknote, Timer, User2,
   Hash, LayoutGrid, ArrowRight, FolderOpen, Bell, ImageIcon, FileUp, Loader2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
-import type { HistoActionType } from '../data/demoStore';
+import type { ActivityType } from '../data/activityLog';
 import { frDate } from '../data/demoStore';
 import { useClientData } from '../data/useClientData';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
@@ -53,14 +54,19 @@ const DOC_DESCRIPTIONS: Record<string, string> = {
 };
 
 // ── History icon/tone (mêmes conventions que le Tableau de bord) ────
-const HISTO_ICON: Record<HistoActionType, React.ComponentType<{ size?: number }>> = {
+// Le journal serveur porte deux familles de plus que l'ancien journal local
+// (« compte » et « banque ») : la table doit les couvrir, sans quoi ces entrées
+// s'afficheraient sans icône.
+const HISTO_ICON: Record<ActivityType, LucideIcon> = {
   validation: CheckCircle2, document: FileText, notification: Bell, photo: ImageIcon,
   decaissement: Banknote, commentaire: MessageSquare, depot: FileUp, refus: AlertCircle,
+  compte: User2, banque: Building2,
 };
-const HISTO_COLOR: Record<HistoActionType, string> = {
+const HISTO_COLOR: Record<ActivityType, string> = {
   validation: 'var(--success)', document: 'var(--primary)', notification: 'var(--accent)',
   photo: 'var(--primary)', decaissement: 'var(--success)', commentaire: 'var(--muted-foreground)',
   depot: 'var(--primary)', refus: 'var(--destructive)',
+  compte: 'var(--primary)', banque: 'var(--accent)',
 };
 
 // ── Constants ──────────────────────────────────────────────────────

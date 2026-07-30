@@ -5,6 +5,7 @@ import {
   Landmark, Briefcase, UserCircle, ArrowRight, CheckCircle,
   Mail, Phone, Building2, AlertCircle, Check,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AppPage } from '../App';
 import { auth, type AuthPayload } from '../api/endpoints';
 import { setToken, apiErrorMessage, apiFieldError } from '../api/client';
@@ -17,7 +18,7 @@ const PROFIL_OPTIONS: {
   type: ProfilType;
   label: string;
   sub: string;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   color: string;
   bg: string;
   cardBg: string;

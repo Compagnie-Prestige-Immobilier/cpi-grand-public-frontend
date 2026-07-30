@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import {
   User, FileText, CheckCircle2, XCircle, Clock, RefreshCw, AlertCircle, Send,
-  ChevronRight, ArrowLeft, PenSquare, Building, Banknote, CreditCard, UserCheck,
+  ChevronRight, ArrowLeft, PenSquare, Banknote, CreditCard, UserCheck,
   ScrollText, Handshake, ClipboardList, FileSignature, Mail as MailIcon, Upload,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useClientContext } from '../contexts/ClientContext';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useCpiDocs, type CpiDoc } from '../data/cpiDocsContext';
@@ -17,7 +18,7 @@ import {
 
 type DocStatus = SharedDoc['status'];
 
-const PIECE_CFG: Record<DocStatus, { label: string; color: string; bg: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
+const PIECE_CFG: Record<DocStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
   'en-attente':  { label: 'À déposer',        color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
   depose:        { label: 'Déposé — à vérifier', color: 'var(--chart-4)',       bg: 'rgba(176,80,112,0.08)', icon: Upload },
   verification:  { label: 'En vérification',  color: 'var(--accent)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
@@ -26,11 +27,11 @@ const PIECE_CFG: Record<DocStatus, { label: string; color: string; bg: string; i
   'a-remplacer': { label: 'À remplacer',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)',  icon: RefreshCw },
 };
 
-const PIECE_ICON: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+const PIECE_ICON: Record<string, LucideIcon> = {
   identite: UserCheck, revenus: Banknote, bancaires: CreditCard,
 };
 
-const CPI_CAT_CFG: Record<string, { label: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
+const CPI_CAT_CFG: Record<string, { label: string; icon: LucideIcon }> = {
   contrats: { label: 'Contrat', icon: ScrollText }, conventions: { label: 'Convention', icon: Handshake },
   bancaires: { label: 'Bancaire', icon: CreditCard }, courriers: { label: 'Courrier', icon: MailIcon },
   pv: { label: 'PV', icon: ClipboardList }, autorisations: { label: 'Autorisation', icon: FileSignature },
@@ -438,7 +439,6 @@ export default function AgentDossiersReels({ agentName, mode = 'actifs' }: { age
     const nbFinalises = rows.filter(r => r.st.activeStep >= SIGNATURE_INDEX).length;
     const nbActifs    = nbTotal - nbFinalises;
     const nbAVerifier = rows.reduce((n, r) => n + r.st.docs.filter(d => d.status === 'depose' || d.status === 'verification').length, 0);
-    const nbACorriger = rows.filter(r => r.st.hasIssue).length;
     const nbASigner   = rows.reduce((n, r) => n + r.st.toSign, 0);
     const nbAAvancer  = rows.filter(r => r.st.allValid && r.st.activeStep === DOCS_VALIDES_INDEX).length;
 

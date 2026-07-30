@@ -8,6 +8,7 @@ import {
   CalendarDays, BarChart3, Image, Video,
   Ruler, Star, ArrowUpRight, Zap, User,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { useChantierState } from '../data/chantierStateContext';
 import { useClientData } from '../data/useClientData';
@@ -71,7 +72,7 @@ function Badge({ children, variant = 'default' }: {
 }
 
 function SectionHeader({ icon: Icon, title, sub, action }: {
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   title: string;
   sub?: string;
   action?: React.ReactNode;

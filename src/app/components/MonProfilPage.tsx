@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import {
   User, MapPin, Briefcase, Banknote,
-  Edit3, CheckCircle, Camera, ChevronRight,
-  Phone, Mail, Building2, Calendar, Clock,
+  Edit3, CheckCircle, Camera, Phone, Mail, Building2, Calendar, Clock,
   Copy, Check, TrendingUp, TrendingDown, Minus,
   AlertCircle, Shield, BadgeCheck,
   LogOut, KeyRound, Monitor, Trash2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
-import { useNavigate } from '../contexts/NavigationContext';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
 
 interface MonProfilPageProps {
@@ -59,7 +58,7 @@ function FieldRow({
 }: {
   label: string;
   value: string;
-  icon?: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon?: LucideIcon;
   mono?: boolean;
   copyable?: boolean;
   link?: string;
@@ -130,7 +129,7 @@ function SectionCard({
   editing,
 }: {
   children: React.ReactNode;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   title: string;
   subtitle?: string;
   onEdit?: () => void;
@@ -249,7 +248,6 @@ export default function MonProfilPage({ user, onLogout }: MonProfilPageProps) {
 function ClientProfile({ user }: { user: AuthUser }) {
   const clientData = useClientData();
   const { requisDocs } = useDocState();
-  const { navigate } = useNavigate();
 
   // Compteur RÉEL de pièces déposées (aucune valeur inventée).
   const docsTotalReal = requisDocs.length;
