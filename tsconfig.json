@@ -23,7 +23,6 @@
 
     // Même alias que vite.config.ts.
     "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/app/*"]
     }
