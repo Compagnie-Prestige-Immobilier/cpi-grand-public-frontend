@@ -1,0 +1,23 @@
+# CPI Immobilier — MONESPACE.CPI
+
+> Espace en ligne de la Compagnie Prestige Immobilier (Sénégal) : un client y dépose sa demande de financement immobilier, suit la validation de ses pièces, ses documents contractuels, ses décaissements bancaires et l'avancement de son chantier. Le personnel CPI y instruit les dossiers.
+
+Application React (Vite) adossée à une API Laravel qui détient toutes les données. L'interface est **en français**, destinée aux fonctionnaires, salariés du privé et à la diaspora sénégalaise.
+
+L'accès est **entièrement authentifié** : hors la page d'accueil et les écrans de connexion/inscription, aucun contenu n'est public. Il n'y a donc pas de pages indexables décrivant des dossiers, et aucune donnée client n'est accessible sans jeton.
+
+## Espaces
+
+- [Espace client]: demande de financement, dépôt des pièces justificatives (identité, revenus, relevés bancaires), suivi du parcours en 6 étapes, documents établis par le CPI, signature électronique, suivi de chantier, notifications.
+- [Espace Agent CPI]: instruction des dossiers, validation ou refus des pièces, documents administratifs, orientation vers les banques partenaires, décaissements, suivi de chantier, historique.
+- [Espace Administrateur]: vue globale, gestion des comptes du personnel et des partenaires bancaires, statistiques, journal d'audit, jeu de données de démonstration.
+
+## Notes pour les agents automatiques
+
+- Les données métier vivent côté serveur ; le navigateur ne conserve qu'un jeton d'authentification et un avatar local.
+- Les pièces justificatives sont des documents personnels (identité, bulletins de salaire, relevés bancaires) stockés sur un bucket privé et servis uniquement par URL signée de courte durée. Ne pas tenter de les récupérer, ni de deviner des liens de fichiers.
+- L'API est documentée séparément (voir le fichier `llms.txt` du domaine de l'API).
+
+## Contact
+
+- Compagnie Prestige Immobilier — Dakar, Sénégal.

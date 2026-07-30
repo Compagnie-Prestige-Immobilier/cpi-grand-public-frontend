@@ -2,38 +2,59 @@
 
 Plateforme de financement immobilier pour le Sénégal (fonctionnaires, secteur privé, diaspora). Application **React + Vite** avec trois espaces distincts et un design system maison.
 
-🔗 **Démo en ligne** : https://lavenderblush-opossum-991431.hostingersite.com
 🎨 **Design d'origine (Figma)** : https://www.figma.com/design/ZxadxXNEWOPOWFg1xKdZux/Crowdfunding-Platform-UI-UX-Design--Community-
+
+> Cette application **nécessite l'API Laravel** [`cpi-chues-backend`](../backend) : toutes les données métier y vivent. Un hébergement statique seul (GitHub Pages…) ne suffit plus.
 
 ---
 
 ## Espaces
 
 | Rôle | Accès | Fonctions clés |
-|------|-------|----------------|
-| **Client** | Espace client (nom + e-mail) | Simulateur de prêt, dépôt de demande, suivi du dossier & des pièces, chantier, notifications |
-| **Agent CPI** | Espace professionnel | Traitement des dossiers, documents clients/CPI, décaissements bancaires, produits financiers, historique |
-| **Administrateur** | Espace professionnel | Vue globale, utilisateurs, partenaires bancaires, tous les décaissements, journal d'audit, statistiques |
+| --- | --- | --- |
+| **Client** | Espace client | Simulateur de prêt, demande de financement, suivi du dossier et des pièces, documents CPI, chantier, notifications |
+| **Agent CPI** | Espace professionnel | Traitement des dossiers, documents clients/CPI, décaissements bancaires, suivi de chantier, historique |
+| **Administrateur** | Espace professionnel | Vue globale, utilisateurs, partenaires bancaires, tous les décaissements, journal d'audit, statistiques, jeu de démonstration |
 
-### Comptes de connexion (démo, sans backend)
-- **Agent CPI** : `agent@cpi.sn` — mot de passe : n'importe quoi ≥ 4 caractères
-- **Administrateur** : `admin@cpi.sn` — mot de passe : n'importe quoi ≥ 4 caractères
-- **Client** : créer un compte via l'inscription, ou se connecter avec un nom + e-mail (réutilisé s'il existe déjà)
+### Comptes
 
-> ⚠️ Pas de backend : toutes les données vivent en `localStorage` (base vide au départ, aucun compte fictif). Les identifiants pro ci-dessus sont provisoires.
+| Rôle | Identifiant | Mot de passe |
+| --- | --- | --- |
+| Agent CPI | `agent@cpi.sn` | `agent1234` |
+| Administrateur | `admin@cpi.sn` | `admin1234` |
+
+Les clients s'inscrivent librement (e-mail + mot de passe, ou Google). Les comptes du personnel sont créés par l'administrateur depuis l'application.
+
+Pour peupler l'application, l'administrateur dispose de **Système → Données de démo** : 30 dossiers répartis sur tout le parcours, supprimables d'un clic sans toucher aux dossiers réels.
 
 ---
 
-## Stack & architecture
+## Stack
 
-- **React 18 + Vite** (build esbuild), **TypeScript**
-- Styles : **CSS-in-JS inline + variables CSS (design tokens)** + Tailwind
+- **React 18 + Vite 6**, **TypeScript strict**
+- **TanStack Query** pour toutes les lectures et mutations · **axios** pour le transport
+- Styles : CSS-in-JS inline + variables CSS (design tokens) + Tailwind
 - Graphiques : **Recharts** · Icônes : **lucide-react** (bibliothèque unique)
 - Polices : **Bricolage Grotesque** (titres) · **Plus Jakarta Sans** (texte)
-- État : Contextes React + persistance `localStorage` (registres clients/staff/banques, décaissements, journal d'audit)
+
+### Données : le serveur fait autorité
+
+Le navigateur ne conserve **aucune donnée métier**. Deux clés seulement subsistent dans `localStorage` :
+
+| Clé | Rôle |
+| --- | --- |
+| `cpi_api_token` | Jeton d'authentification — confiné à [`src/app/api/client.ts`](src/app/api/client.ts) |
+| `cpi_staff_avatar_{email}` | Avatar du compte pro, sans route API dédiée |
+
+Une garde d'intégration continue échoue si un autre module se met à écrire dans le navigateur : c'est ce qui empêche un état local de réapparaître en silence et de contredire le serveur.
+
+### Types générés
+
+[`src/app/api/types/generated.d.ts`](src/app/api/types/generated.d.ts) est **produit par le backend** (`php artisan typescript:transform`) et ne se modifie jamais à la main. Toute la couche API compile contre lui : une réponse qui change de forme devient une erreur de compilation, pas une erreur d'exécution.
 
 ### Design system
-Tokens centralisés dans [`src/styles/globals.css`](src/styles/globals.css) : couleurs (bordeaux `#7B1A2E` en couleur reine), espacements, rayons, élévations, échelle typographique, motion, focus-visible. Primitives partagées dans [`src/app/components/ui/`](src/app/components/ui/).
+
+Tokens centralisés dans [`src/styles/globals.css`](src/styles/globals.css) : couleurs (bordeaux `#7B1A2E` en couleur reine), espacements, rayons, élévations, échelle typographique, motion, focus-visible. Primitives partagées dans [`src/app/components/ui/index.tsx`](src/app/components/ui/index.tsx).
 
 ---
 
@@ -41,13 +62,33 @@ Tokens centralisés dans [`src/styles/globals.css`](src/styles/globals.css) : co
 
 ```bash
 npm install
-npm run dev      # serveur de développement
-npm run build    # build de production → dist/
+npm run dev        # serveur de développement (http://localhost:5173)
 ```
 
-Le build produit `dist/` (statique), déployable sur n'importe quel hébergement statique. Chargement optimisé : l'espace connecté (dashboards + Recharts) est chargé **à la demande** (code-splitting) ; la landing/connexion reste légère (~57 Ko gzip).
+Le serveur de développement **relaie `/api` vers `http://localhost:8000`** (voir `vite.config.ts`) : lancez le backend en parallèle avec `php artisan serve`.
+
+```bash
+npm run typecheck  # tsc --noEmit, mode strict
+npm run build      # tsc --noEmit && vite build → dist/
+```
+
+`build` lance le contrôle de types **avant** Vite : une erreur de type arrête la construction, elle n'est jamais ignorée. Le build produit `dist/`, à servir derrière un hébergement pointant vers l'API.
+
+Chargement optimisé : l'espace connecté (dashboards + Recharts) est chargé **à la demande** ; la landing et la connexion restent légères.
 
 ---
 
-*Projet initialement généré via Figma Make, puis développé et perfectionné (design system, comptes réels, cohérence de charte, performances).*
-# cpi-chues-frontend
+## Intégration continue
+
+`.github/workflows/ci.yml` — quatre contrôles bloquants sur `dev` et `main` :
+
+| Contrôle | Détail |
+| --- | --- |
+| Types | `tsc --noEmit` en mode strict |
+| Build | `npm run build` (types + Vite/Rollup) |
+| Garde localStorage | Seuls deux modules peuvent écrire dans le navigateur ; le jeton reste dans la couche API |
+| Types générés | `generated.d.ts` présent |
+
+---
+
+*Projet initialement généré via Figma Make, puis développé et perfectionné (design system, migration complète vers l'API Laravel, contrôle de types strict).*
