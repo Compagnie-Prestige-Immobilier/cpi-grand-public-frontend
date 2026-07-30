@@ -1,0 +1,1107 @@
+import { useState } from 'react';
+import {
+  User, MapPin, Briefcase, Banknote,
+  Edit3, CheckCircle, Camera, ChevronRight,
+  Phone, Mail, Building2, Calendar, Clock,
+  Copy, Check, TrendingUp, TrendingDown, Minus,
+  AlertCircle, Shield, BadgeCheck,
+  LogOut, KeyRound, Monitor, Trash2,
+} from 'lucide-react';
+import type { AuthUser } from '../App';
+import { useClientData } from '../data/useClientData';
+import { useDocState } from '../data/docStateContext';
+import { useNavigate } from '../contexts/NavigationContext';
+import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
+
+interface MonProfilPageProps {
+  user: AuthUser;
+  onLogout?: () => void;
+}
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
+
+// ─── Primitives ───────────────────────────────────────────────────────────────
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Copier"
+      style={{
+        background: 'none', border: 'none', padding: '2px 4px',
+        cursor: 'pointer', color: copied ? '#1A6B44' : 'var(--muted-foreground)',
+        display: 'inline-flex', alignItems: 'center', transition: 'color 0.15s',
+        borderRadius: 'var(--r-xs)',
+      }}
+      onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--primary)'; }}
+      onMouseLeave={e => { if (!copied) e.currentTarget.style.color = 'var(--muted-foreground)'; }}
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
+  );
+}
+
+function FieldRow({
+  label,
+  value,
+  icon: Icon,
+  mono = false,
+  copyable = false,
+  link,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  mono?: boolean;
+  copyable?: boolean;
+  link?: string;
+  accent?: boolean;
+}) {
+  const valueEl = link ? (
+    <a
+      href={link}
+      style={{
+        fontFamily: mono ? 'monospace' : 'var(--font-sans)',
+        fontSize: '0.9375rem', fontWeight: 500,
+        color: 'var(--primary)', textDecoration: 'none',
+      }}
+    >
+      {value}
+    </a>
+  ) : (
+    <span style={{
+      fontFamily: mono ? 'monospace' : 'var(--font-sans)',
+      fontSize: '0.9375rem', fontWeight: accent ? 600 : 500,
+      color: accent ? 'var(--primary)' : 'var(--foreground)',
+      letterSpacing: mono ? '0.04em' : undefined,
+    }}>
+      {value}
+    </span>
+  );
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 0' }}>
+      {Icon && (
+        <div style={{
+          width: '32px', height: '32px', borderRadius: 'var(--r-sm)',
+          background: 'var(--secondary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, marginTop: '1px',
+        }}>
+          <Icon size={14} style={{ color: 'var(--primary)' }} />
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: '0.6875rem', fontWeight: 600,
+          letterSpacing: '0.07em', textTransform: 'uppercase',
+          color: 'var(--muted-foreground)', marginBottom: '3px',
+        }}>
+          {label}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {valueEl}
+          {copyable && <CopyButton value={value} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: '1px', background: 'var(--border)', margin: '0 24px' }} />;
+}
+
+function SectionCard({
+  children,
+  icon: Icon,
+  title,
+  subtitle,
+  onEdit,
+  editing,
+}: {
+  children: React.ReactNode;
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  title: string;
+  subtitle?: string;
+  onEdit?: () => void;
+  editing?: boolean;
+}) {
+  return (
+    <div style={{
+      background: 'var(--card)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--r-lg)',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '20px 24px',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: 'var(--r-sm)',
+            background: 'var(--secondary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon size={16} style={{ color: 'var(--primary)' }} />
+          </div>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1rem', fontWeight: 700,
+              color: 'var(--foreground)',
+            }}>{title}</div>
+            {subtitle && (
+              <div style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '0.8125rem', color: 'var(--muted-foreground)',
+              }}>{subtitle}</div>
+            )}
+          </div>
+        </div>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: 'var(--r-sm)',
+              border: `1px solid ${editing ? 'var(--primary)' : 'var(--border)'}`,
+              background: editing ? 'var(--secondary)' : 'transparent',
+              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
+              color: editing ? 'var(--primary)' : 'var(--muted-foreground)',
+              cursor: 'pointer', transition: 'all var(--dur-1) var(--ease-out)',
+            }}
+            onMouseEnter={e => {
+              if (!editing) {
+                e.currentTarget.style.borderColor = 'var(--primary)';
+                e.currentTarget.style.color = 'var(--primary)';
+                e.currentTarget.style.background = 'var(--secondary)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (!editing) {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.color = 'var(--muted-foreground)';
+                e.currentTarget.style.background = 'transparent';
+              }
+            }}
+          >
+            <Edit3 size={13} />
+            {editing ? 'Fermer' : 'Modifier'}
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FieldsGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+      padding: '0 24px',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Progress ring ────────────────────────────────────────────────────────────
+
+function ProgressRing({ value, size = 56, stroke = 4 }: { value: number; size?: number; stroke?: number }) {
+  const r = (size - stroke * 2) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (value / 100) * circ;
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#C8921A" strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function MonProfilPage({ user, onLogout }: MonProfilPageProps) {
+  // Le personnel CPI (Admin / Agent) a un profil de compte professionnel, pas un
+  // profil client (ni CNI, ni revenus, ni dossier).
+  if (user.role === 'admin' || user.role === 'agent-cpi') {
+    return <StaffProfile user={user} onLogout={onLogout} />;
+  }
+  return <ClientProfile user={user} />;
+}
+
+function ClientProfile({ user }: { user: AuthUser }) {
+  const clientData = useClientData();
+  const { requisDocs } = useDocState();
+  const { navigate } = useNavigate();
+
+  // Compteur RÉEL de pièces déposées (aucune valeur inventée).
+  const docsTotalReal = requisDocs.length;
+  const docsDeposesReal = requisDocs.filter(d => d.status !== 'en-attente').length;
+  const docsLabel = docsTotalReal ? `${docsDeposesReal} / ${docsTotalReal}` : '—';
+
+  // Profil réel du client : les informations connues viennent de son compte,
+  // le reste reste à compléter (aucune donnée fictive).
+  const PROFILE = {
+    nom: clientData.name.split(' ').slice(1).join(' ').toUpperCase() || '—',
+    prenom: clientData.name.split(' ')[0] || '—',
+    dateNaissance: '—',
+    lieuNaissance: '—',
+    nationalite: '—',
+    sexe: '—',
+    situationMatrimoniale: '—',
+    numeroPiece: '—',
+    expirationPiece: '—',
+    telPrincipal: clientData.phone,
+    telSecondaire: '—',
+    email: clientData.email,
+    adresse: clientData.address,
+    ville: '—',
+    region: '—',
+    pays: '—',
+    codePostal: '—',
+    typeProfile: user.role === 'client-fonctionnaire' ? 'Fonctionnaire' : 'Secteur privé / Autre',
+    employeur: clientData.employer,
+    ministere: '—',
+    fonction: clientData.fonction,
+    typeContrat: '—',
+    dateEmbauche: '—',
+    anciennete: '—',
+    secteur: '—',
+    revenus: 0,
+    autresRevenus: 0,
+    charges: 0,
+    banque: clientData.banque,
+    iban: '—',
+    modePaiement: '—',
+    clientNumber: clientData.ref,
+    dossierNumber: clientData.ref,
+    dateInscription: clientData.adhesionDate,
+    progression: clientData.progression,
+    docsDeposes: docsDeposesReal,
+    docsTotal: docsTotalReal,
+    lastLogin: '—',
+  };
+  const hasPiece = PROFILE.numeroPiece !== '—';
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const toggle = (s: string) => setEditing(prev => prev === s ? null : s);
+
+  const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const revenuTotal = PROFILE.revenus + PROFILE.autresRevenus;
+  const capacite = revenuTotal - PROFILE.charges;
+  const tauxEndettement = revenuTotal > 0 ? Math.round((PROFILE.charges / revenuTotal) * 100) : 0;
+
+  return (
+    <div style={{
+      width: '100%',
+      display: 'flex', flexDirection: 'column', gap: '20px',
+      fontFamily: 'var(--font-sans)',
+      paddingBottom: '48px',
+    }}>
+
+      {/* ─── HERO ──────────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'var(--primary)',
+        borderRadius: 'var(--r-xl)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        {/* Decorative arc */}
+        <div style={{
+          position: 'absolute', top: '-60px', right: '-60px',
+          width: '260px', height: '260px', borderRadius: '50%',
+          background: 'rgba(255,255,255,0.04)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', top: '40px', right: '60px',
+          width: '120px', height: '120px', borderRadius: '50%',
+          background: 'rgba(200,146,26,0.08)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Main row */}
+        <div style={{
+          padding: '32px 36px 28px',
+          display: 'flex', alignItems: 'flex-start',
+          gap: '28px', flexWrap: 'wrap',
+          position: 'relative',
+        }}>
+          {/* Avatar */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: '88px', height: '88px', borderRadius: '50%',
+              background: 'rgba(255,255,255,0.12)',
+              border: '2.5px solid rgba(255,255,255,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.75rem', fontWeight: 800, color: '#fff',
+              }}>{initials}</span>
+            </div>
+            <button style={{
+              position: 'absolute', bottom: '2px', right: '2px',
+              width: '26px', height: '26px', borderRadius: '50%',
+              background: 'var(--accent)',
+              border: '2px solid var(--primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}>
+              <Camera size={12} style={{ color: '#fff' }} />
+            </button>
+          </div>
+
+          {/* Identity block */}
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <h1 style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.5rem', fontWeight: 800, color: '#fff',
+                margin: 0, lineHeight: 1.2,
+              }}>
+                {PROFILE.prenom} <span style={{ opacity: 0.85 }}>{PROFILE.nom}</span>
+              </h1>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                background: 'rgba(110,240,168,0.18)', color: '#6EF0A8',
+                fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                padding: '3px 10px', borderRadius: 'var(--r-full)',
+              }}>
+                <BadgeCheck size={11} />
+                Compte actif
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: 'rgba(200,146,26,0.22)', color: '#FFC65A',
+                fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
+                fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                padding: '3px 10px', borderRadius: 'var(--r-full)',
+              }}>
+                {PROFILE.typeProfile}
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem' }}>·</span>
+              <span style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+                color: 'rgba(255,255,255,0.55)', fontWeight: 400,
+              }}>
+                {PROFILE.fonction}
+              </span>
+            </div>
+
+            {/* Meta chips */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'N° Client', value: PROFILE.clientNumber },
+                { label: 'N° Dossier', value: PROFILE.dossierNumber },
+                { label: 'Depuis', value: PROFILE.dateInscription },
+              ].map(m => (
+                <div key={m.label} style={{
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 'var(--r-sm)', padding: '6px 12px',
+                }}>
+                  <div style={{
+                    fontFamily: 'var(--font-sans)', fontSize: '0.5625rem',
+                    fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+                    color: 'rgba(255,255,255,0.42)', marginBottom: '2px',
+                  }}>{m.label}</div>
+                  <div style={{
+                    fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+                    fontWeight: 600, color: 'rgba(255,255,255,0.88)',
+                  }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Progress + edit */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
+            {/* Progress ring */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                  fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'rgba(255,255,255,0.42)',
+                }}>Dossier</div>
+                <div style={{
+                  fontFamily: 'var(--font-display)', fontSize: '1.375rem',
+                  fontWeight: 800, color: '#FFC65A', lineHeight: 1,
+                }}>{PROFILE.progression}%</div>
+              </div>
+              <ProgressRing value={PROFILE.progression} size={52} stroke={4} />
+            </div>
+
+            <button
+              onClick={() => setEditing('identite')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                padding: '9px 16px', borderRadius: 'var(--r-sm)',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
+                color: '#fff', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)';
+              }}
+            >
+              <Edit3 size={13} />
+              Modifier mon profil
+            </button>
+          </div>
+        </div>
+
+        {/* Stats footer */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          borderTop: '1px solid rgba(255,255,255,0.09)',
+          padding: '0 36px',
+        }}>
+          {[
+            { label: 'Dernière connexion', value: '—', icon: Clock },
+            { label: 'Documents déposés', value: docsLabel, icon: Shield },
+            { label: 'Progression dossier', value: `${PROFILE.progression} %`, icon: TrendingUp },
+            { label: 'Conseiller', value: clientData.conseiller, icon: User },
+          ].map((s, i, arr) => (
+            <div key={s.label} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '16px 0',
+              borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.09)' : 'none',
+              paddingRight: i < arr.length - 1 ? '24px' : '0',
+              paddingLeft: i > 0 ? '24px' : '0',
+            }}>
+              <s.icon size={14} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.625rem',
+                  fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+                  color: 'rgba(255,255,255,0.38)',
+                }}>{s.label}</div>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.875rem',
+                  fontWeight: 600, color: 'rgba(255,255,255,0.85)',
+                }}>{s.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ─── IDENTITÉ ──────────────────────────────────────────────────────── */}
+      <SectionCard
+        icon={User}
+        title="Identité"
+        subtitle="Informations personnelles et pièce d'identité"
+        onEdit={() => toggle('identite')}
+        editing={editing === 'identite'}
+      >
+        <FieldsGrid>
+          <FieldRow label="Nom de famille" value={PROFILE.nom} accent />
+          <FieldRow label="Prénom(s)" value={PROFILE.prenom} accent />
+          <FieldRow label="Date de naissance" value={PROFILE.dateNaissance} icon={Calendar} />
+          <FieldRow label="Lieu de naissance" value={PROFILE.lieuNaissance} icon={MapPin} />
+          <FieldRow label="Nationalité" value={PROFILE.nationalite} />
+          <FieldRow label="Sexe" value={PROFILE.sexe} />
+          <FieldRow label="Situation matrimoniale" value={PROFILE.situationMatrimoniale} />
+        </FieldsGrid>
+
+        <Divider />
+
+        {/* ID card block */}
+        <div style={{ padding: '16px 24px 20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+          <div style={{
+            flex: 1, minWidth: '260px',
+            background: 'var(--secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            padding: '16px 20px',
+            display: 'flex', alignItems: 'center', gap: '16px',
+          }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: 'var(--r-sm)',
+              background: 'var(--primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Shield size={20} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+                color: 'var(--muted-foreground)', marginBottom: '4px',
+              }}>Carte Nationale d'Identité</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: '0.9375rem',
+                  fontWeight: 600, color: 'var(--foreground)', letterSpacing: '0.05em',
+                }}>
+                  {PROFILE.numeroPiece}
+                </span>
+                <CopyButton value={PROFILE.numeroPiece} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {hasPiece ? (
+                  <>
+                    <span style={{
+                      background: 'rgba(26,107,68,0.1)', color: '#1A6B44',
+                      fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                      fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                      padding: '2px 8px', borderRadius: 'var(--r-full)',
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    }}>
+                      <CheckCircle size={9} /> Valide
+                    </span>
+                    <span style={{
+                      fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+                      color: 'var(--muted-foreground)',
+                    }}>expire le {PROFILE.expirationPiece}</span>
+                  </>
+                ) : (
+                  <span style={{
+                    background: 'var(--muted)', color: 'var(--muted-foreground)',
+                    fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                    fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                    padding: '2px 8px', borderRadius: 'var(--r-full)',
+                  }}>Non renseignée</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {editing === 'identite' && (
+          <div style={{
+            margin: '0 24px 20px',
+            padding: '12px 16px',
+            background: 'rgba(200,146,26,0.07)',
+            border: '1px solid rgba(200,146,26,0.2)',
+            borderRadius: 'var(--r-sm)',
+            display: 'flex', alignItems: 'center', gap: '8px',
+          }}>
+            <AlertCircle size={14} style={{ color: '#C8921A', flexShrink: 0 }} />
+            <span style={{
+              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+              color: '#C8921A', fontWeight: 500,
+            }}>
+              Toute modification des données d'identité est soumise à validation par votre conseiller CPI.
+            </span>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ─── COORDONNÉES ───────────────────────────────────────────────────── */}
+      <SectionCard
+        icon={MapPin}
+        title="Coordonnées"
+        subtitle="Contact et adresse de résidence"
+        onEdit={() => toggle('coords')}
+        editing={editing === 'coords'}
+      >
+        {/* Contact rapide */}
+        <div style={{ padding: '20px 24px', display: 'flex', gap: '12px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+          {[
+            { icon: Phone, label: 'Tél. principal', value: PROFILE.telPrincipal, href: `tel:${PROFILE.telPrincipal}` },
+            { icon: Phone, label: 'Tél. secondaire', value: PROFILE.telSecondaire, href: `tel:${PROFILE.telSecondaire}` },
+            { icon: Mail, label: 'Email', value: PROFILE.email, href: `mailto:${PROFILE.email}` },
+          ].map(c => (
+            <a
+              key={c.label}
+              href={c.href}
+              style={{
+                flex: '1', minWidth: '180px',
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '12px 16px',
+                background: 'var(--secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                textDecoration: 'none',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'var(--primary)';
+                e.currentTarget.style.background = 'var(--card)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.background = 'var(--secondary)';
+              }}
+            >
+              <div style={{
+                width: '32px', height: '32px', borderRadius: 'var(--r-sm)',
+                background: 'var(--primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <c.icon size={14} style={{ color: '#fff' }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                  fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'var(--muted-foreground)',
+                }}>{c.label}</div>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.875rem',
+                  fontWeight: 600, color: 'var(--foreground)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{c.value}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        {/* Address grid */}
+        <FieldsGrid>
+          <FieldRow label="Adresse" value={PROFILE.adresse} icon={MapPin} />
+          <FieldRow label="Ville" value={PROFILE.ville} />
+          <FieldRow label="Région" value={PROFILE.region} />
+          <FieldRow label="Pays" value={PROFILE.pays} />
+          <FieldRow label="Code postal" value={PROFILE.codePostal} />
+          <div style={{ padding: '14px 0' }}>
+            <div style={{
+              fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+              fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+              color: 'var(--muted-foreground)', marginBottom: '6px',
+            }}>Localisation GPS</div>
+            <button style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '5px 12px', borderRadius: 'var(--r-sm)',
+              border: '1px dashed var(--border)', background: 'transparent',
+              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+              fontWeight: 600, color: 'var(--primary)', cursor: 'pointer',
+            }}>
+              <MapPin size={12} />
+              Activer la localisation
+            </button>
+          </div>
+        </FieldsGrid>
+      </SectionCard>
+
+      {/* ─── PROFIL PROFESSIONNEL ───────────────────────────────────────────── */}
+      <SectionCard
+        icon={Briefcase}
+        title="Profil professionnel"
+        subtitle="Emploi, contrat et ancienneté"
+        onEdit={() => toggle('pro')}
+        editing={editing === 'pro'}
+      >
+        {/* Type badge banner */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '10px',
+            padding: '10px 18px',
+            background: 'var(--secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+          }}>
+            <div style={{
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: 'var(--primary)', flexShrink: 0,
+            }} />
+            <div>
+              <div style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                color: 'var(--muted-foreground)',
+              }}>Type de profil</div>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: '1rem',
+                fontWeight: 700, color: 'var(--primary)',
+              }}>{PROFILE.typeProfile}</div>
+            </div>
+          </div>
+
+          <div style={{ height: '40px', width: '1px', background: 'var(--border)', flexShrink: 0 }} />
+
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+              fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+              color: 'var(--muted-foreground)', marginBottom: '2px',
+            }}>Ancienneté</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: '1rem',
+                fontWeight: 700, color: 'var(--foreground)',
+              }}>{PROFILE.anciennete}</div>
+              <div style={{
+                display: 'flex', gap: '3px', alignItems: 'center',
+              }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{
+                    width: '20px', height: '5px', borderRadius: 'var(--r-full)',
+                    background: i < 3 ? 'var(--primary)' : 'var(--muted)',
+                  }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <FieldsGrid>
+          <FieldRow label="Employeur" value={PROFILE.employeur} icon={Building2} />
+          <FieldRow label="Ministère / Structure" value={PROFILE.ministere} />
+          <FieldRow label="Fonction" value={PROFILE.fonction} />
+          <FieldRow label="Type de contrat" value={PROFILE.typeContrat} />
+          <FieldRow label="Date d'embauche" value={PROFILE.dateEmbauche} icon={Calendar} />
+          <FieldRow label="Secteur d'activité" value={PROFILE.secteur} />
+        </FieldsGrid>
+      </SectionCard>
+
+      {/* ─── INFORMATIONS FINANCIÈRES ───────────────────────────────────────── */}
+      <SectionCard
+        icon={Banknote}
+        title="Informations financières"
+        subtitle="Revenus, charges et coordonnées bancaires"
+        onEdit={() => toggle('finance')}
+        editing={editing === 'finance'}
+      >
+        {/* Financial summary cards */}
+        <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', borderBottom: '1px solid var(--border)' }}>
+          {[
+            {
+              label: 'Revenus totaux',
+              value: fmt(revenuTotal),
+              icon: TrendingUp,
+              color: '#1A6B44',
+              bg: 'rgba(26,107,68,0.08)',
+              iconColor: '#1A6B44',
+            },
+            {
+              label: 'Charges mensuelles',
+              value: fmt(PROFILE.charges),
+              icon: TrendingDown,
+              color: '#C8921A',
+              bg: 'rgba(200,146,26,0.08)',
+              iconColor: '#C8921A',
+            },
+            {
+              label: 'Capacité de remboursement',
+              value: fmt(capacite),
+              icon: Minus,
+              color: 'var(--primary)',
+              bg: 'var(--secondary)',
+              iconColor: 'var(--primary)',
+            },
+            {
+              label: "Taux d'endettement",
+              value: `${tauxEndettement} %`,
+              icon: TrendingUp,
+              color: tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              bg: tauxEndettement > 33 ? 'rgba(192,57,43,0.07)' : 'rgba(26,107,68,0.08)',
+              iconColor: tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+            },
+          ].map(card => (
+            <div key={card.label} style={{
+              background: card.bg,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              padding: '14px 16px',
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: '8px',
+              }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                  fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'var(--muted-foreground)',
+                }}>{card.label}</div>
+                <card.icon size={14} style={{ color: card.iconColor }} />
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: '1rem',
+                fontWeight: 700, color: card.color,
+              }}>{card.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Revenue breakdown bar */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{
+              fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
+              fontWeight: 600, color: 'var(--muted-foreground)',
+            }}>Répartition revenus / charges</span>
+            <span style={{
+              fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
+              fontWeight: 600, color: 'var(--foreground)',
+            }}>{fmt(revenuTotal)}</span>
+          </div>
+          <div style={{ height: '8px', borderRadius: 'var(--r-full)', background: 'var(--muted)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 'var(--r-full)',
+              background: `linear-gradient(90deg, var(--primary) ${100 - tauxEndettement}%, #C8921A ${100 - tauxEndettement}%)`,
+              width: '100%',
+            }} />
+          </div>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'var(--primary)' }} />
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                Disponible ({100 - tauxEndettement}%)
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#C8921A' }} />
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                Charges ({tauxEndettement}%)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Detail fields */}
+        <FieldsGrid>
+          <FieldRow label="Revenus salariaux" value={fmt(PROFILE.revenus)} icon={TrendingUp} accent />
+          <FieldRow label="Autres revenus" value={fmt(PROFILE.autresRevenus)} />
+          <FieldRow label="Charges mensuelles" value={fmt(PROFILE.charges)} />
+          <FieldRow label="Mode de paiement" value={PROFILE.modePaiement} />
+        </FieldsGrid>
+
+        <Divider />
+
+        {/* Bank block */}
+        <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{
+            flex: 1, minWidth: '280px',
+            background: 'var(--secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            padding: '18px 20px',
+            display: 'flex', alignItems: 'center', gap: '16px',
+          }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: 'var(--r-md)',
+              background: 'var(--primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Building2 size={22} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+                color: 'var(--muted-foreground)', marginBottom: '2px',
+              }}>Banque principale</div>
+              <div style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.9375rem',
+                fontWeight: 700, color: 'var(--foreground)', marginBottom: '6px',
+              }}>{PROFILE.banque}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: '0.8125rem',
+                  fontWeight: 500, color: 'var(--muted-foreground)',
+                  letterSpacing: '0.04em',
+                }}>{PROFILE.iban}</span>
+                <CopyButton value={PROFILE.iban.replace(/\s/g, '')} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+    </div>
+  );
+}
+
+// ─── Profil professionnel (Admin / Agent CPI) ─────────────────────────────────
+
+const AVATAR_KEY = (email: string) => `cpi_staff_avatar_${email}`;
+
+function deviceLabel(): string {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const os = /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'macOS'
+    : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+    : /Linux/.test(ua) ? 'Linux' : 'Appareil';
+  const br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome'
+    : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Navigateur';
+  return `${br} · ${os}`;
+}
+
+function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => void }) {
+  const roleLabel = user.role === 'admin' ? 'Administrateur' : 'Agent CPI';
+  // Identité du compte pro : elle vient de /auth/me (pas de /staff/staff/list,
+  // réservé à l'administrateur — un agent CPI y recevrait un 403).
+  const email = user.email ?? '—';
+
+  const httpsOk = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  // Compteur d'actions du compte, lu dans le journal serveur (écran réservé au
+  // personnel CPI, seul habilité sur /staff/historique).
+  const historiqueQuery = useHistoriqueQuery(true);
+  const actionsCount = toActivityEntries(historiqueQuery.data).filter(e => e.role === roleLabel).length;
+
+  const [avatar, setAvatar] = useState<string | null>(() => {
+    try { return localStorage.getItem(AVATAR_KEY(email)); } catch { return null; }
+  });
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
+
+  const onPickAvatar = (file: File) => {
+    if (!file.type.startsWith('image/')) { showToast('Veuillez choisir une image.'); return; }
+    if (file.size > 2 * 1024 * 1024) { showToast('Image trop lourde (max 2 Mo).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result);
+      setAvatar(url);
+      try { localStorage.setItem(AVATAR_KEY(email), url); } catch {}
+      showToast('Photo de profil mise à jour.');
+    };
+    reader.readAsDataURL(file);
+  };
+  const removeAvatar = () => {
+    setAvatar(null);
+    try { localStorage.removeItem(AVATAR_KEY(email)); } catch {}
+    showToast('Photo retirée.');
+  };
+
+  const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'var(--font-sans)', paddingBottom: '48px' }}>
+
+      {/* HERO */}
+      <div style={{ background: 'var(--primary)', borderRadius: 'var(--r-xl)', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '260px', height: '260px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+        <div style={{ padding: '32px 36px', display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap', position: 'relative' }}>
+          {/* Avatar */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{ width: '88px', height: '88px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.12)', border: '2.5px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {avatar
+                ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>{initials}</span>}
+            </div>
+            <label style={{ position: 'absolute', bottom: '2px', right: '2px', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Changer la photo">
+              <Camera size={12} style={{ color: '#fff' }} />
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onPickAvatar(f); e.currentTarget.value = ''; }} />
+            </label>
+          </div>
+
+          {/* Identity */}
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.2 }}>{user.name}</h1>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(200,146,26,0.22)', color: '#FFC65A', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 'var(--r-full)' }}>
+                <Shield size={11} /> {roleLabel}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Mail size={14} style={{ color: 'rgba(255,255,255,0.55)' }} />
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'rgba(255,255,255,0.75)' }}>{email}</span>
+              <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.55)' }}>Compte professionnel CPI</span>
+            </div>
+          </div>
+
+          {avatar && (
+            <button onClick={removeAvatar} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: 'var(--r-sm)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <Trash2 size={13} /> Retirer la photo
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* COMPTE */}
+      <SectionCard icon={User} title="Compte" subtitle="Informations de votre compte professionnel">
+        <FieldsGrid>
+          <FieldRow label="Nom" value={user.name} accent />
+          <FieldRow label="E-mail / identifiant" value={email} icon={Mail} copyable />
+          <FieldRow label="Rôle" value={roleLabel} accent />
+          <FieldRow label="Type de compte" value="Compte professionnel CPI" />
+          <FieldRow label="Statut" value="Actif" />
+        </FieldsGrid>
+      </SectionCard>
+
+      {/* SÉCURITÉ */}
+      <SectionCard icon={KeyRound} title="Sécurité" subtitle="Accès et protection du compte">
+        <div style={{ padding: '8px 24px 16px' }}>
+          {/* Mot de passe */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 0', flexWrap: 'wrap' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><KeyRound size={14} style={{ color: 'var(--primary)' }} /></div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Mot de passe</div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 500, color: 'var(--foreground)', letterSpacing: '0.15em' }}>••••••••</div>
+            </div>
+            <button onClick={() => showToast('Le changement de mot de passe sera disponible une fois le backend connecté.')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+              <Edit3 size={13} /> Modifier
+              <span style={{ fontSize: '0.5625rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'rgba(107,74,82,0.10)', padding: '2px 7px', borderRadius: 'var(--r-full)' }}>backend</span>
+            </button>
+          </div>
+          <Divider />
+          {/* Connexion sécurisée */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 0' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Shield size={14} style={{ color: 'var(--primary)' }} /></div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Connexion sécurisée</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 600, color: httpsOk ? '#1A6B44' : '#C0392B' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: httpsOk ? '#1A6B44' : '#C0392B' }} /> {httpsOk ? 'HTTPS actif' : 'Non sécurisé'}
+              </div>
+            </div>
+          </div>
+          <Divider />
+          {/* Dernière connexion */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 0', flexWrap: 'wrap' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Clock size={14} style={{ color: 'var(--primary)' }} /></div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Dernière connexion</div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 500, color: 'var(--muted-foreground)' }}>Historisée côté serveur</div>
+            </div>
+            <span style={{ fontSize: '0.5625rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'rgba(107,74,82,0.10)', padding: '2px 7px', borderRadius: 'var(--r-full)' }}>backend</span>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* JOURNALISATION & DÉCONNEXION */}
+      <SectionCard icon={Monitor} title="Session & déconnexion" subtitle="Appareil, activité et fin de session">
+        <FieldsGrid>
+          <FieldRow label="Appareil actuel" value={deviceLabel()} icon={Monitor} />
+          <FieldRow label="Session" value={`Connecté · ${roleLabel}`} />
+          <FieldRow label="Actions enregistrées" value={`${actionsCount} dans le journal d'audit`} icon={CheckCircle} />
+        </FieldsGrid>
+        <div style={{ padding: '4px 24px 22px' }}>
+          <button
+            onClick={() => onLogout?.()}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: 'var(--r-sm)', border: '1px solid rgba(192,57,43,0.3)', background: 'rgba(192,57,43,0.06)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: '#C0392B', cursor: 'pointer' }}>
+            <LogOut size={15} /> Se déconnecter
+          </button>
+        </div>
+      </SectionCard>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--foreground)', color: 'var(--background)', padding: '12px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.875rem', fontWeight: 600, zIndex: 300, maxWidth: 360 }}>{toast}</div>
+      )}
+    </div>
+  );
+}

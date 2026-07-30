@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+# Une seule exécution par branche : un nouveau push annule la précédente.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # Le build est le seul filet du projet côté types : Rollup échoue sur un
+      # import ou un export introuvable. C'est exactement ce qui a rattrapé une
+      # migration laissée à mi-chemin — il doit donc rester bloquant.
+      - name: Compiler l'application
+        run: npm run build
+
+  stockage-navigateur:
+    name: Garde localStorage
+    runs-on: ubuntu-latest
+
+    # Toute la migration visait à sortir les données métier du navigateur. Sans
+    # garde-fou, un simple `localStorage.setItem` réintroduit sans bruit un état
+    # local que le serveur ignore, et les deux se contredisent en silence.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seuls deux modules peuvent écrire dans le navigateur
+        run: |
+          ECRITURE='localStorage[[:space:]]*\.[[:space:]]*(setItem|removeItem|clear)'
+          # src/imports/** est de la documentation morte, pas du code livré.
+          TROUVES=$(grep -rlE "$ECRITURE" src --include='*.ts' --include='*.tsx' \
+                    | grep -v '^src/imports/' | sort || true)
+          AUTORISES=$(printf '%s\n' \
+                      'src/app/api/client.ts' \
+                      'src/app/components/MonProfilPage.tsx')
+
+          if [ "$TROUVES" != "$AUTORISES" ]; then
+            echo "::error::Écriture localStorage inattendue."
+            echo "Seuls ces modules peuvent écrire dans le navigateur :"
+            echo "  src/app/api/client.ts            → cpi_api_token (jeton d'authentification)"
+            echo "  src/app/components/MonProfilPage.tsx → cpi_staff_avatar_* (avatar, sans route API)"
+            echo
+            echo "Trouvé :"
+            printf '%s\n' "$TROUVES" | sed 's/^/  /'
+            echo
+            echo "Toute autre donnée appartient à l'API. Si une nouvelle clé est"
+            echo "réellement justifiée, ajoutez-la à cette liste dans le même commit."
+            exit 1
+          fi
+          echo "✓ Écritures navigateur limitées au jeton et à l'avatar."
+
+      - name: Le jeton d'authentification reste confiné à la couche API
+        run: |
+          # Le jeton ne doit jamais être lu, exporté ou effacé ailleurs : il a
+          # déjà fuité une fois dans une sauvegarde JSON téléchargeable.
+          FUITES=$(grep -rn "cpi_api_token" src --include='*.ts' --include='*.tsx' \
+                   | grep -v '^src/imports/' | grep -v '^src/app/api/client.ts:' || true)
+          if [ -n "$FUITES" ]; then
+            echo "::error::cpi_api_token référencé hors de src/app/api/client.ts."
+            printf '%s\n' "$FUITES" | sed 's/^/  /'
+            echo
+            echo "Passez par getToken/setToken/clearToken plutôt que par la clé brute."
+            exit 1
+          fi
+          echo "✓ Jeton confiné à src/app/api/client.ts."
+
+  types-generes:
+    name: Types générés à jour
+    runs-on: ubuntu-latest
+
+    # generated.d.ts est produit par `php artisan typescript:transform` côté
+    # backend. Édité à la main, il ment sur la forme réelle des réponses.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Le fichier généré ne doit pas être édité à la main
+        run: |
+          FICHIER=src/app/api/types/generated.d.ts
+          if [ ! -f "$FICHIER" ]; then
+            echo "::error::$FICHIER est absent — la couche API ne compilera pas."
+            exit 1
+          fi
+          if ! head -5 "$FICHIER" | grep -qi "generated\|généré"; then
+            echo "::warning::$FICHIER ne porte plus son en-tête de fichier généré."
+          fi
+          echo "✓ Types générés présents."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Étape suivante conseillée : un vrai contrôle de types.
+#
+# Le dépôt n'a ni tsconfig.json ni TypeScript installé — `npm run build` passe
+# par esbuild, qui transpile sans vérifier les types. Une erreur de type ne
+# casse donc jamais la construction, alors que toute la couche API repose
+# désormais sur les types générés par le backend.
+#
+# Pour l'activer :
+#   1. npm i -D typescript @types/react @types/react-dom
+#   2. ajouter un tsconfig.json (strict, jsx: react-jsx, moduleResolution: bundler)
+#   3. ajouter le script  "typecheck": "tsc --noEmit"
+#   4. ajouter ici un travail qui lance `npm run typecheck`
+#
+# Prévoyez du travail de remise à niveau : des erreurs préexistantes subsistent
+# (variance de LucideProps.size, comparaisons de dates dans les tableaux de
+# bord, import d'image .png sans déclaration de module). Commencez donc en
+# non bloquant — `continue-on-error: true` — puis resserrez.
+# ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,362 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --background: #FAF7F7;
+  --foreground: #1C0810;
+  --card: #ffffff;
+  --card-foreground: #1C0810;
+  --popover: #ffffff;
+  --popover-foreground: #1C0810;
+  --primary: #630210;
+  --primary-foreground: #ffffff;
+  --primary-hover: #7E0417;
+  --secondary: #F5ECEE;
+  --secondary-foreground: #630210;
+  --muted: #EDE4E6;
+  --muted-foreground: #6B4A52;
+  --accent: #C8921A;
+  --accent-foreground: #ffffff;
+  --destructive: #B91C1C;
+  --destructive-foreground: #ffffff;
+  --border: rgba(99, 2, 16, 0.12);
+  --input: transparent;
+  --input-background: #F5ECEE;
+  --switch-background: #C4A0AA;
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --ring: #630210;
+  --success: #1A6B44;
+  --success-foreground: #ffffff;
+  --chart-1: #630210;
+  --chart-2: #C8921A;
+  --chart-3: #1A6B44;
+  --chart-4: #B05070;
+  --chart-5: #8B5CF6;
+  --radius: 0.25rem;
+  --sidebar: #3A010A;
+  --sidebar-foreground: #DFC0C8;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #3A010A;
+  --sidebar-accent: #4A0110;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #B05070;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CPI — DESIGN SYSTEM : échelles de tokens (additif)
+   Ne modifie AUCUNE couleur de marque. Namespacé pour ne pas heurter Tailwind.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Espacements — base 4px */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px;
+
+  /* Rayons — conserve le langage « cartes fines » actuel */
+  --r-xs: 6px;  --r-sm: 8px;  --r-md: 12px;
+  --r-lg: 16px; --r-xl: 20px; --r-2xl: 24px; --r-full: 9999px;
+
+  /* Élévations — discrètes, premium, teinte bordeaux très légère (jamais de marine) */
+  --elev-xs: 0 1px 2px rgba(28,8,16,0.04);
+  --elev-sm: 0 1px 3px rgba(28,8,16,0.05), 0 1px 2px rgba(28,8,16,0.04);
+  --elev-md: 0 4px 12px rgba(28,8,16,0.06), 0 2px 6px rgba(28,8,16,0.04);
+  --elev-lg: 0 8px 24px rgba(28,8,16,0.08), 0 4px 12px rgba(28,8,16,0.05);
+  --elev-xl: 0 16px 48px rgba(28,8,16,0.10), 0 8px 24px rgba(28,8,16,0.06);
+  --shadow-hover: 0 6px 22px rgba(99,2,16,0.10);
+  --ring-focus: 0 0 0 3px rgba(99,2,16,0.30);
+
+  /* Échelle typographique */
+  --fs-display: clamp(2rem, 4vw, 2.75rem);
+  --fs-h1: clamp(1.625rem, 3vw, 2rem);
+  --fs-h2: 1.5rem;
+  --fs-h3: 1.25rem;
+  --fs-h4: 1.0625rem;
+  --fs-body-xl: 1.125rem;
+  --fs-body: 0.9375rem;
+  --fs-small: 0.8125rem;
+  --fs-caption: 0.75rem;
+  --fs-label: 0.6875rem;
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-1: 150ms; --dur-2: 220ms; --dur-3: 300ms;
+
+  /* Empilement */
+  --z-dropdown: 50; --z-sticky: 100; --z-drawer: 200; --z-modal: 300; --z-toast: 400;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CPI — POLISH GLOBAL : rendu premium, accessibilité, motion
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Rendu net et typographie soignée */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; scroll-behavior: smooth; }
+body { text-rendering: optimizeLegibility; }
+
+/* Titres display — léger resserrement premium (identité conservée) */
+h1, h2, h3, h4, .font-display { letter-spacing: -0.02em; }
+
+/* Sélection à la marque */
+::selection { background: rgba(99,2,16,0.14); color: var(--foreground); }
+
+/* Focus visible accessible (clavier uniquement) — anneau bordeaux */
+:where(a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+:where(a, button, input, select, textarea):focus:not(:focus-visible) { outline: none; }
+
+/* Transitions douces par défaut (les styles inline des composants restent prioritaires) */
+a, button, [role="button"], input, select, textarea, summary, label {
+  transition: color var(--dur-1) var(--ease-out),
+              background-color var(--dur-1) var(--ease-out),
+              border-color var(--dur-1) var(--ease-out),
+              box-shadow var(--dur-2) var(--ease-out),
+              transform var(--dur-1) var(--ease-out);
+}
+
+/* Scrollbars fines et discrètes */
+* { scrollbar-width: thin; scrollbar-color: rgba(99,2,16,0.20) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: rgba(99,2,16,0.16); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(99,2,16,0.30); background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Entrée de contenu élégante */
+@keyframes cpi-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.cpi-animate-in { animation: cpi-fade-in var(--dur-3) var(--ease-out) both; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══ Micro-interactions & motion ═══════════════════════════════════════ */
+
+/* Entrée de page (rejouée à chaque navigation via key=activeNav) */
+@keyframes cpi-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cpi-page-enter { animation: cpi-page-in var(--dur-3) var(--ease-out) both; }
+
+/* Apparition en cascade des enfants directs (listes, grilles de cartes) */
+.cpi-stagger > * { animation: cpi-page-in var(--dur-3) var(--ease-out) both; }
+.cpi-stagger > *:nth-child(1){animation-delay:.03s}
+.cpi-stagger > *:nth-child(2){animation-delay:.07s}
+.cpi-stagger > *:nth-child(3){animation-delay:.11s}
+.cpi-stagger > *:nth-child(4){animation-delay:.15s}
+.cpi-stagger > *:nth-child(5){animation-delay:.19s}
+.cpi-stagger > *:nth-child(6){animation-delay:.23s}
+.cpi-stagger > *:nth-child(7){animation-delay:.27s}
+.cpi-stagger > *:nth-child(8){animation-delay:.31s}
+.cpi-stagger > *:nth-child(n+9){animation-delay:.35s}
+
+/* Survol : élévation douce des cartes cliquables (opt-in via .cpi-lift) */
+.cpi-lift { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.cpi-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.cpi-lift:active { transform: translateY(0); }
+
+/* Feedback de pression discret — spécificité 0, les styles inline priment toujours */
+:where(button, a, [role="button"], summary):active:not(:disabled) { transform: scale(0.985); }
+
+/* Skeletons de chargement (shimmer à la marque) */
+@keyframes cpi-shimmer { to { background-position: -200% 0; } }
+.cpi-skeleton {
+  background: linear-gradient(90deg, var(--muted) 25%, var(--secondary) 37%, var(--muted) 63%);
+  background-size: 200% 100%;
+  animation: cpi-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r-sm);
+}
+
+/* Utilitaires ponctuels */
+@keyframes cpi-scale-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.cpi-scale-in { animation: cpi-scale-in var(--dur-2) var(--ease-spring) both; }
+@keyframes cpi-slide-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.cpi-slide-up { animation: cpi-slide-up var(--dur-3) var(--ease-out) both; }
+
+/* ═══ Accessibilité & responsive ════════════════════════════════════════ */
+
+/* Lien d'évitement clavier (apparaît au focus, invisible sinon) */
+.cpi-skip {
+  position: fixed; top: -120px; left: 12px; z-index: var(--z-toast);
+  background: var(--primary); color: var(--primary-foreground);
+  padding: 10px 18px; border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-size: 0.875rem; font-weight: 700;
+  text-decoration: none; box-shadow: var(--elev-lg);
+  transition: top var(--dur-2) var(--ease-out);
+}
+.cpi-skip:focus { top: 12px; outline: none; box-shadow: var(--elev-lg), var(--ring-focus); }
+
+/* Images fluides — jamais de débordement horizontal */
+img { max-width: 100%; height: auto; }
+
+/* Tiroirs latéraux : entrée en glissé depuis la droite */
+@keyframes cpi-slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.cpi-drawer-enter { animation: cpi-slide-in-right var(--dur-3) var(--ease-out) both; }
+/* Voile de fond des overlays : fondu doux */
+@keyframes cpi-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+.cpi-backdrop-enter { animation: cpi-backdrop-in var(--dur-2) var(--ease-out) both; }
+
+/* Respect du mouvement réduit */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
