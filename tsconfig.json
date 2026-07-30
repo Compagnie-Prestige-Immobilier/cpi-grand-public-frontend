@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+
+    // Vite se charge de la transpilation : tsc ne sert qu'à vérifier les types.
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+
+    // Contrôles stricts : la couche API repose entièrement sur les types
+    // générés par le backend, une erreur de type y est une erreur d'exécution.
+    "strict": true,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Même alias que vite.config.ts.
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/app/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"],
+  // Matériel de référence figé, non livré : hors du périmètre de vérification.
+  "exclude": ["node_modules", "dist", "src/imports/pasted_text/**"]
+}
