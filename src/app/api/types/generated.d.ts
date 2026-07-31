@@ -120,6 +120,7 @@ readonly demande: App.Dto.DemandeData | null,
 readonly requisDocs: App.Dto.RequisDocData[] | null,
 };
 export type CpiDocData = {
+fileUrl: string | null,
 readonly id: string,
 readonly clientId: string,
 readonly categorie: string,
@@ -131,6 +132,7 @@ readonly version: string,
 readonly status: string,
 readonly auteur: string,
 readonly fichier: string | null,
+readonly filePath: string | null,
 readonly commentaire: string | null,
 readonly visibleClient: boolean,
 readonly signatureRequise: boolean,
@@ -193,6 +195,7 @@ readonly taille: string | null,
 readonly filePath: string | null,
 };
 export type UserData = {
+avatarUrl: string | null,
 readonly id: string,
 readonly name: string,
 readonly email: string,

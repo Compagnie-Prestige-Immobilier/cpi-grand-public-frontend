@@ -72,6 +72,16 @@ export const auth = {
   googleCallback: async (code: string): Promise<AuthPayload> =>
     (await api.post('/auth/google/callback', { code })).data.data,
 
+  // Photo de profil (stockée sur R2, servie via `avatarUrl` signée)
+  updateAvatar: async (file: File): Promise<UserData> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return (await api.post('/auth/avatar', fd)).data.data;
+  },
+
+  removeAvatar: async (): Promise<UserData> =>
+    (await api.delete('/auth/avatar')).data.data,
+
   // Onboarding (utilisateurs Google au profil incomplet)
   completeOnboarding: async (input: OnboardingInput): Promise<UserData> =>
     (await api.post('/auth/onboarding', input)).data.data.user,
@@ -564,6 +574,13 @@ export const staffApi = {
 
     update: async (id: string, input: CpiDocUpdateInput): Promise<CpiDocData> =>
       (await api.put(`/staff/cpi-docs/${id}`, input)).data.data,
+
+    /** Dépose le fichier réel du document (R2 privé, servi via `fileUrl` signée). */
+    upload: async (id: string, file: File): Promise<CpiDocData> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      return (await api.post(`/staff/cpi-docs/${id}/upload`, fd)).data.data;
+    },
 
     /** Réservé au super-admin (403 pour un agent CPI). */
     delete: async (id: string): Promise<void> => {

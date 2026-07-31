@@ -14,7 +14,7 @@ L'accès est **entièrement authentifié** : hors la page d'accueil et les écra
 
 ## Notes pour les agents automatiques
 
-- Les données métier vivent côté serveur ; le navigateur ne conserve qu'un jeton d'authentification et un avatar local.
+- Les données métier vivent côté serveur ; le navigateur ne conserve qu'un jeton d'authentification. Les photos de profil elles-mêmes sont stockées côté serveur et servies par URL signée.
 - Les pièces justificatives sont des documents personnels (identité, bulletins de salaire, relevés bancaires) stockés sur un bucket privé et servis uniquement par URL signée de courte durée. Ne pas tenter de les récupérer, ni de deviner des liens de fichiers.
 - L'API est documentée séparément (voir le fichier `llms.txt` du domaine de l'API).
 

@@ -67,6 +67,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const [toast, setToast] = useState<string | null>(null);
 
   const [file, setFile] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [taille, setTaille] = useState('—');
   const [progress, setProgress] = useState(0);
   const [uploadDone, setUploadDone] = useState(false);
@@ -76,14 +77,16 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2800); };
   const nameOf = (id: string) => allClientSummaries.find(c => c.id === id)?.name ?? id;
 
-  const startUpload = (name: string, sizeMo?: number) => {
-    setFile(name); setUploadDone(false); setProgress(0);
-    setTaille(sizeMo ? `${sizeMo.toFixed(1)} Mo` : '0,8 Mo');
-    if (!form.titre) setForm(f => ({ ...f, titre: name.replace(/\.[^.]+$/, '') }));
+  const startUpload = (f: File) => {
+    setFile(f.name); setPendingFile(f); setUploadDone(false); setProgress(0);
+    setTaille(`${(f.size / 1048576).toFixed(1)} Mo`);
+    if (!form.titre) setForm(fo => ({ ...fo, titre: f.name.replace(/\.[^.]+$/, '') }));
+    // Le vrai envoi vers R2 a lieu à la création (createDoc → upload) ; la barre
+    // signale seulement que la pièce est prête à partir.
     let p = 0;
     const iv = setInterval(() => { p += Math.random() * 24 + 10; if (p >= 100) { p = 100; clearInterval(iv); setUploadDone(true); } setProgress(Math.round(p)); }, 130);
   };
-  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setTaille('—'); setProgress(0); setUploadDone(false); setShowForm(false); };
+  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setPendingFile(null); setTaille('—'); setProgress(0); setUploadDone(false); setShowForm(false); };
 
   const applyTemplate = (t: typeof TEMPLATES[number]) => {
     setForm(f => ({ ...f, titre: t.label, categorie: t.categorie, signature: t.signature }));
@@ -98,7 +101,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
     recipients.forEach(clientId => {
       createDoc(
         { categorie: form.categorie, nom: form.titre, version: 'V1', auteur: agentName, signatureRequise: form.signature, commentaire: form.note || undefined, format: 'PDF', taille: file ? taille : '—' },
-        agentName, !asDraft, clientId,
+        agentName, !asDraft, clientId, pendingFile,
       );
       if (!asDraft) {
         const msg = form.signature ? `Document à signer : « ${form.titre} »` : `Nouveau document disponible : « ${form.titre} »`;
@@ -211,12 +214,12 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
             <label style={labelStyle}>Fichier du document <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted-foreground)' }}>· optionnel</span></label>
             {!file ? (
               <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
-                onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f.name, f.size / 1048576); }}
+                onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f); }}
                 onClick={() => fileInputRef.current?.click()}
                 style={{ border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', padding: '18px 16px', textAlign: 'center', cursor: 'pointer', background: dragging ? 'var(--secondary)' : 'var(--input-background)' }}>
                 <Upload size={22} style={{ color: 'var(--primary)', margin: '0 auto 4px', display: 'block' }} />
                 <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>Glissez un fichier, ou cliquez (facultatif)</div>
-                <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) startUpload(f.name, f.size / 1048576); }} />
+                <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) startUpload(f); e.currentTarget.value = ''; }} />
               </div>
             ) : (
               <div style={{ background: 'var(--input-background)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
@@ -429,7 +432,13 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
               <div style={{ background: 'var(--background)', border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', padding: '28px 20px', textAlign: 'center', marginBottom: 14 }}>
                 <FileText size={30} style={{ color: cfg.color, margin: '0 auto 8px', display: 'block' }} />
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{CATEGORIE_LABELS[preview.doc.categorie]} · {preview.doc.version}</div>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)', marginTop: 8, fontStyle: 'italic' }}>Aperçu du fichier réel disponible avec le stockage documentaire (backend).</div>
+                {preview.doc.fileUrl ? (
+                  <a href={preview.doc.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.8125rem', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>
+                    <Download size={13} /> Ouvrir le fichier ({preview.doc.fichier ?? 'document'})
+                  </a>
+                ) : (
+                  <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)', marginTop: 8, fontStyle: 'italic' }}>Aucun fichier joint à ce document.</div>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
                 {[

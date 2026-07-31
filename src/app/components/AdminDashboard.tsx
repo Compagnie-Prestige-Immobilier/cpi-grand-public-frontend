@@ -842,9 +842,9 @@ function SystemeView() {
   const docsPublies = Object.values(allCpiDocsByClient).flat().filter(d => d.visibleClient).length;
 
   // ── Ce que ce navigateur conserve réellement ────────────────────────────────
-  // Deux clés, et deux seulement : le jeton de session (posé par api/client.ts)
-  // et la photo de profil du membre du personnel, qui n'a pas de route d'API.
-  // Tout le reste — dossiers, pièces, chantiers, journal — vit sur le serveur.
+  // Une clé, et une seule : le jeton de session (posé par api/client.ts).
+  // Tout le reste — dossiers, pièces, chantiers, journal, avatars — vit sur le
+  // serveur (les photos de profil passent par POST /auth/avatar → R2).
   const localKeys = typeof localStorage !== 'undefined'
     ? Object.keys(localStorage).filter(k => k.startsWith('cpi_'))
     : [];
@@ -853,11 +853,6 @@ function SystemeView() {
       k: 'Jeton de session',
       v: localKeys.includes(TOKEN_KEY) ? 'présent' : 'absent',
       note: 'Effacé à la déconnexion et à toute réponse 401.',
-    },
-    {
-      k: 'Photo de profil (cache local)',
-      v: `${localKeys.filter(k => k.startsWith('cpi_staff_avatar_')).length} enregistrée(s)`,
-      note: "Confinée à ce poste : l'API ne stocke pas encore les avatars.",
     },
   ];
 

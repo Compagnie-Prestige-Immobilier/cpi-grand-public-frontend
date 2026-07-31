@@ -42,6 +42,8 @@ export interface CpiDoc {
   status: CpiDocStatus;
   auteur: string;
   fichier?: string;
+  /** Lien signé de courte durée vers le fichier réel (R2 privé) — absent si aucun fichier joint. */
+  fileUrl?: string;
   commentaire?: string;
   visibleClient: boolean;
   signatureRequise: boolean;
@@ -73,6 +75,7 @@ interface CpiDocsCtx {
     agentName: string,
     publishNow: boolean,
     clientId?: string,
+    file?: File | null,
   ) => void;
   /** Chargement des documents CPI depuis l'API. */
   loading: boolean;
@@ -125,6 +128,7 @@ function toCpiDoc(d: CpiDocData): CpiDoc {
     status: d.status as CpiDocStatus,
     auteur: d.auteur,
     fichier: d.fichier ?? undefined,
+    fileUrl: d.fileUrl ?? undefined,
     commentaire: d.commentaire ?? undefined,
     visibleClient: d.visibleClient,
     signatureRequise: d.signatureRequise,
@@ -234,6 +238,7 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
       clientId: string;
       fields: Omit<CpiDoc, 'id' | 'dateCreation' | 'datePublication' | 'status' | 'visibleClient'>;
       publishNow: boolean;
+      file?: File | null;
     }) => {
       const created = await staffApi.cpiDocs.create({
         client_id: v.clientId,
@@ -247,6 +252,9 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
         taille: v.fields.taille ?? null,
         format: v.fields.format ?? null,
       });
+      // Le fichier réel part vers R2 AVANT la publication : un document publié
+      // avec fichier n'est jamais visible du client sans son contenu.
+      if (v.file) await staffApi.cpiDocs.upload(created.id, v.file);
       return v.publishNow ? staffApi.cpiDocs.publish(created.id) : created;
     },
     onSuccess: invalidateCpiDocs,
@@ -289,8 +297,9 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
     _agentName: string,
     publishNow: boolean,
     clientId: string = selectedClientId,
+    file: File | null = null,
   ) => {
-    createMutation.mutate({ clientId, fields, publishNow });
+    createMutation.mutate({ clientId, fields, publishNow, file });
   };
 
   // ── État de chargement / erreur ────────────────────────────────────────────

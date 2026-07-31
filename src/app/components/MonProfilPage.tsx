@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
+import { auth } from '../api/endpoints';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
@@ -937,8 +938,6 @@ function ClientProfile({ user }: { user: AuthUser }) {
 
 // ─── Profil professionnel (Admin / Agent CPI) ─────────────────────────────────
 
-const AVATAR_KEY = (email: string) => `cpi_staff_avatar_${email}`;
-
 function deviceLabel(): string {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const os = /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'macOS'
@@ -961,28 +960,30 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
   const historiqueQuery = useHistoriqueQuery(true);
   const actionsCount = toActivityEntries(historiqueQuery.data).filter(e => e.role === roleLabel).length;
 
-  const [avatar, setAvatar] = useState<string | null>(() => {
-    try { return localStorage.getItem(AVATAR_KEY(email)); } catch { return null; }
-  });
+  // Photo de profil : stockée sur R2 via l'API, servie par lien signé.
+  const [avatar, setAvatar] = useState<string | null>(user.avatarUrl ?? null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
-  const onPickAvatar = (file: File) => {
+  const onPickAvatar = async (file: File) => {
     if (!file.type.startsWith('image/')) { showToast('Veuillez choisir une image.'); return; }
-    if (file.size > 2 * 1024 * 1024) { showToast('Image trop lourde (max 2 Mo).'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result);
-      setAvatar(url);
-      try { localStorage.setItem(AVATAR_KEY(email), url); } catch {}
+    if (file.size > 5 * 1024 * 1024) { showToast('Image trop lourde (max 5 Mo).'); return; }
+    try {
+      const updated = await auth.updateAvatar(file);
+      setAvatar(updated.avatarUrl ?? null);
       showToast('Photo de profil mise à jour.');
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      showToast("Échec de l'envoi de la photo.");
+    }
   };
-  const removeAvatar = () => {
-    setAvatar(null);
-    try { localStorage.removeItem(AVATAR_KEY(email)); } catch {}
-    showToast('Photo retirée.');
+  const removeAvatar = async () => {
+    try {
+      await auth.removeAvatar();
+      setAvatar(null);
+      showToast('Photo retirée.');
+    } catch {
+      showToast('Échec de la suppression.');
+    }
   };
 
   const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();

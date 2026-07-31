@@ -21,6 +21,8 @@ export interface AuthUser {
   email?: string;
   memberNumber?: string;
   clientId?: string;
+  /** URL affichable de la photo de profil (lien signé R2 ou URL Google). */
+  avatarUrl?: string | null;
 }
 
 export type AppPage = 'welcome' | 'login' | 'register' | 'dashboard';
@@ -92,6 +94,7 @@ export default function App() {
       name: u.name,
       email: u.email,
       clientId: payload.role === 'client' ? (u.clientId ?? u.id) : undefined,
+      avatarUrl: u.avatarUrl ?? null,
     });
     setPage('dashboard');
   };

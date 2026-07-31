@@ -1,0 +1,21 @@
+# Hors du contexte de build : sans ce fichier, le daemon embarque node_modules
+# et dist/ locaux à chaque build.
+
+.git
+.gitignore
+.github
+
+node_modules
+dist
+
+.env
+.env.*
+
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile
+.dockerignore
+*.md
+.idea
+.vscode
+.DS_Store
