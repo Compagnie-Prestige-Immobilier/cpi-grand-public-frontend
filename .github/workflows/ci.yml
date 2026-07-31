@@ -64,21 +64,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Seuls deux modules peuvent écrire dans le navigateur
+      - name: Seul le module API peut écrire dans le navigateur
         run: |
           ECRITURE='localStorage[[:space:]]*\.[[:space:]]*(setItem|removeItem|clear)'
-          # src/imports/** est de la documentation morte, pas du code livré.
           TROUVES=$(grep -rlE "$ECRITURE" src --include='*.ts' --include='*.tsx' \
                     | grep -v '^src/imports/' | sort || true)
-          AUTORISES=$(printf '%s\n' \
-                      'src/app/api/client.ts' \
-                      'src/app/components/MonProfilPage.tsx')
+          # Les avatars passent désormais par POST/DELETE /auth/avatar : plus
+          # aucune exception hors jeton de session.
+          AUTORISES='src/app/api/client.ts'
 
           if [ "$TROUVES" != "$AUTORISES" ]; then
             echo "::error::Écriture localStorage inattendue."
-            echo "Seuls ces modules peuvent écrire dans le navigateur :"
-            echo "  src/app/api/client.ts            → cpi_api_token (jeton d'authentification)"
-            echo "  src/app/components/MonProfilPage.tsx → cpi_staff_avatar_* (avatar, sans route API)"
+            echo "Seul ce module peut écrire dans le navigateur :"
+            echo "  src/app/api/client.ts → cpi_api_token (jeton d'authentification)"
             echo
             echo "Trouvé :"
             printf '%s\n' "$TROUVES" | sed 's/^/  /'
@@ -87,7 +85,7 @@ jobs:
             echo "réellement justifiée, ajoutez-la à cette liste dans le même commit."
             exit 1
           fi
-          echo "✓ Écritures navigateur limitées au jeton et à l'avatar."
+          echo "✓ Écritures navigateur limitées au jeton de session."
 
       - name: Le jeton d'authentification reste confiné à la couche API
         run: |
