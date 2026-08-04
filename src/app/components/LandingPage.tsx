@@ -2,8 +2,10 @@ import { useState } from 'react';
 import {
   Shield, Users, ChevronRight, CheckCircle2,
   Star, ArrowRight, Phone, Mail, MapPin, Menu, X,
-  TrendingUp, Clock, FileText, Award, Facebook, Instagram, Linkedin
+  TrendingUp, Clock, FileText, Award
 } from 'lucide-react';
+// lucide-react 1.x ne fournit plus les icônes de marque (voir BrandIcons.tsx).
+import { Facebook, Instagram, Linkedin } from './BrandIcons';
 
 interface LandingPageProps {
   onLogin: () => void;

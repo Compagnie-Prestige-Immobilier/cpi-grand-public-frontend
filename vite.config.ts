@@ -7,10 +7,10 @@ import react from '@vitejs/plugin-react'
 function figmaAssetResolver() {
   return {
     name: 'figma-asset-resolver',
-    resolveId(id : any) {
+    resolveId(id: any) {
       if (id.startsWith('figma:asset/')) {
         const filename = id.replace('figma:asset/', '')
-        return path.resolve(__dirname, 'src/assets', filename)
+        return path.resolve(import.meta.dirname, 'src/assets', filename)
       }
     },
   }
@@ -34,6 +34,16 @@ const SITE_URL = (process.env.VITE_SITE_URL ?? 'https://monespace.cpi.sn').repla
  * Le jour où l'identifiant est connu : `VITE_GTAG_ID=G-… npm run build`.
  */
 const GTAG_ID = process.env.VITE_GTAG_ID ?? ''
+
+/**
+ * Backend Laravel visé par le serveur de développement.
+ *
+ * Le client API appelle `/api` en relatif : le proxy ci-dessous réécrit vers
+ * cette adresse, donc le navigateur ne voit qu'une seule origine et la question
+ * du CORS ne se pose jamais. Changer d'adresse de backend = changer cette
+ * valeur (ou `VITE_API_PROXY_TARGET`), rien d'autre.
+ */
+const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET ?? 'http://192.168.1.241:8000'
 
 /**
  * SEO : résout `__SITE_URL__` dans index.html, génère robots.txt et
@@ -135,13 +145,17 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src/app'),
+      '@': path.resolve(import.meta.dirname, './src/app'),
     },
   },
   server: {
+    // Écoute sur toutes les interfaces : le backend est joignable sur l'adresse
+    // réseau de la machine, le serveur de développement doit l'être aussi pour
+    // qu'un autre poste ou un téléphone du réseau puisse ouvrir l'application.
+    host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: API_PROXY_TARGET,
         changeOrigin: true,
       },
     },

@@ -499,8 +499,10 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,2,16,0.06)" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: A.muted }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: A.muted }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: 12, background: 'white' }} cursor={{ fill: 'rgba(99,2,16,0.04)' }} />
+                      {/* Recharts 3 empile selon l'ordre de rendu : la légende
+                          d'abord, l'infobulle ensuite, sinon elle passe dessous. */}
                       <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: 8 }} />
+                      <Tooltip contentStyle={{ border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: 12, background: 'white' }} cursor={{ fill: 'rgba(99,2,16,0.04)' }} />
                       <Bar dataKey="Inscriptions" fill={A.gold} radius={[3, 3, 0, 0]} />
                       <Bar dataKey="Activité" fill={A.bordeaux} radius={[3, 3, 0, 0]} />
                       <Bar dataKey="Validations" fill={A.green} radius={[3, 3, 0, 0]} />

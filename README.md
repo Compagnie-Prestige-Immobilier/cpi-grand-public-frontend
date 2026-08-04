@@ -31,10 +31,10 @@ Pour peupler l'application, l'administrateur dispose de **Système → Données 
 
 ## Stack
 
-- **React 18 + Vite 6**, **TypeScript strict**
+- **React 19 + Vite 8**, **TypeScript 7 strict**
 - **TanStack Query** pour toutes les lectures et mutations · **axios** pour le transport
 - Styles : CSS-in-JS inline + variables CSS (design tokens) + Tailwind
-- Graphiques : **Recharts** · Icônes : **lucide-react** (bibliothèque unique)
+- Graphiques : **Recharts** · Icônes : **lucide-react** (bibliothèque unique, hors les trois icônes de marque du pied de page : lucide 1.x les a retirées, voir `src/app/components/BrandIcons.tsx`)
 - Polices : **Bricolage Grotesque** (titres) · **Plus Jakarta Sans** (texte)
 
 ### Données : le serveur fait autorité
@@ -65,7 +65,22 @@ npm install
 npm run dev        # serveur de développement (http://localhost:5173)
 ```
 
-Le serveur de développement **relaie `/api` vers `http://localhost:8000`** (voir `vite.config.ts`) : lancez le backend en parallèle avec `php artisan serve`.
+Le serveur de développement **relaie `/api` vers `http://192.168.1.128:8000`** (voir `API_PROXY_TARGET` dans `vite.config.ts`) : lancez le backend en parallèle.
+
+```bash
+# côté backend, en écoutant sur l'adresse réseau et non sur localhost
+php artisan serve --host=192.168.1.128 --port=8000
+```
+
+Le client API appelle `/api` en **relatif** : le proxy réécrit vers le backend, le navigateur ne voit qu'une seule origine, et la question du CORS ne se pose jamais. Pour viser un autre backend, une seule valeur change :
+
+```bash
+VITE_API_PROXY_TARGET=http://autre-hote:8000 npm run dev
+```
+
+Le serveur écoute sur toutes les interfaces (`host: true`) : l'application est donc joignable depuis un autre poste du réseau sur `http://192.168.1.128:5173`.
+
+> ⚠️ La connexion Google reste configurée sur `http://localhost:5173/auth/google/callback` (`GOOGLE_REDIRECT_URI` côté backend). Depuis un autre appareil du réseau, ce retour ne résout pas : utilisez la connexion par mot de passe, ou déclarez l'adresse réseau comme URI de redirection supplémentaire dans la console Google Cloud.
 
 ```bash
 npm run typecheck  # tsc --noEmit, mode strict
@@ -73,6 +88,12 @@ npm run build      # tsc --noEmit && vite build → dist/
 ```
 
 `build` lance le contrôle de types **avant** Vite : une erreur de type arrête la construction, elle n'est jamais ignorée. Le build produit `dist/`, à servir derrière un hébergement pointant vers l'API.
+
+Le `dist/` n'a **pas** de proxy : `/api` y reste relatif et suppose que l'API est servie par le même hôte. Si ce n'est pas le cas, donnez la base absolue au build — et pensez à autoriser l'origine du site côté backend (`FRONTEND_URL` dans son `.env`, lu par `config/cors.php`), sans quoi le navigateur bloquera les appels :
+
+```bash
+VITE_API_URL=http://192.168.1.128:8000 npm run build
+```
 
 Chargement optimisé : l'espace connecté (dashboards + Recharts) est chargé **à la demande** ; la landing et la connexion restent légères.
 

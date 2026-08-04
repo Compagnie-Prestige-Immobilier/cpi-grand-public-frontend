@@ -15,8 +15,22 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/**
+ * Base des appels API.
+ *
+ * En développement : `/api` en relatif, réécrit par le proxy Vite vers le
+ * backend (voir `VITE_API_PROXY_TARGET` dans vite.config.ts). Une seule origine
+ * côté navigateur, donc aucun CORS.
+ *
+ * En production : relatif également, si le `dist/` est servi par le même hôte
+ * que l'API. Sinon, définir `VITE_API_URL` au build — mais l'appel devient
+ * inter-origine, et le backend doit alors autoriser cette origine
+ * (`FRONTEND_URL` dans son .env, lu par config/cors.php).
+ */
+const API_BASE = `${(import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')}/api`;
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   withCredentials: true,
 });

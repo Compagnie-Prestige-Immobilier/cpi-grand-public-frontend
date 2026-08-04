@@ -579,8 +579,10 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="year" tick={{ fontFamily: 'var(--font-sans)', fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={{ stroke: 'var(--border)' }} interval="preserveStartEnd" />
                       <YAxis tickFormatter={v => `${(v / 1_000_000).toFixed(0)}M`} tick={{ fontFamily: 'var(--font-sans)', fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                      <Tooltip content={<ChartTooltip />} />
+                      {/* Recharts 3 empile selon l'ordre de rendu : la légende
+                          d'abord, l'infobulle ensuite, sinon elle passe dessous. */}
                       <Legend wrapperStyle={{ fontFamily: 'var(--font-sans)', fontSize: '11px' }} formatter={v => v === 'capitalRestant' ? 'Capital restant' : v === 'cumulInterets' ? 'Cumul intérêts' : 'Cumul capital remboursé'} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Area type="monotone" dataKey="capitalRestant" stroke="var(--primary)" strokeWidth={2.5} fill="url(#gCap)" dot={false} activeDot={{ r: 4, fill: 'var(--primary)' }} />
                       <Area type="monotone" dataKey="cumulInterets" stroke="var(--accent)" strokeWidth={2.5} fill="url(#gInt)" dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} />
                       <Area type="monotone" dataKey="cumulCapital" stroke="var(--success)" strokeWidth={2} fill="url(#gCapR)" dot={false} activeDot={{ r: 4, fill: 'var(--success)' }} strokeDasharray="5 4" />

@@ -21,8 +21,8 @@
     "noUnusedLocals": true,
     "noFallthroughCasesInSwitch": true,
 
-    // Même alias que vite.config.ts.
-    "baseUrl": ".",
+    // Même alias que vite.config.ts. Les chemins sont résolus relativement à ce
+    // fichier : `baseUrl` a été supprimé de TypeScript 7.
     "paths": {
       "@/*": ["./src/app/*"]
     }
