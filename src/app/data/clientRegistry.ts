@@ -53,6 +53,9 @@ export function toClientSummary(c: ClientData): ClientSummary {
     dateInscription: frDate(c.dateInscription),
     email: c.email ?? undefined,
     phone: c.phone ?? undefined,
+    employer: c.employer ?? undefined,
+    fonction: c.fonction ?? undefined,
+    conseiller: c.conseiller ?? undefined,
   };
 }
 

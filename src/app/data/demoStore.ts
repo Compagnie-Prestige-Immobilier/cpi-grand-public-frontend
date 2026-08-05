@@ -136,6 +136,10 @@ export interface ClientSummary {
   /** Identité de connexion (permet de retrouver le compte à la reconnexion). */
   email?: string;
   phone?: string;
+  employer?: string;
+  fonction?: string;
+  /** Conseiller CPI assigné, `undefined` tant qu'aucun ne l'est. */
+  conseiller?: string;
 }
 
 // ─── Bases VIDES ──────────────────────────────────────────────────────────────

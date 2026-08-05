@@ -284,17 +284,32 @@ a, button, [role="button"], input, select, textarea, summary, label {
 
 /* Entrée de contenu élégante */
 @keyframes cpi-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.cpi-animate-in { animation: cpi-fade-in var(--dur-3) var(--ease-out) both; }
+.cpi-animate-in { animation: cpi-fade-in var(--dur-3) var(--ease-out) backwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ═══ Micro-interactions & motion ═══════════════════════════════════════ */
 
 /* Entrée de page (rejouée à chaque navigation via key=activeNav) */
 @keyframes cpi-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.cpi-page-enter { animation: cpi-page-in var(--dur-3) var(--ease-out) both; }
+
+/* ⚠️ `backwards`, JAMAIS `both` / `forwards`.
+ *
+ * Avec `both`, l'élément CONSERVE après coup la valeur animée de `transform`.
+ * Le navigateur la calcule alors en `matrix(1, 0, 0, 1, 0, 0)` — l'identité,
+ * invisible à l'œil, mais qui n'est pas le mot-clé `none` : toute valeur autre
+ * que `none` fait de l'élément le bloc conteneur de ses descendants en
+ * `position: fixed`. Toasts, modales et panneaux se positionnaient alors par
+ * rapport à la page (souvent hors écran) au lieu de la fenêtre.
+ *
+ * `backwards` applique l'état initial avant le départ (donc pas de
+ * scintillement, y compris pendant `animation-delay`) puis rend la main aux
+ * styles propres de l'élément — `transform` y redevient `none`. L'état final
+ * des keyframes étant identique au repos, rien ne change visuellement.
+ */
+.cpi-page-enter { animation: cpi-page-in var(--dur-3) var(--ease-out) backwards; }
 
 /* Apparition en cascade des enfants directs (listes, grilles de cartes) */
-.cpi-stagger > * { animation: cpi-page-in var(--dur-3) var(--ease-out) both; }
+.cpi-stagger > * { animation: cpi-page-in var(--dur-3) var(--ease-out) backwards; }
 .cpi-stagger > *:nth-child(1){animation-delay:.03s}
 .cpi-stagger > *:nth-child(2){animation-delay:.07s}
 .cpi-stagger > *:nth-child(3){animation-delay:.11s}
@@ -324,9 +339,9 @@ a, button, [role="button"], input, select, textarea, summary, label {
 
 /* Utilitaires ponctuels */
 @keyframes cpi-scale-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
-.cpi-scale-in { animation: cpi-scale-in var(--dur-2) var(--ease-spring) both; }
+.cpi-scale-in { animation: cpi-scale-in var(--dur-2) var(--ease-spring) backwards; }
 @keyframes cpi-slide-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.cpi-slide-up { animation: cpi-slide-up var(--dur-3) var(--ease-out) both; }
+.cpi-slide-up { animation: cpi-slide-up var(--dur-3) var(--ease-out) backwards; }
 
 /* ═══ Accessibilité & responsive ════════════════════════════════════════ */
 
@@ -346,10 +361,12 @@ img { max-width: 100%; height: auto; }
 
 /* Tiroirs latéraux : entrée en glissé depuis la droite */
 @keyframes cpi-slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-.cpi-drawer-enter { animation: cpi-slide-in-right var(--dur-3) var(--ease-out) both; }
+.cpi-drawer-enter { animation: cpi-slide-in-right var(--dur-3) var(--ease-out) backwards; }
 /* Voile de fond des overlays : fondu doux */
 @keyframes cpi-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-.cpi-backdrop-enter { animation: cpi-backdrop-in var(--dur-2) var(--ease-out) both; }
+/* Opacité seule : pas de bloc conteneur en jeu ici, mais on garde la même règle
+ * partout — une exception isolée est ce qui ramène le bug par recopie. */
+.cpi-backdrop-enter { animation: cpi-backdrop-in var(--dur-2) var(--ease-out) backwards; }
 
 /* Respect du mouvement réduit */
 @media (prefers-reduced-motion: reduce) {

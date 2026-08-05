@@ -1,16 +1,19 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   User, MapPin, Briefcase, Banknote,
   Edit3, CheckCircle, Camera, Phone, Mail, Building2, Calendar, Clock,
   Copy, Check, TrendingUp, TrendingDown, Minus,
-  AlertCircle, Shield, BadgeCheck,
+  AlertCircle, Shield, BadgeCheck, Loader2,
   LogOut, KeyRound, Monitor, Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
-import { auth } from '../api/endpoints';
+import { auth, clientApi } from '../api/endpoints';
+import { apiErrorMessage } from '../api/client';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
+import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
 
 interface MonProfilPageProps {
@@ -235,6 +238,93 @@ function ProgressRing({ value, size = 56, stroke = 4 }: { value: number; size?: 
   );
 }
 
+// ─── Édition du profil ────────────────────────────────────────────────────────
+
+/**
+ * Champs réellement modifiables par le client.
+ *
+ * La liste est calquée sur `ClientController::updateMyProfile` : le serveur
+ * n'accepte que ces clés. Tout autre champ du profil (date de naissance, CNI,
+ * revenus…) n'existe ni dans ClientData ni en base — il s'affiche « — » et
+ * n'est pas proposé à l'édition, faute de quoi la saisie serait perdue.
+ */
+type ChampProfil = 'name' | 'phone' | 'adresse' | 'employer' | 'fonction';
+
+interface DefChamp { cle: ChampProfil; label: string; type?: string; placeholder?: string }
+
+function PanneauEdition({
+  champs, valeurs, onClose,
+}: {
+  champs: DefChamp[];
+  valeurs: Record<ChampProfil, string>;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<Record<string, string>>(() =>
+    Object.fromEntries(champs.map(c => [c.cle, valeurs[c.cle] === '—' ? '' : valeurs[c.cle]])));
+
+  const mutation = useMutation({
+    mutationFn: (payload: Record<string, string | null>) => clientApi.updateProfile(payload),
+    onSuccess: () => {
+      // Le registre client dérive de cette requête : sans invalidation, l'écran
+      // continuerait d'afficher l'ancienne valeur jusqu'au prochain chargement.
+      void queryClient.invalidateQueries({ queryKey: MY_PROFILE_QUERY_KEY });
+      onClose();
+    },
+  });
+
+  const enregistrer = () => {
+    // Un champ vidé est envoyé à null (le serveur accepte nullable) plutôt que
+    // comme chaîne vide, qui se relirait ensuite comme une valeur renseignée.
+    const payload: Record<string, string | null> = {};
+    for (const c of champs) {
+      const v = form[c.cle]?.trim() ?? '';
+      if (c.cle === 'name' && v === '') continue; // le nom ne peut pas être effacé
+      payload[c.cle] = v === '' ? null : v;
+    }
+    mutation.mutate(payload);
+  };
+
+  return (
+    <div style={{ margin: '0 24px 20px', padding: '18px 20px', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+        {champs.map(c => (
+          <label key={c.cle} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>
+              {c.label}
+            </span>
+            <input
+              type={c.type ?? 'text'}
+              value={form[c.cle] ?? ''}
+              placeholder={c.placeholder}
+              onChange={e => setForm(f => ({ ...f, [c.cle]: e.target.value }))}
+              style={{ padding: '9px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: '#fff', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)' }}
+            />
+          </label>
+        ))}
+      </div>
+
+      {mutation.isError && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)' }}>
+          <AlertCircle size={14} style={{ flexShrink: 0 }} />
+          {apiErrorMessage(mutation.error, "L'enregistrement de votre profil a échoué.")}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+        <button onClick={enregistrer} disabled={mutation.isPending} aria-busy={mutation.isPending || undefined}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 20px', borderRadius: 'var(--r-sm)', border: 'none', background: 'var(--primary)', color: 'var(--primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 700, cursor: mutation.isPending ? 'wait' : 'pointer' }}>
+          {mutation.isPending ? <><Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> Enregistrement…</> : <><Check size={13} /> Enregistrer</>}
+        </button>
+        <button onClick={onClose} disabled={mutation.isPending}
+          style={{ padding: '9px 20px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function MonProfilPage({ user, onLogout }: MonProfilPageProps) {
@@ -302,10 +392,27 @@ function ClientProfile({ user }: { user: AuthUser }) {
   const [editing, setEditing] = useState<string | null>(null);
   const toggle = (s: string) => setEditing(prev => prev === s ? null : s);
 
+  // Valeurs courantes des seuls champs que le serveur sait enregistrer.
+  const valeursEditables: Record<ChampProfil, string> = {
+    name: clientData.name,
+    phone: clientData.phone,
+    adresse: clientData.address,
+    employer: clientData.employer,
+    fonction: clientData.fonction,
+  };
+
   const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const revenuTotal = PROFILE.revenus + PROFILE.autresRevenus;
   const capacite = revenuTotal - PROFILE.charges;
   const tauxEndettement = revenuTotal > 0 ? Math.round((PROFILE.charges / revenuTotal) * 100) : 0;
+
+  // Aucun revenu déclaré ⇒ on n'affiche NI montant NI taux.
+  //
+  // Sans ce garde-fou, les compteurs valaient « 0 FCFA » et le taux
+  // d'endettement « 0 % » en vert : une absence de donnée se lisait comme une
+  // évaluation financière favorable. Un tiret dit la vérité — la donnée manque.
+  const hasFinance = revenuTotal > 0;
+  const montant = (v: number) => (hasFinance ? fmt(v) : '—');
 
   return (
     <div style={{
@@ -599,22 +706,29 @@ function ClientProfile({ user }: { user: AuthUser }) {
         </div>
 
         {editing === 'identite' && (
-          <div style={{
-            margin: '0 24px 20px',
-            padding: '12px 16px',
-            background: 'rgba(200,146,26,0.07)',
-            border: '1px solid rgba(200,146,26,0.2)',
-            borderRadius: 'var(--r-sm)',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
-            <AlertCircle size={14} style={{ color: '#C8921A', flexShrink: 0 }} />
-            <span style={{
-              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
-              color: '#C8921A', fontWeight: 500,
+          <>
+            <div style={{
+              margin: '0 24px 12px',
+              padding: '12px 16px',
+              background: 'rgba(200,146,26,0.07)',
+              border: '1px solid rgba(200,146,26,0.2)',
+              borderRadius: 'var(--r-sm)',
+              display: 'flex', alignItems: 'center', gap: '8px',
             }}>
-              Toute modification des données d'identité est soumise à validation par votre conseiller CPI.
-            </span>
-          </div>
+              <AlertCircle size={14} style={{ color: '#C8921A', flexShrink: 0 }} />
+              <span style={{
+                fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
+                color: '#C8921A', fontWeight: 500,
+              }}>
+                Les pièces d'identité (CNI, date et lieu de naissance) sont renseignées par votre conseiller CPI à partir des documents déposés.
+              </span>
+            </div>
+            <PanneauEdition
+              champs={[{ cle: 'name', label: 'Nom complet', placeholder: 'Prénom et nom' }]}
+              valeurs={valeursEditables}
+              onClose={() => setEditing(null)}
+            />
+          </>
         )}
       </SectionCard>
 
@@ -704,6 +818,17 @@ function ClientProfile({ user }: { user: AuthUser }) {
             </button>
           </div>
         </FieldsGrid>
+
+        {editing === 'coords' && (
+          <PanneauEdition
+            champs={[
+              { cle: 'phone', label: 'Téléphone principal', type: 'tel', placeholder: '+221 77 000 00 00' },
+              { cle: 'adresse', label: 'Adresse de résidence', placeholder: 'Quartier, ville' },
+            ]}
+            valeurs={valeursEditables}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </SectionCard>
 
       {/* ─── PROFIL PROFESSIONNEL ───────────────────────────────────────────── */}
@@ -775,6 +900,17 @@ function ClientProfile({ user }: { user: AuthUser }) {
           <FieldRow label="Date d'embauche" value={PROFILE.dateEmbauche} icon={Calendar} />
           <FieldRow label="Secteur d'activité" value={PROFILE.secteur} />
         </FieldsGrid>
+
+        {editing === 'pro' && (
+          <PanneauEdition
+            champs={[
+              { cle: 'employer', label: 'Employeur', placeholder: 'Nom de votre employeur' },
+              { cle: 'fonction', label: 'Fonction', placeholder: 'Votre poste' },
+            ]}
+            valeurs={valeursEditables}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </SectionCard>
 
       {/* ─── INFORMATIONS FINANCIÈRES ───────────────────────────────────────── */}
@@ -782,43 +918,45 @@ function ClientProfile({ user }: { user: AuthUser }) {
         icon={Banknote}
         title="Informations financières"
         subtitle="Revenus, charges et coordonnées bancaires"
-        onEdit={() => toggle('finance')}
-        editing={editing === 'finance'}
+        // Pas de bouton « Modifier » ici : aucun champ financier n'existe côté
+        // serveur (ni dans ClientData, ni en base). Un bouton d'édition aurait
+        // ouvert une saisie que rien n'aurait pu enregistrer.
       >
         {/* Financial summary cards */}
         <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', borderBottom: '1px solid var(--border)' }}>
           {[
             {
               label: 'Revenus totaux',
-              value: fmt(revenuTotal),
+              value: montant(revenuTotal),
               icon: TrendingUp,
-              color: '#1A6B44',
-              bg: 'rgba(26,107,68,0.08)',
-              iconColor: '#1A6B44',
+              color: hasFinance ? '#1A6B44' : 'var(--muted-foreground)',
+              bg: hasFinance ? 'rgba(26,107,68,0.08)' : 'var(--muted)',
+              iconColor: hasFinance ? '#1A6B44' : 'var(--muted-foreground)',
             },
             {
               label: 'Charges mensuelles',
-              value: fmt(PROFILE.charges),
+              value: montant(PROFILE.charges),
               icon: TrendingDown,
-              color: '#C8921A',
-              bg: 'rgba(200,146,26,0.08)',
-              iconColor: '#C8921A',
+              color: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
+              bg: hasFinance ? 'rgba(200,146,26,0.08)' : 'var(--muted)',
+              iconColor: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
             },
             {
               label: 'Capacité de remboursement',
-              value: fmt(capacite),
+              value: montant(capacite),
               icon: Minus,
-              color: 'var(--primary)',
-              bg: 'var(--secondary)',
-              iconColor: 'var(--primary)',
+              color: hasFinance ? 'var(--primary)' : 'var(--muted-foreground)',
+              bg: hasFinance ? 'var(--secondary)' : 'var(--muted)',
+              iconColor: hasFinance ? 'var(--primary)' : 'var(--muted-foreground)',
             },
             {
               label: "Taux d'endettement",
-              value: `${tauxEndettement} %`,
+              // Pas de revenus connus ⇒ pas de taux, et surtout pas de vert.
+              value: hasFinance ? `${tauxEndettement} %` : '—',
               icon: TrendingUp,
-              color: tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
-              bg: tauxEndettement > 33 ? 'rgba(192,57,43,0.07)' : 'rgba(26,107,68,0.08)',
-              iconColor: tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              color: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              bg: !hasFinance ? 'var(--muted)' : tauxEndettement > 33 ? 'rgba(192,57,43,0.07)' : 'rgba(26,107,68,0.08)',
+              iconColor: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
             },
           ].map(card => (
             <div key={card.label} style={{
@@ -846,7 +984,17 @@ function ClientProfile({ user }: { user: AuthUser }) {
           ))}
         </div>
 
-        {/* Revenue breakdown bar */}
+        {/* Revenue breakdown bar — masquée tant qu'aucun revenu n'est déclaré :
+            une barre « Disponible 100 % / Charges 0 % » serait une lecture
+            financière inventée de toutes pièces. */}
+        {!hasFinance ? (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertCircle size={14} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+              Aucun revenu déclaré — votre conseiller CPI renseigne ces éléments lors de l'étude du dossier.
+            </span>
+          </div>
+        ) : (
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{
@@ -880,12 +1028,13 @@ function ClientProfile({ user }: { user: AuthUser }) {
             </div>
           </div>
         </div>
+        )}
 
         {/* Detail fields */}
         <FieldsGrid>
-          <FieldRow label="Revenus salariaux" value={fmt(PROFILE.revenus)} icon={TrendingUp} accent />
-          <FieldRow label="Autres revenus" value={fmt(PROFILE.autresRevenus)} />
-          <FieldRow label="Charges mensuelles" value={fmt(PROFILE.charges)} />
+          <FieldRow label="Revenus salariaux" value={montant(PROFILE.revenus)} icon={TrendingUp} accent />
+          <FieldRow label="Autres revenus" value={montant(PROFILE.autresRevenus)} />
+          <FieldRow label="Charges mensuelles" value={montant(PROFILE.charges)} />
           <FieldRow label="Mode de paiement" value={PROFILE.modePaiement} />
         </FieldsGrid>
 
