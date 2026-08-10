@@ -45,9 +45,11 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 
-# Origine du backend vers lequel /api est proxifié — le nom de conteneur du
-# backend sur le réseau compose partagé. Surchargez-le dans docker-compose.yml.
-ENV API_ORIGIN=http://cpi_api:80
+# Origine du backend vers lequel /api est proxifié, par son URL publique.
+# API_HOST doit rester l'hôte de API_ORIGIN : il sert d'en-tête Host (routage du
+# proxy TLS en amont) et de SNI. Surchargez les deux dans docker-compose.yml.
+ENV API_ORIGIN=https://api.cpi.sn \
+    API_HOST=api.cpi.sn
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 

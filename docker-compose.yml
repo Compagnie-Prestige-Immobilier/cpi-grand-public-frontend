@@ -28,10 +28,11 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:80"
     environment:
-      # Nom DNS du backend sur le réseau partagé (container_name du service app).
-      API_ORIGIN: http://cpi_api:80
-    networks:
-      - backend
+      # Backend joint par son URL PUBLIQUE : aucune dépendance à un réseau
+      # Docker partagé, les deux stacks se déploient et redémarrent séparément.
+      # API_HOST doit être l'hôte de API_ORIGIN (en-tête Host + SNI TLS).
+      API_ORIGIN: ${API_ORIGIN:-https://api.cpi.sn}
+      API_HOST: ${API_HOST:-api.cpi.sn}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/up"]
       interval: 30s
@@ -44,8 +45,8 @@ services:
         max-size: "20m"
         max-file: "5"
 
-networks:
-  # Réseau créé par backend/docker-compose.yml (projet `cpi`, réseau `cpi`).
-  backend:
-    external: true
-    name: cpi_cpi
+# Aucun réseau externe : ce service n'a plus besoin de la stack backend pour
+# démarrer. Déclarer `cpi_cpi` en external faisait échouer `docker compose up`
+# dès que ce réseau n'existait pas sous ce nom exact — compose s'arrêtait avant
+# de créer le conteneur, et le domaine ne répondait plus que 502.
+# Compose crée son propre réseau de projet, ce qui suffit ici.

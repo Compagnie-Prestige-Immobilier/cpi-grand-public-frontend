@@ -40,12 +40,24 @@ server {
     }
 
     # --- API -----------------------------------------------------------------
-    # Même origine pour le navigateur : pas de CORS en production. L'upstream
-    # est le conteneur backend (nginx+php-fpm) sur le réseau compose partagé.
+    # Même origine pour le navigateur : pas de CORS en production, pas de
+    # préflight, et la CSP `connect-src 'self'` reste valable.
+    #
+    # L'upstream est joint par son URL PUBLIQUE (${API_ORIGIN}) : les deux stacks
+    # n'ont aucun réseau Docker en commun et restent déployables séparément.
     location /api/ {
         proxy_pass ${API_ORIGIN};
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+
+        # Host = nom PUBLIC de l'API, surtout pas $host.
+        #
+        # En amont, le proxy TLS route sur le Host : lui renvoyer
+        # « monespace.cpi.sn » le ferait retomber sur le routeur du frontend —
+        # donc sur ce même conteneur, en boucle, jusqu'à épuisement.
+        # C'est aussi ce nom qui sert de SNI à la poignée de main TLS.
+        proxy_set_header Host ${API_HOST};
+        proxy_ssl_server_name on;
+
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
