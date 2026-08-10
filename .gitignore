@@ -2,8 +2,10 @@ node_modules/
 dist/
 .DS_Store
 
-# Réglages locaux (adresse du backend, identifiant de mesure…) : propres à une
-# machine, jamais partagés. Les valeurs par défaut vivent dans vite.config.ts.
+# Réglages propres à une machine (adresse d'un backend local…). Les fichiers
+# .env.development / .env.production, eux, SONT versionnés : ils ne contiennent
+# aucun secret et rendent le build reproductible. Voir .env.example.
 .env
 .env.local
 .env.*.local
+.env.production

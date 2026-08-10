@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -17,35 +17,6 @@ function figmaAssetResolver() {
 }
 
 /**
- * Adresse publique du site, en UN SEUL endroit : elle alimente l'URL canonique,
- * les balises de partage social, les données structurées et sitemap.xml.
- *
- * ⚠️ À faire pointer sur le domaine de production. Une URL canonique fausse est
- * pire que pas d'URL du tout — les moteurs suivraient une adresse inexistante.
- * Se définit aussi au build : `VITE_SITE_URL=https://… npm run build`.
- */
-const SITE_URL = (process.env.VITE_SITE_URL ?? 'https://monespace.cpi.sn').replace(/\/+$/, '')
-
-/**
- * Identifiant de mesure Google Analytics (« G-XXXXXXXXXX »).
- *
- * Tant qu'il n'est pas défini, AUCUN script de suivi n'est injecté : pas de
- * requête vers Google, rien à consentir, et aucune balise morte dans la page.
- * Le jour où l'identifiant est connu : `VITE_GTAG_ID=G-… npm run build`.
- */
-const GTAG_ID = process.env.VITE_GTAG_ID ?? ''
-
-/**
- * Backend Laravel visé par le serveur de développement.
- *
- * Le client API appelle `/api` en relatif : le proxy ci-dessous réécrit vers
- * cette adresse, donc le navigateur ne voit qu'une seule origine et la question
- * du CORS ne se pose jamais. Changer d'adresse de backend = changer cette
- * valeur (ou `VITE_API_PROXY_TARGET`), rien d'autre.
- */
-const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET ?? 'http://192.168.1.241:8000'
-
-/**
  * SEO : résout `__SITE_URL__` dans index.html, génère robots.txt et
  * sitemap.xml, et injecte le marqueur d'analytique si un identifiant existe.
  *
@@ -53,7 +24,7 @@ const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET ?? 'http://192.168.1.
  * ils contiennent l'adresse du site, et les fichiers de public/ sont copiés tels
  * quels, sans substitution — un jeton non résolu s'y retrouverait en production.
  */
-function seoAndAnalytics() {
+function seoAndAnalytics(SITE_URL: string, GTAG_ID: string) {
   const robots = `# MONESPACE.CPI — Compagnie Prestige Immobilier
 #
 # Seuls l'accueil et les écrans de connexion / inscription ont vocation à être
@@ -123,7 +94,7 @@ Sitemap: ${SITE_URL}/sitemap.xml
   }
 }
 
-// Base « / » par défaut (Hostinger / hébergement racine).
+// Base « / » par défaut (hébergement à la racine du domaine).
 //
 // `DEPLOY_TARGET=gh-pages` bascule sur le sous-chemin du dépôt. Plus aucun
 // workflow ne le définit : l'application a besoin de l'API Laravel, qu'un
@@ -133,31 +104,58 @@ Sitemap: ${SITE_URL}/sitemap.xml
 // absolu et ne fonctionnerait pas sous un préfixe.
 const base = process.env.DEPLOY_TARGET === 'gh-pages' ? '/cpi-immobilier/' : '/'
 
-export default defineConfig({
-  base,
-  plugins: [
-    figmaAssetResolver(),
-    seoAndAnalytics(),
-    // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
-    react(),
-    tailwindcss(),
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src/app'),
-    },
-  },
-  server: {
-    // Écoute sur toutes les interfaces : le backend est joignable sur l'adresse
-    // réseau de la machine, le serveur de développement doit l'être aussi pour
-    // qu'un autre poste ou un téléphone du réseau puisse ouvrir l'application.
-    host: true,
-    proxy: {
-      '/api': {
-        target: API_PROXY_TARGET,
-        changeOrigin: true,
+/**
+ * Toute la configuration d'environnement passe par les fichiers `.env`.
+ *
+ * `loadEnv` est indispensable ici : `process.env` ne lit PAS les fichiers
+ * `.env`. Seul le code applicatif y accède spontanément, via `import.meta.env`.
+ * Sans cet appel, `.env.production` serait ignoré par ce fichier et le site
+ * partirait en production avec les valeurs de développement.
+ *
+ * Fichiers lus, par priorité croissante (Vite) :
+ *   .env  →  .env.<mode>  →  .env.local  →  .env.<mode>.local
+ * `npm run build` utilise le mode « production », `npm run dev` « development ».
+ */
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, import.meta.dirname, '')
+
+  // Adresse publique du site : URL canonique, balises sociales, données
+  // structurées, sitemap.xml. Une URL canonique fausse est pire que pas d'URL.
+  const SITE_URL = (env.VITE_SITE_URL || 'https://monespace.cpi.sn').replace(/\/+$/, '')
+
+  // Identifiant Google Analytics. Vide ⇒ aucun script injecté, aucune requête
+  // vers Google, aucune balise morte dans la page.
+  const GTAG_ID = env.VITE_GTAG_ID || ''
+
+  // Backend visé par le proxy du serveur de développement. Sans effet sur le
+  // build : en production, c'est VITE_API_URL que lit src/app/api/client.ts.
+  const API_PROXY_TARGET = env.VITE_API_PROXY_TARGET || 'http://localhost:8000'
+
+  return {
+    base,
+    plugins: [
+      figmaAssetResolver(),
+      seoAndAnalytics(SITE_URL, GTAG_ID),
+      // The React and Tailwind plugins are both required for Make, even if
+      // Tailwind is not being actively used – do not remove them
+      react(),
+      tailwindcss(),
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(import.meta.dirname, './src/app'),
       },
     },
-  },
+    server: {
+      // Écoute sur toutes les interfaces : permet d'ouvrir l'application depuis
+      // un autre poste ou un téléphone du réseau local.
+      host: true,
+      proxy: {
+        '/api': {
+          target: API_PROXY_TARGET,
+          changeOrigin: true,
+        },
+      },
+    },
+  }
 })
