@@ -51,6 +51,10 @@ ENV API_ORIGIN=http://cpi_api:80
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# nginx écoute sur :80 dans le conteneur (voir default.conf.template). Le port
+# hôte est choisi côté compose — « 127.0.0.1:5173:80 » par défaut. Déclarer 5173
+# ici laissait croire que le conteneur écoutait sur ce port : il n'en a jamais
+# rien été, et un `docker run -P` aurait publié un port mort.
 EXPOSE 80
 
 # /up est répondu par nginx lui-même (voir default.conf.template) — le check
