@@ -1174,7 +1174,9 @@ const DOC_STATUS: Record<string, { label: string; color: string }> = {
   verification: { label: 'En vérification',color: A.gold },
   refuse:       { label: 'Refusée',        color: A.red },
   'a-remplacer':{ label: 'À remplacer',    color: A.red },
-  'en-attente': { label: 'En attente',     color: A.muted },
+  // Le client ne l'a pas encore déposée. « En attente » se lisait comme
+  // « en attente de traitement par CPI » — l'inverse de la réalité.
+  'en-attente': { label: 'Non déposée',    color: A.muted },
 };
 const CPI_STATUS: Record<string, { label: string; color: string }> = {
   brouillon:  { label: 'Brouillon',  color: A.muted },

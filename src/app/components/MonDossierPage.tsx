@@ -13,6 +13,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { useClientData } from '../data/useClientData';
+import { libelleProjet, libelleLocalisation, useMaDemandeQuery } from '../data/maDemande';
+import { usePermission } from '../auth/PermissionContext';
 import { useMesBanquesQuery, toBankAssignment, type BankStatus } from '../data/bankRegistry';
 import { apiErrorMessage } from '../api/client';
 import { useDossierJourney, TIMELINE_STEPS } from '../data/dossierJourney';
@@ -350,6 +352,10 @@ function DossierJourneyBanner() {
 // ─── Project header (compact identity + pieces progress) ──────────────────────
 
 function ProjectHeader({ clientName }: { clientName: string }) {
+  // Même requête que « Ma demande » (clé de cache commune) : aucun appel réseau
+  // supplémentaire, et les deux écrans ne peuvent pas diverger.
+  const { role } = usePermission();
+  const demande = useMaDemandeQuery(role === 'client').data ?? null;
   const client = useClientData();
   const { requisDocs } = useDocState();
   const liveDossiers = mergeDossiers(requisDocs);
@@ -371,7 +377,7 @@ function ProjectHeader({ clientName }: { clientName: string }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--muted-foreground)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '3px' }}>Projet immobilier</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 800, color: 'var(--foreground)', lineHeight: 1.2 }}>
-              {client.projectNom} <span style={{ color: 'var(--muted-foreground)', fontWeight: 500 }}>—</span> {client.adresse}
+              {libelleProjet(client.projectNom, demande)} <span style={{ color: 'var(--muted-foreground)', fontWeight: 500 }}>—</span> {libelleLocalisation(client.adresse, demande)}
             </div>
             {client.ref && client.ref !== '—' && (
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'var(--input-background)', padding: '2px 8px', borderRadius: 'var(--r-xs)', marginTop: '6px', display: 'inline-block' }}>Réf. {client.ref}</span>

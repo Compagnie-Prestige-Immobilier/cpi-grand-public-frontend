@@ -459,6 +459,11 @@ export const clientApi = {
   updateProfile: async (input: ClientProfileInput): Promise<ClientData> =>
     (await api.put('/client/profile', input)).data.data,
 
+  /** Demande d'assistance — part par courriel vers la boîte du support CPI. */
+  envoyerDemandeSupport: async (input: { sujet: string; message: string }): Promise<void> => {
+    await api.post('/client/support', input);
+  },
+
   maDemande: async (): Promise<DemandeData | null> =>
     (await api.get('/client/ma-demande')).data.data,
 
