@@ -5,6 +5,7 @@ import {
   Building2, Edit3, Save, X, MessageSquare,
   Printer, Send, MapPin, Banknote, Timer, User2,
   Hash, LayoutGrid, ArrowRight, FolderOpen, Bell, ImageIcon, FileUp, Loader2,
+  Eye, Download, Lock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
@@ -38,11 +39,14 @@ interface DemandeForm {
 
 
 // ── Doc status config (statuts réels, gérés par l'Agent CPI dans "Mon dossier") ──
+//
+// Les CLÉS sont les statuts du serveur et ne changent pas — seuls les libellés
+// affichés évoluent. Renommer une clé casserait la lecture des réponses API.
 const DOC_STATUS_CFG: Record<SharedDoc['status'], { label: string; color: string; bg: string }> = {
-  'en-attente':  { label: 'À déposer',              color: 'var(--muted-foreground)', bg: 'var(--muted)'           },
-  depose:        { label: 'Déposé — analyse en cours', color: 'var(--chart-4)',        bg: 'rgba(176,80,112,0.08)' },
+  'en-attente':  { label: 'À envoyer',              color: 'var(--muted-foreground)', bg: 'var(--muted)'           },
+  depose:        { label: 'En attente de validation', color: 'var(--chart-4)',        bg: 'rgba(176,80,112,0.08)' },
   verification:  { label: 'En vérification',        color: 'var(--accent)',           bg: 'rgba(200,146,26,0.09)' },
-  accepte:       { label: 'Accepté',                color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)'   },
+  accepte:       { label: 'Validé',                 color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)'   },
   refuse:        { label: 'Refusé',                 color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
   'a-remplacer': { label: 'À remplacer',             color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
 };
@@ -368,6 +372,10 @@ export default function MaDemandePage({ user: _user }: Props) {
   const [form, setForm] = useState<DemandeForm | null>(null);
   const [isEditing, setIsEditing] = useState(true);
   const [depotDocId, setDepotDocId] = useState<string | null>(null);
+  // Pièce mise en évidence après un clic sur « Compléter les informations » :
+  // on la fait défiler à l'écran, on ouvre sa zone de dépôt et on l'encadre.
+  const [surligneDocId, setSurligneDocId] = useState<string | null>(null);
+  const docSurligneRef = useRef<HTMLDivElement | null>(null);
   const [attempted, setAttempted] = useState(false);
   const lastClientId = useRef(client.id);
 
@@ -390,6 +398,20 @@ export default function MaDemandePage({ user: _user }: Props) {
     setForm(remote ? toForm(remote) : emptyForm());
     setIsEditing(!(remote?.submitted ?? false));
   }, [client.id, demandeQuery.isSuccess, remote, form]);
+
+  // Amène la pièce mise en évidence à l'écran, une fois sa carte rendue.
+  //
+  // Déclaré ICI, avec les autres hooks : ce composant fait des retours anticipés
+  // (erreur, chargement) plus bas. Un hook placé après ceux-ci ne s'exécute pas
+  // à tous les rendus — React lève alors « Rendered more hooks than during the
+  // previous render » et la page entière tombe en écran blanc.
+  useEffect(() => {
+    if (!surligneDocId) return;
+    docSurligneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // L'encadré s'estompe seul : il signale, il ne s'installe pas.
+    const t = setTimeout(() => setSurligneDocId(null), 4000);
+    return () => clearTimeout(t);
+  }, [surligneDocId]);
 
   // ── Écriture ──────────────────────────────────────────────────────
   const refreshDossier = () => {
@@ -466,12 +488,29 @@ export default function MaDemandePage({ user: _user }: Props) {
   const handleDepot = (docId: string, file: File) => {
     depositDoc(docId, file);
     setDepotDocId(null);
-    addToast('success', 'Document déposé — votre conseiller CPI va l\'analyser.');
+    // La pièce repasse « en attente de validation » : plus rien à mettre en
+    // évidence, l'encadré rouge et l'alerte disparaissent d'eux-mêmes.
+    setSurligneDocId(null);
+    addToast('success', 'Document envoyé — votre conseiller CPI va le valider.');
   };
 
   const validDocs   = requisDocs.filter(d => d.status === 'accepte').length;
   const totalDocs   = requisDocs.length;
+  const docsAAgir   = requisDocs.filter(d => d.status === 'refuse' || d.status === 'a-remplacer' || d.status === 'en-attente');
   const hasDocIssue = requisDocs.some(d => d.status === 'refuse' || d.status === 'a-remplacer');
+  const dossierComplet = totalDocs > 0 && validDocs === totalDocs;
+
+  // « Compléter les informations » — amène directement à la pièce qui bloque :
+  // priorité au refus, puis au remplacement, puis à ce qui n'a pas été envoyé.
+  const allerAuDocABloquer = () => {
+    const cible = requisDocs.find(d => d.status === 'refuse')
+      ?? requisDocs.find(d => d.status === 'a-remplacer')
+      ?? requisDocs.find(d => d.status === 'en-attente');
+    if (!cible) return;
+    setSurligneDocId(cible.id);
+    setDepotDocId(cible.id);   // ouvre la zone de dépôt de cette pièce
+  };
+
 
   const statut: DemandStatut = !submitted
     ? 'brouillon'
@@ -696,8 +735,25 @@ export default function MaDemandePage({ user: _user }: Props) {
               const cfg = DOC_STATUS_CFG[doc.status];
               const needsDepot = doc.status === 'en-attente' || doc.status === 'refuse' || doc.status === 'a-remplacer';
               const isOpen = depotDocId === doc.id;
+              // Pièce validée = verrouillée : plus de dépôt possible, mais elle
+              // reste consultable et téléchargeable (le lien signé est fourni
+              // par l'API). `verrouille` sert aussi à l'expliquer à l'écran.
+              const verrouille = doc.status === 'accepte';
+              // Le lien signé expire vite : on le relit à chaque rendu plutôt
+              // que de le mémoriser.
+              const fichier = doc.fileUrl;
+              const enEvidence = surligneDocId === doc.id;
               return (
-                <div key={doc.id} style={{ border: `1px solid ${needsDepot ? 'rgba(192,57,43,0.16)' : 'var(--border)'}`, borderRadius: 'var(--r-md)', overflow: 'hidden' }}>
+                <div
+                  key={doc.id}
+                  ref={enEvidence ? docSurligneRef : undefined}
+                  style={{
+                    border: `1px solid ${enEvidence ? 'var(--destructive)' : needsDepot ? 'rgba(192,57,43,0.16)' : 'var(--border)'}`,
+                    boxShadow: enEvidence ? '0 0 0 3px rgba(192,57,43,0.15)' : 'none',
+                    transition: 'box-shadow var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out)',
+                    borderRadius: 'var(--r-md)', overflow: 'hidden',
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 200 }}>
                       <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{doc.label}</div>
@@ -706,13 +762,45 @@ export default function MaDemandePage({ user: _user }: Props) {
                         <div style={{ marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)', fontStyle: 'italic' }}>"{doc.commentaire}"</div>
                       )}
                     </div>
-                    <span style={{ padding: '4px 11px', borderRadius: 'var(--r-full)', background: cfg.bg, color: cfg.color, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{cfg.label}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 'var(--r-full)', background: cfg.bg, color: cfg.color, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {verrouille && <Lock size={11} />}{cfg.label}
+                    </span>
+
+                    {/* Consultation : possible dès qu'un fichier existe, y compris
+                        sur une pièce validée — c'est tout ce qui lui reste. */}
+                    {fichier && (
+                      <>
+                        <a href={fichier} target="_blank" rel="noopener noreferrer" title={`Visualiser ${doc.label}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          <Eye size={13} /> Visualiser
+                        </a>
+                        <a href={fichier} download={doc.submittedLabel ?? doc.label} title={`Télécharger ${doc.label}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          <Download size={13} /> Télécharger
+                        </a>
+                      </>
+                    )}
+
                     {needsDepot && !isOpen && (
                       <button onClick={() => setDepotDocId(doc.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--r-sm)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        <FileUp size={13} /> {doc.status === 'a-remplacer' || doc.status === 'refuse' ? 'Remplacer' : 'Déposer'}
+                        <FileUp size={13} />
+                        {doc.status === 'refuse' ? 'Renvoyer le document'
+                          : doc.status === 'a-remplacer' ? 'Remplacer'
+                          : 'Déposer'}
                       </button>
                     )}
                   </div>
+
+                  {/* Pourquoi il n'y a plus de bouton de dépôt : une pièce validée
+                      est verrouillée, on le dit plutôt que de laisser un vide. */}
+                  {verrouille && (
+                    <div style={{ padding: '0 16px 12px', display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <CheckCircle2 size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                        Pièce validée par votre conseiller — elle ne peut plus être remplacée.
+                      </span>
+                    </div>
+                  )}
                   {needsDepot && isOpen && (
                     <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border)' }}>
                       <div style={{ paddingTop: 14 }}>
@@ -830,6 +918,39 @@ export default function MaDemandePage({ user: _user }: Props) {
           </div>
 
           <div style={{ padding: '8px 0' }}>
+            {/* Action prioritaire — reflète l'état réel du dossier.
+                Tant qu'une pièce bloque : elle mène droit à cette pièce.
+                Une fois tout validé : elle devient un état, pas un bouton —
+                un clic qui ne mènerait nulle part n'a pas lieu d'être. */}
+            {dossierComplet ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', borderBottom: '1px solid rgba(99,2,16,0.06)' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(26,107,68,0.1)', border: '1px solid rgba(26,107,68,0.22)' }}>
+                  <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--success)', marginBottom: 1 }}>Dossier complet</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                    Vos {totalDocs} pièces obligatoires ont été validées par votre conseiller.
+                  </div>
+                </div>
+              </div>
+            ) : docsAAgir.length > 0 && (
+              <button onClick={allerAuDocABloquer} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'rgba(192,57,43,0.04)', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(192,57,43,0.1)', border: '1px solid rgba(192,57,43,0.22)' }}>
+                  <AlertCircle size={16} style={{ color: 'var(--destructive)' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--destructive)', marginBottom: 1 }}>Compléter les informations</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                    {hasDocIssue
+                      ? 'Une pièce a été refusée — la renvoyer débloque votre dossier'
+                      : `${docsAAgir.length} pièce${docsAAgir.length > 1 ? 's' : ''} à envoyer`}
+                  </div>
+                </div>
+                <ArrowRight size={14} style={{ color: 'var(--destructive)', flexShrink: 0 }} />
+              </button>
+            )}
+
             <button onClick={() => navigate('mon-dossier')} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: 'pointer', textAlign: 'left' }}>
               <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(200,146,26,0.12)', border: '1px solid rgba(200,146,26,0.2)' }}>
                 <FolderOpen size={16} style={{ color: 'var(--accent)' }} />
