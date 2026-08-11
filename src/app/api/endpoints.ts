@@ -616,6 +616,16 @@ export const staffApi = {
       await api.delete(`/staff/clients/${id}`);
     },
 
+    /**
+     * Correction de la demande d'un client par le personnel.
+     *
+     * Le client perd la main à partir de l'étape « Analyse » ; l'agent la garde
+     * pour corriger une coquille repérée après coup. Chaque correction est
+     * journalisée (ancien/nouveau) et notifiée au client côté serveur.
+     */
+    updateDemande: async (id: string, input: DemandeInput): Promise<DemandeData> =>
+      (await api.put(`/staff/clients/${id}/demande`, input)).data.data,
+
     summary: async (id: string): Promise<ClientSummaryData> =>
       (await api.get(`/staff/clients/${id}/summary`)).data.data,
 
