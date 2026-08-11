@@ -242,7 +242,10 @@ export default function AdminDashboard({ user, activeNav }: Props) {
     { name: 'Validées',   value: allDocs.filter(d => d.status === 'accepte').length,                                 color: A.green },
     { name: 'À vérifier', value: allDocs.filter(d => d.status === 'depose' || d.status === 'verification').length,   color: A.gold },
     { name: 'Refusées',   value: allDocs.filter(d => d.status === 'refuse' || d.status === 'a-remplacer').length,    color: A.red },
-    { name: 'En attente', value: allDocs.filter(d => d.status === 'en-attente').length,                              color: A.muted },
+    // « Non déposée » et non « En attente » : ces pièces attendent le CLIENT,
+    // pas CPI. Sous l'ancien libellé, un dossier où le client n'avait encore
+    // rien envoyé gonflait la charge de travail apparente du personnel.
+    { name: 'Non déposées', value: allDocs.filter(d => d.status === 'en-attente').length,                            color: A.muted },
   ].filter(s => s.value > 0);
   const piecesTotal = PIECES_DATA.reduce((n, s) => n + s.value, 0);
 

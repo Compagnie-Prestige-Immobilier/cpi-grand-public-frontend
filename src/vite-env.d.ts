@@ -24,6 +24,12 @@ declare module 'figma:asset/*' {
 interface ImportMetaEnv {
   /** Base absolue de l'API. Vide = `/api` en relatif (proxy Vite ou même hôte). */
   readonly VITE_API_URL?: string;
+  /** Numéro d'appel du support, format d'affichage (« +221 33 123 45 67 »). */
+  readonly VITE_SUPPORT_PHONE?: string;
+  /** Numéro WhatsApp du support (les non-chiffres sont retirés pour wa.me). */
+  readonly VITE_SUPPORT_WHATSAPP?: string;
+  /** Adresse e-mail affichée aux clients. */
+  readonly VITE_SUPPORT_EMAIL?: string;
 }
 
 interface ImportMeta {
