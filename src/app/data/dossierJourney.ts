@@ -41,6 +41,15 @@ export const TIMELINE_STEPS: JourneyStep[] = [
 
 // Index des étapes clés.
 export const DOCS_VALIDES_INDEX = 2; // « Documents valides »
+
+/**
+ * Étape à partir de laquelle le client ne peut plus modifier sa demande.
+ *
+ * Miroir de `DemandeController::ETAPE_VERROUILLAGE` : la règle est appliquée
+ * PAR LE SERVEUR (409). Cette constante ne sert qu'à éviter au client de
+ * découvrir le refus après coup — elle ne protège rien à elle seule.
+ */
+export const ETAPE_VERROUILLAGE = 3; // « Analyse »
 export const SIGNATURE_INDEX = TIMELINE_STEPS.length - 1; // « Signature »
 
 /** Clé de cache du parcours du client connecté. */
@@ -75,6 +84,10 @@ export interface DossierJourney {
   submitted: boolean;
   /** Le dossier a-t-il atteint l'étape « Signature » (contrats & actes) ? */
   reachedSignature: boolean;
+  /** Signal de progression piloté par l'Agent CPI (0-5). */
+  dossierEtape: number;
+  /** La demande est-elle figée parce que CPI l'instruit ? */
+  verrouillee: boolean;
   /** Nombre total d'étapes. */
   total: number;
   /** Les 6 étapes du parcours. */
@@ -102,6 +115,7 @@ export function useDossierJourney(): DossierJourney {
   const query = useDossierJourneyQuery(role === 'client');
 
   const activeStep = query.data?.step ?? 0;
+  const dossierEtape = query.data?.dossierEtape ?? 0;
   const nextEtape  = activeStep < TIMELINE_STEPS.length - 1
     ? TIMELINE_STEPS[activeStep + 1].label
     : 'Dossier finalisé';
@@ -110,6 +124,8 @@ export function useDossierJourney(): DossierJourney {
     activeStep,
     nextEtape,
     submitted: query.data?.submitted ?? false,
+    dossierEtape,
+    verrouillee: dossierEtape >= ETAPE_VERROUILLAGE,
     reachedSignature: activeStep >= SIGNATURE_INDEX,
     total: TIMELINE_STEPS.length,
     steps: TIMELINE_STEPS,

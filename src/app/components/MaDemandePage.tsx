@@ -18,7 +18,7 @@ import { useNavigate } from '../contexts/NavigationContext';
 import { clientApi, type DemandeData, type DemandeInput } from '../api/endpoints';
 import { apiErrorMessage } from '../api/client';
 import { usePermission } from '../auth/PermissionContext';
-import { JOURNEY_QUERY_KEY } from '../data/dossierJourney';
+import { JOURNEY_QUERY_KEY, useDossierJourney } from '../data/dossierJourney';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
 
 interface Props { user: AuthUser }
@@ -377,6 +377,10 @@ export default function MaDemandePage({ user: _user }: Props) {
 
   const [form, setForm] = useState<DemandeForm | null>(null);
   const [isEditing, setIsEditing] = useState(true);
+  // Verrouillage de la demande : la règle vit côté serveur, on la lit ici
+  // pour ne pas laisser le client saisir dans le vide.
+  const journey = useDossierJourney();
+
   const [depotDocId, setDepotDocId] = useState<string | null>(null);
   // Pièce mise en évidence après un clic sur « Compléter les informations » :
   // on la fait défiler à l'écran, on ouvre sa zone de dépôt et on l'encadre.
@@ -485,6 +489,10 @@ export default function MaDemandePage({ user: _user }: Props) {
     );
   }
 
+  // Un dossier verrouillé n'est modifiable dans AUCUN cas, même si l'écran
+  // était déjà en mode édition au moment où CPI a lancé l'instruction.
+  const editionPossible = isEditing && !journey.verrouillee;
+
   const set = (k: keyof DemandeForm) => (v: string) => setForm(f => (f ? { ...f, [k]: v } : f));
 
   const canSubmit = form.montant.trim() !== '' && form.commune.trim() !== '' && form.adresseProjet.trim() !== '';
@@ -579,7 +587,14 @@ export default function MaDemandePage({ user: _user }: Props) {
 
           {submitted && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {isEditing ? (
+              {journey.verrouillee ? (
+                // Dossier en cours d'instruction : le serveur refuse toute
+                // modification (409). Le verrou passe AVANT `isEditing`, sinon
+                // un client déjà en mode édition saisirait dans le vide.
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px', borderRadius: 'var(--r-sm)', background: 'var(--muted)', color: 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  <Lock size={13} /> Dossier en cours d'étude — contactez votre conseiller pour toute correction
+                </span>
+              ) : isEditing ? (
                 <>
                   <button onClick={() => { setIsEditing(false); setForm(remote ? toForm(remote) : emptyForm()); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600 }}>
                     <X size={14} /> Annuler
@@ -642,32 +657,32 @@ export default function MaDemandePage({ user: _user }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22, paddingTop: 4 }}>
             <div style={GRID2}>
               <FieldGroup label="Type de demande">
-                <FSelect value={form.typeProjet} onChange={set('typeProjet')} disabled={!isEditing}
+                <FSelect value={form.typeProjet} onChange={set('typeProjet')} disabled={!editionPossible}
                   options={[{ value: 'financement', label: 'Financement immobilier' }, { value: 'acquisition', label: "Aide à l'acquisition" }, { value: 'construction', label: 'Prêt à la construction' }, { value: 'renovation', label: 'Prêt à la rénovation' }]}
                 />
               </FieldGroup>
               <FieldGroup label="Nature du projet">
-                <FSelect value={form.natureProjet} onChange={set('natureProjet')} disabled={!isEditing}
+                <FSelect value={form.natureProjet} onChange={set('natureProjet')} disabled={!editionPossible}
                   options={[{ value: 'construction', label: 'Construction neuve' }, { value: 'acquisition', label: 'Acquisition immobilière' }, { value: 'renovation', label: 'Rénovation / Extension' }, { value: 'viabilisation', label: 'Viabilisation de terrain' }]}
                 />
               </FieldGroup>
             </div>
             <div style={GRID2}>
               <FieldGroup label="Montant demandé (FCFA)" required
-                hint={isEditing ? 'Montant du financement souhaité, en FCFA.' : undefined}
+                hint={editionPossible ? 'Montant du financement souhaité, en FCFA.' : undefined}
                 error={attempted && !form.montant.trim() ? 'Ce champ est requis.' : undefined}
                 valid={isEditing && !!form.montant.trim()}>
-                <FInput value={form.montant} onChange={set('montant')} placeholder="Ex. 25 000 000" disabled={!isEditing}
+                <FInput value={form.montant} onChange={set('montant')} placeholder="Ex. 25 000 000" disabled={!editionPossible}
                   icon={<Banknote size={15} />} error={attempted && !form.montant.trim()} valid={isEditing && !!form.montant.trim()} />
               </FieldGroup>
               <FieldGroup label="Durée souhaitée">
-                <FSelect value={form.duree} onChange={set('duree')} disabled={!isEditing}
+                <FSelect value={form.duree} onChange={set('duree')} disabled={!editionPossible}
                   options={[5,7,10,12,15,20,25].map(n => ({ value: String(n), label: `${n} ans` }))}
                 />
               </FieldGroup>
               <FieldGroup label="Apport personnel (FCFA)"
-                hint={isEditing ? 'Laissez 0 si vous n\'avez pas d\'apport.' : undefined}>
-                <FInput value={form.apport} onChange={set('apport')} placeholder="0 si aucun" disabled={!isEditing}
+                hint={editionPossible ? 'Laissez 0 si vous n\'avez pas d\'apport.' : undefined}>
+                <FInput value={form.apport} onChange={set('apport')} placeholder="0 si aucun" disabled={!editionPossible}
                   icon={<Banknote size={15} />} />
               </FieldGroup>
             </div>
@@ -678,26 +693,26 @@ export default function MaDemandePage({ user: _user }: Props) {
               </div>
               <div style={GRID2}>
                 <FieldGroup label="Région">
-                  <FSelect value={form.region} onChange={set('region')} disabled={!isEditing}
+                  <FSelect value={form.region} onChange={set('region')} disabled={!editionPossible}
                     options={['Dakar','Thiès','Saint-Louis','Kaolack','Ziguinchor','Diourbel','Fatick','Kaffrine','Kédougou','Kolda','Louga','Matam','Sédhiou','Tambacounda'].map(r => ({ value: r, label: r }))}
                   />
                 </FieldGroup>
                 <FieldGroup label="Commune / Ville" required
                   error={attempted && !form.commune.trim() ? 'Ce champ est requis.' : undefined}
                   valid={isEditing && !!form.commune.trim()}>
-                  <FInput value={form.commune} onChange={set('commune')} placeholder="Votre commune" disabled={!isEditing}
+                  <FInput value={form.commune} onChange={set('commune')} placeholder="Votre commune" disabled={!editionPossible}
                     icon={<MapPin size={15} />} error={attempted && !form.commune.trim()} valid={isEditing && !!form.commune.trim()} />
                 </FieldGroup>
                 <FieldGroup label="Adresse ou localisation" required
                   error={attempted && !form.adresseProjet.trim() ? 'Ce champ est requis.' : undefined}
                   valid={isEditing && !!form.adresseProjet.trim()}>
-                  <FInput value={form.adresseProjet} onChange={set('adresseProjet')} placeholder="Ex. Lot 47…" disabled={!isEditing}
+                  <FInput value={form.adresseProjet} onChange={set('adresseProjet')} placeholder="Ex. Lot 47…" disabled={!editionPossible}
                     icon={<MapPin size={15} />} error={attempted && !form.adresseProjet.trim()} valid={isEditing && !!form.adresseProjet.trim()} />
                 </FieldGroup>
               </div>
             </div>
             <FieldGroup label="Description du projet">
-              <textarea value={form.description} disabled={!isEditing} onChange={e => set('description')(e.target.value)} rows={3}
+              <textarea value={form.description} disabled={!editionPossible} onChange={e => set('description')(e.target.value)} rows={3}
                 style={{ ...INPUT_BASE, background: !isEditing ? 'var(--muted)' : '#ffffff', color: !isEditing ? 'var(--muted-foreground)' : 'var(--foreground)', resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
               />
             </FieldGroup>
