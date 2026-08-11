@@ -1,4 +1,4 @@
-import api from './client';
+import api, { startImpersonation, stopImpersonation } from './client';
 
 // Types générés depuis les DTOs backend (namespace global déclaré
 // dans ./types/generated.d.ts — régénéré via `php artisan typescript:transform`).
@@ -52,6 +52,23 @@ export interface OnboardingInput {
 
 // ─── Auth (endpoints Phase 2) ──────────────────────────────
 export const auth = {
+  /**
+   * Fin de prise en main : révoque le jeton emprunté côté serveur, puis
+   * restitue celui du membre du personnel.
+   *
+   * La révocation passe AVANT la restitution : elle a besoin du jeton emprunté
+   * pour s'authentifier. Si elle échoue, on rend quand même la main — rester
+   * bloqué dans le compte d'un client serait pire qu'un jeton orphelin, qui de
+   * toute façon meurt avec la session suivante.
+   */
+  leaveImpersonation: async (): Promise<void> => {
+    try {
+      await api.post('/impersonate/leave');
+    } finally {
+      stopImpersonation();
+    }
+  },
+
   register: async (input: RegisterInput): Promise<AuthPayload> =>
     (await api.post('/auth/register', input)).data.data,
 
@@ -532,6 +549,23 @@ export const staffApi = {
     delete: async (id: string): Promise<void> => {
       await api.delete(`/staff/staff/${id}`);
     },
+  },
+
+  /**
+   * Prise en main du compte d'un client.
+   *
+   * Le serveur ne renvoie PAS un changement de session mais un second jeton,
+   * celui du client. Le jeton du personnel est mis de côté par
+   * `startImpersonation` pour être restitué à la sortie.
+   *
+   * Le serveur l'autorise aux agents comme aux administrateurs ; c'est
+   * l'interface qui, pour l'instant, ne propose le bouton qu'aux
+   * administrateurs. Le serveur refuse toute cible qui n'est pas un client.
+   */
+  impersonate: async (userId: string): Promise<UserData> => {
+    const { token, user } = (await api.post(`/staff/impersonate/${userId}`)).data.data;
+    startImpersonation(token);
+    return user;
   },
 
   clients: {

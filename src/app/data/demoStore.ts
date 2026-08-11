@@ -135,6 +135,12 @@ export interface ClientSummary {
   dateInscription?: string;
   /** Identité de connexion (permet de retrouver le compte à la reconnexion). */
   email?: string;
+  /**
+   * Compte utilisateur associé. Absent pour un dossier créé par le personnel
+   * sans inscription : ce client ne peut pas se connecter, donc pas non plus
+   * être consulté en prise en main.
+   */
+  userId?: string;
   phone?: string;
   employer?: string;
   fonction?: string;

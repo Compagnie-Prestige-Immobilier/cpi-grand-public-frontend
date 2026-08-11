@@ -103,6 +103,7 @@ readonly comment: string | null,
 export type ClientData = {
 readonly id: string,
 readonly name: string,
+readonly userId: string | null,
 readonly ref: string,
 readonly statut: string,
 readonly progression: number,

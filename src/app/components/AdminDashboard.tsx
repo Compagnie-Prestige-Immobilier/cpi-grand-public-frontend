@@ -5,13 +5,14 @@ import {
   Clock, AlertCircle, XCircle, Shield, Banknote, ChevronRight, Server, Bell, Upload,
   Search, Download, Activity, X, ArrowRight, RefreshCw, PenLine,
   UserPlus, Copy, Mail, Plus, Trash2, Building2, Landmark,
-  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone,
+  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone, Eye, Loader2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import type { AuthUser } from '../App';
 import { useNavigate } from '../contexts/NavigationContext';
 import { useClientContext } from '../contexts/ClientContext';
+import { usePermission } from '../auth/PermissionContext';
 import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
 import { computeJourneyStep, TIMELINE_STEPS, SIGNATURE_INDEX, DOCS_VALIDES_INDEX } from '../data/dossierJourney';
@@ -1198,6 +1199,26 @@ function DemandesView({ agentName }: { agentName: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [commentFor, setCommentFor] = useState<{ docId: string; kind: 'refuse' | 'remplacer' } | null>(null);
   const [commentText, setCommentText] = useState('');
+
+  // Prise en main d'un compte client.
+  //
+  // Le serveur l'ouvre aussi aux agents ; l'interface la réserve pour l'instant
+  // aux administrateurs — d'où ce test sur le rôle, et lui seul, à changer le
+  // jour où les agents y auront droit.
+  // `usePermission` expose les rôles SPATIE ('super-admin'), pas les rôles
+  // d'affichage de App.tsx ('admin') — les deux vocabulaires coexistent.
+  const { role } = usePermission();
+  const peutPrendreLaMain = role === 'super-admin';
+
+  const impersonation = useMutation({
+    mutationFn: (userId: string) => staffApi.impersonate(userId),
+    // Rechargement complet plutôt qu'une remise à zéro des contextes : toute
+    // l'application (menus, requêtes, permissions) doit repartir sur le compte
+    // consulté, et un rechargement le garantit sans état résiduel.
+    onSuccess: () => window.location.reload(),
+    onError: e => setImpersonationError(apiErrorMessage(e, 'Prise en main impossible.')),
+  });
+  const [impersonationError, setImpersonationError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
   const [bankError, setBankError] = useState<string | null>(null);
@@ -1367,6 +1388,37 @@ function DemandesView({ agentName }: { agentName: string }) {
               </div>
               <button onClick={() => { setSelectedId(null); setCommentFor(null); }} style={{ background: '#FAF7F7', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X className="w-4 h-4" style={{ color: A.muted }} /></button>
             </div>
+
+            {/* Prise en main — administrateurs uniquement pour l'instant.
+                Un dossier créé par le personnel n'a pas de compte de connexion
+                (userId absent) : il n'y a alors rien à consulter. */}
+            {peutPrendreLaMain && (
+              selected.c.userId ? (
+                <button
+                  onClick={() => impersonation.mutate(selected.c.userId as string)}
+                  disabled={impersonation.isPending}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginBottom: 14, padding: '9px 12px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: '#FAF7F7', cursor: impersonation.isPending ? 'wait' : 'pointer', textAlign: 'left' }}
+                >
+                  {impersonation.isPending
+                    ? <Loader2 className="w-4 h-4" style={{ color: A.bordeaux, animation: 'spin 0.8s linear infinite' }} />
+                    : <Eye className="w-4 h-4" style={{ color: A.bordeaux }} />}
+                  <span style={{ flex: 1, fontSize: '0.8125rem', fontWeight: 700, color: A.text }}>
+                    Voir son espace client
+                  </span>
+                  <span style={{ fontSize: '0.6875rem', color: A.muted }}>consultation</span>
+                </button>
+              ) : (
+                <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: '#FAF7F7', fontSize: '0.75rem', color: A.muted }}>
+                  Dossier sans compte de connexion — espace client inexistant.
+                </div>
+              )
+            )}
+
+            {impersonationError && (
+              <div role="alert" style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'rgba(192,57,43,0.08)', border: `1px solid ${A.red}40`, fontSize: '0.75rem', fontWeight: 600, color: A.red }}>
+                {impersonationError}
+              </div>
+            )}
 
             {/* Parcours + étape */}
             <div className="p-3 mb-4" style={{ background: '#FAF7F7', borderRadius: 'var(--r-sm)' }}>

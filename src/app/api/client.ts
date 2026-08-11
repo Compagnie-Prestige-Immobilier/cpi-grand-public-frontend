@@ -16,6 +16,39 @@ export function clearToken(): void {
 }
 
 /**
+ * Jeton du membre du personnel mis de côté pendant une prise en main.
+ *
+ * Le serveur émet un second jeton, celui du client consulté ; l'original est
+ * conservé ici pour être restitué à la sortie. En mémoire seulement, il serait
+ * perdu au moindre rafraîchissement de page — le personnel se retrouverait
+ * enfermé dans le compte du client, sans moyen d'en sortir.
+ *
+ * Comme TOKEN_KEY, cette clé ne sort pas de ce module : c'est ce que vérifie la
+ * garde d'intégration continue sur les écritures localStorage.
+ */
+const IMPERSONATOR_KEY = 'cpi_impersonator_token';
+
+export function startImpersonation(tokenCible: string): void {
+  // L'original d'abord : si l'écriture suivante échouait, on saurait encore
+  // revenir. L'inverse enfermerait dans le compte consulté.
+  localStorage.setItem(IMPERSONATOR_KEY, getToken() ?? '');
+  setToken(tokenCible);
+}
+
+/** Restitue le jeton du personnel. Retourne faux si aucune prise en main. */
+export function stopImpersonation(): boolean {
+  const original = localStorage.getItem(IMPERSONATOR_KEY);
+  if (!original) return false;
+  setToken(original);
+  localStorage.removeItem(IMPERSONATOR_KEY);
+  return true;
+}
+
+export function isImpersonating(): boolean {
+  return localStorage.getItem(IMPERSONATOR_KEY) !== null;
+}
+
+/**
  * Base des appels API.
  *
  * En développement : `/api` en relatif, réécrit par le proxy Vite vers le

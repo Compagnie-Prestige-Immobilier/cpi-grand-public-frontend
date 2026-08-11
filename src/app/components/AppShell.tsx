@@ -3,7 +3,7 @@ import {
   Building2, LayoutDashboard, FileText, Bell, UserCircle,
   LogOut, ChevronRight, Menu, X, Users,
   BarChart3, ShieldCheck, CreditCard, BookOpen, FolderOpen, LifeBuoy,
-  Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat,
+  Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import cpiLogo from '../../imports/image.png';
@@ -18,7 +18,8 @@ import { DocStateProvider, useMesDocumentsQuery } from '../data/docStateContext'
 import { CpiDocsProvider, useMesDocumentsCpiQuery, useCpiDocsQuery } from '../data/cpiDocsContext';
 import { ChantierStateProvider, useChantierState, useMonChantierQuery } from '../data/chantierStateContext';
 import { useDossierJourneyQuery } from '../data/dossierJourney';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, isImpersonating } from '../api/client';
+import { auth } from '../api/endpoints';
 import ClientDashboardHome from './ClientDashboardHome';
 import AgentDashboard from './AgentDashboard';
 import AdminDashboard from './AdminDashboard';
@@ -683,6 +684,8 @@ export default function AppShell({ user, onLogout }: AppShellProps) {
 
   const defaultPage = isClientRole ? 'simulateur' : 'dashboard';
   return (
+    <>
+    <BandeauPriseEnMain nom={user.name} />
     <NavigationProvider defaultPage={defaultPage}>
     <ClientProvider allClients={allClients} initialId={initialId} locked={isClientRole}>
     <DocStateProvider>
@@ -694,5 +697,49 @@ export default function AppShell({ user, onLogout }: AppShellProps) {
     </DocStateProvider>
     </ClientProvider>
     </NavigationProvider>
+    </>
+  );
+}
+
+/**
+ * Bandeau permanent pendant une prise en main.
+ *
+ * Sans lui, rien à l'écran ne distinguerait le compte consulté d'une session
+ * ordinaire : le membre du personnel croirait agir en son nom, et se
+ * retrouverait sans moyen évident de revenir au sien.
+ *
+ * `position: sticky` et non `fixed` : l'application place son propre conteneur
+ * de défilement, et un élément fixe s'ancrerait au mauvais bloc.
+ */
+function BandeauPriseEnMain({ nom }: { nom: string }) {
+  const [sortie, setSortie] = useState(false);
+  if (!isImpersonating()) return null;
+
+  const rendreLaMain = () => {
+    setSortie(true);
+    // Le rechargement intervient dans tous les cas : `leaveImpersonation`
+    // restitue le jeton du personnel même si la révocation serveur échoue.
+    void auth.leaveImpersonation().finally(() => window.location.reload());
+  };
+
+  return (
+    <div role="status" style={{
+      position: 'sticky', top: 0, zIndex: 100,
+      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      padding: '9px 20px', background: '#C8921A', color: '#2A1A05',
+      fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
+    }}>
+      <Eye size={15} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 200 }}>
+        Vous consultez l'espace de <strong>{nom}</strong>. Vos actions sont enregistrées à votre nom.
+      </span>
+      <button onClick={rendreLaMain} disabled={sortie} style={{
+        padding: '6px 14px', borderRadius: 'var(--r-full)', border: 'none',
+        background: '#2A1A05', color: '#fff', cursor: sortie ? 'wait' : 'pointer',
+        fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap',
+      }}>
+        {sortie ? 'Sortie…' : 'Revenir à mon compte'}
+      </button>
+    </div>
   );
 }

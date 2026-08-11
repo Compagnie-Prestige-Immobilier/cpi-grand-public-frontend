@@ -51,6 +51,7 @@ export function toClientSummary(c: ClientData): ClientSummary {
     projectNom: c.projectNom ?? '—',
     adresse: c.adresse ?? '—',
     dateInscription: frDate(c.dateInscription),
+    userId: c.userId ?? undefined,
     email: c.email ?? undefined,
     phone: c.phone ?? undefined,
     employer: c.employer ?? undefined,
