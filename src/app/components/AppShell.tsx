@@ -98,6 +98,25 @@ function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
 
 // ─── Support Page ─────────────────────────────────────────────────────────────
 
+/**
+ * Coordonnées du support — pilotées par l'environnement.
+ *
+ * Elles étaient codées en dur avec des valeurs de maquette
+ * (« +221 33 XXX XX XX », « wa.me/221XXXXXXXXX ») affichées telles quelles aux
+ * vrais clients en production. Les vraies valeurs se renseignent désormais dans
+ * `.env.production`, sans toucher au code.
+ *
+ * Le numéro WhatsApp part en chiffres seuls (format exigé par wa.me) ; le
+ * numéro d'appel garde ses espaces pour l'affichage et s'en voit débarrassé
+ * pour le lien `tel:`.
+ */
+const SUPPORT_TEL = import.meta.env.VITE_SUPPORT_PHONE ?? '';
+const SUPPORT_WHATSAPP = import.meta.env.VITE_SUPPORT_WHATSAPP ?? '';
+const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL ?? 'support@cpi.sn';
+
+/** Libellé affiché quand la coordonnée n'est pas encore renseignée. */
+const NON_RENSEIGNE = 'Bientôt disponible';
+
 /** Libellés lisibles des sujets — le <select> ne porte que des identifiants,
  *  et c'est le libellé qui doit arriver dans la boîte du support. */
 const SUJETS_SUPPORT: Record<string, string> = {
@@ -140,10 +159,10 @@ function SupportPage() {
       id: 'phone',
       icon: Phone,
       label: 'Téléphone',
-      value: '+221 33 XXX XX XX',
+      value: SUPPORT_TEL || NON_RENSEIGNE,
       sub: 'Lun – Ven · 08h00 – 18h00',
       action: 'Appeler maintenant',
-      href: 'tel:+221337XXXXXX',
+      href: SUPPORT_TEL ? `tel:${SUPPORT_TEL.replace(/\s+/g, '')}` : null,
       color: 'var(--success)',
       bg: 'rgba(26,107,68,0.07)',
       border: 'rgba(26,107,68,0.15)',
@@ -152,10 +171,10 @@ function SupportPage() {
       id: 'whatsapp',
       icon: MessageSquare,
       label: 'WhatsApp',
-      value: '+221 77 XXX XX XX',
+      value: SUPPORT_WHATSAPP || NON_RENSEIGNE,
       sub: 'Réponse sous 1h en heures ouvrées',
       action: 'Ouvrir WhatsApp',
-      href: 'https://wa.me/221XXXXXXXXX',
+      href: SUPPORT_WHATSAPP ? `https://wa.me/${SUPPORT_WHATSAPP.replace(/[^0-9]/g, '')}` : null,
       color: '#25D366',
       bg: 'rgba(37,211,102,0.07)',
       border: 'rgba(37,211,102,0.18)',
@@ -164,10 +183,10 @@ function SupportPage() {
       id: 'email',
       icon: Mail,
       label: 'Email',
-      value: 'support@cpi.sn',
+      value: SUPPORT_EMAIL,
       sub: 'Réponse sous 24h ouvrées',
       action: 'Envoyer un email',
-      href: 'mailto:support@cpi.sn',
+      href: `mailto:${SUPPORT_EMAIL}`,
       color: 'var(--primary)',
       bg: 'var(--secondary)',
       border: 'rgba(99,2,16,0.15)',
@@ -199,12 +218,15 @@ function SupportPage() {
       {/* Contact channels */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {CHANNELS.map(ch => (
+          // Coordonnée non renseignée ⇒ pas de lien : une carte cliquable qui
+          // n'ouvre rien vaut moins qu'une carte visiblement inactive.
           <a
             key={ch.id}
-            href={ch.href}
-            target={ch.id === 'whatsapp' ? '_blank' : undefined}
-            rel={ch.id === 'whatsapp' ? 'noopener noreferrer' : undefined}
-            style={{ textDecoration: 'none' }}
+            href={ch.href ?? undefined}
+            target={ch.href && ch.id === 'whatsapp' ? '_blank' : undefined}
+            rel={ch.href && ch.id === 'whatsapp' ? 'noopener noreferrer' : undefined}
+            aria-disabled={ch.href ? undefined : true}
+            style={{ textDecoration: 'none', pointerEvents: ch.href ? undefined : 'none', opacity: ch.href ? 1 : 0.55 }}
           >
             <div style={{
               background: ch.bg,
