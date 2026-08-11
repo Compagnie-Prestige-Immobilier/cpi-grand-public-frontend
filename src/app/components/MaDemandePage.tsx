@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   FileText, Calendar, Clock, CheckCircle2, AlertCircle, XCircle,
   Building2, Edit3, Save, X, MessageSquare,
@@ -12,6 +12,7 @@ import type { AuthUser } from '../App';
 import type { ActivityType } from '../data/activityLog';
 import { frDate } from '../data/demoStore';
 import { useClientData } from '../data/useClientData';
+import { MA_DEMANDE_QUERY_KEY, useMaDemandeQuery } from '../data/maDemande';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useNavigate } from '../contexts/NavigationContext';
 import { clientApi, type DemandeData, type DemandeInput } from '../api/endpoints';
@@ -37,6 +38,17 @@ interface DemandeForm {
   description: string;
 }
 
+
+/**
+ * Montant saisi → « 25 000 000 » (séparateur de milliers français).
+ *
+ * La saisie est libre : si elle n'est pas numérique, on la réaffiche telle
+ * quelle plutôt que d'écrire « NaN » à l'écran.
+ */
+function fmtMontant(valeur: string): string {
+  const n = Number(valeur);
+  return valeur.trim() !== '' && Number.isFinite(n) ? n.toLocaleString('fr-FR') : valeur;
+}
 
 // ── Doc status config (statuts réels, gérés par l'Agent CPI dans "Mon dossier") ──
 //
@@ -95,8 +107,6 @@ const CARD_BORDER = '1px solid rgba(99,2,16,0.08)';
 const SECTION_PAD = '26px 28px';
 const BODY_PAD    = '0 28px 28px';
 
-// ── Demande persistée côté API (/client/ma-demande) ────────────────
-const MA_DEMANDE_QUERY_KEY = ['client', 'ma-demande'] as const;
 
 /** Brouillon vide : aucune valeur pré-remplie fictive. */
 function emptyForm(): DemandeForm {
@@ -360,11 +370,7 @@ export default function MaDemandePage({ user: _user }: Props) {
   const { role } = usePermission();
   const queryClient = useQueryClient();
 
-  const demandeQuery = useQuery({
-    queryKey: MA_DEMANDE_QUERY_KEY,
-    queryFn: () => clientApi.maDemande(),
-    enabled: role === 'client',
-  });
+  const demandeQuery = useMaDemandeQuery(role === 'client');
   const remote = demandeQuery.data ?? null;
   const submitted   = remote?.submitted ?? false;
   const submittedAt = frDate(remote?.submittedAt);
@@ -767,7 +773,7 @@ export default function MaDemandePage({ user: _user }: Props) {
                       <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{doc.label}</div>
                       <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: 2 }}>{DOC_DESCRIPTIONS[doc.id] ?? ''}</div>
                       {doc.commentaire && (doc.status === 'refuse' || doc.status === 'a-remplacer') && (
-                        <div style={{ marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)', fontStyle: 'italic' }}>"{doc.commentaire}"</div>
+                        <div style={{ marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)', fontStyle: 'italic' }}>&laquo;&nbsp;{doc.commentaire}&nbsp;&raquo;</div>
                       )}
                     </div>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 'var(--r-full)', background: cfg.bg, color: cfg.color, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -836,7 +842,7 @@ export default function MaDemandePage({ user: _user }: Props) {
             <div style={{ padding: '8px 28px 24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', margin: '16px 0' }}>
                 {[
-                  { label: 'Montant demandé', value: form.montant || '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
+                  { label: 'Montant demandé', value: form.montant ? fmtMontant(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
                   { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent)' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'var(--card)', padding: '14px 16px' }}>

@@ -933,10 +933,13 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                     }
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                       {"J'accepte les "}
-                      <a href="#" style={{ color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}
-                        onClick={e => e.stopPropagation()}>
+                      {/* Volontairement PAS un lien : la page de conditions
+                          n'existe pas encore. L'ancien <a href="#"> ne menait
+                          nulle part ET son stopPropagation empêchait de cocher
+                          la case en cliquant sur le libellé. */}
+                      <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>
                         conditions d'utilisation
-                      </a>
+                      </strong>
                     </span>
                   </div>
                   {attempted && !accepted && (

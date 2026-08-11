@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import {
   Building2, LayoutDashboard, FileText, Bell, UserCircle,
   LogOut, ChevronRight, Menu, X, Users,
@@ -19,7 +20,7 @@ import { CpiDocsProvider, useMesDocumentsCpiQuery, useCpiDocsQuery } from '../da
 import { ChantierStateProvider, useChantierState, useMonChantierQuery } from '../data/chantierStateContext';
 import { useDossierJourneyQuery } from '../data/dossierJourney';
 import { apiErrorMessage, isImpersonating } from '../api/client';
-import { auth } from '../api/endpoints';
+import { auth, clientApi } from '../api/endpoints';
 import ClientDashboardHome from './ClientDashboardHome';
 import AgentDashboard from './AgentDashboard';
 import AdminDashboard from './AdminDashboard';
@@ -97,16 +98,41 @@ function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
 
 // ─── Support Page ─────────────────────────────────────────────────────────────
 
+/** Libellés lisibles des sujets — le <select> ne porte que des identifiants,
+ *  et c'est le libellé qui doit arriver dans la boîte du support. */
+const SUJETS_SUPPORT: Record<string, string> = {
+  dossier: 'Problème avec mon dossier',
+  document: 'Dépôt ou validation de document',
+  chantier: 'Question sur mon chantier',
+  paiement: 'Question sur un paiement',
+  technique: 'Problème technique (connexion, accès)',
+  autre: 'Autre demande',
+};
+
 function SupportPage() {
   const [ticketOpen, setTicketOpen] = useState(false);
   const [ticketSubject, setTicketSubject] = useState('');
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketSent, setTicketSent] = useState(false);
 
+  // Envoi RÉEL de la demande. Auparavant ce formulaire n'appelait rien : il
+  // affichait « Ticket envoyé ! » puis se fermait, et le message du client était
+  // perdu sans que personne ne le sache — ni lui, ni le support.
+  const envoi = useMutation({
+    mutationFn: () => clientApi.envoyerDemandeSupport({
+      sujet: SUJETS_SUPPORT[ticketSubject] ?? ticketSubject,
+      message: ticketMessage,
+    }),
+    onSuccess: () => {
+      setTicketSent(true);
+      setTimeout(() => { setTicketOpen(false); setTicketSent(false); setTicketSubject(''); setTicketMessage(''); }, 2200);
+    },
+  });
+
   const handleTicketSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setTicketSent(true);
-    setTimeout(() => { setTicketOpen(false); setTicketSent(false); setTicketSubject(''); setTicketMessage(''); }, 2200);
+    if (envoi.isPending) return;
+    envoi.mutate();
   };
 
   const CHANNELS = [
@@ -305,22 +331,31 @@ function SupportPage() {
                   />
                 </div>
 
+                {envoi.isError && (
+                  <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 'var(--r-sm)', background: 'rgba(192,57,43,0.07)', border: '1px solid rgba(192,57,43,0.2)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)', fontWeight: 600 }}>
+                    {apiErrorMessage(envoi.error, "Votre demande n'a pas pu être envoyée. Réessayez ou écrivez-nous directement.")}
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                     Réponse sous 24h ouvrées · par email ou notification
                   </span>
                   <button
                     type="submit"
+                    disabled={envoi.isPending}
+                    aria-busy={envoi.isPending || undefined}
                     style={{
                       padding: '9px 22px', borderRadius: 'var(--r-sm)', border: 'none',
                       background: 'var(--primary)', color: '#fff',
                       fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700,
-                      cursor: 'pointer', transition: 'opacity 0.15s',
+                      cursor: envoi.isPending ? 'wait' : 'pointer', transition: 'opacity 0.15s',
+                      opacity: envoi.isPending ? 0.85 : 1,
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseEnter={e => { if (!envoi.isPending) e.currentTarget.style.opacity = '0.88'; }}
+                    onMouseLeave={e => { if (!envoi.isPending) e.currentTarget.style.opacity = '1'; }}
                   >
-                    Envoyer le ticket
+                    {envoi.isPending ? 'Envoi en cours…' : 'Envoyer le ticket'}
                   </button>
                 </div>
               </form>
