@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp, Users, FileText, CheckCircle2,
   Clock, AlertCircle, XCircle, Shield, Banknote, ChevronRight, Server, Bell, Upload,
@@ -18,12 +18,14 @@ import { useCpiDocs } from '../data/cpiDocsContext';
 import { computeJourneyStep, TIMELINE_STEPS, SIGNATURE_INDEX, DOCS_VALIDES_INDEX } from '../data/dossierJourney';
 import {
   useStaffQuery, useCreateStaff, useCreateClient, toStaffAccount,
+  CLIENTS_QUERY_KEY,
   type StaffAccount,
 } from '../data/clientRegistry';
 import { apiErrorMessage, TOKEN_KEY } from '../api/client';
 import {
   staffApi, DEMO_REF_PREFIX,
   type DemoSeedResult, type DemoClearResult,
+  type DemandeInput,
 } from '../api/endpoints';
 import {
   useBanksQuery, useCreateBank, useDeleteBank, isBankActive, BANK_COLORS,
@@ -1169,6 +1171,127 @@ function AdminModuleView({ activeNav, agentName }: { activeNav: string; agentNam
   );
 }
 
+
+/**
+ * Correction de la demande d'un client par le personnel CPI.
+ *
+ * Repliée par défaut : c'est un geste d'exception, pas une action courante.
+ * Les champs sont pré-remplis à l'ouverture avec la demande réelle, et seuls
+ * ceux réellement changés partent au serveur — le journal doit refléter la
+ * correction, pas une réécriture complète de la demande.
+ */
+function CorrigerDemande({ clientId, clientNom }: { clientId: string; clientNom: string }) {
+  const qc = useQueryClient();
+  const [ouvert, setOuvert] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const demandeQuery = useQuery({
+    queryKey: ['staff', 'clients', clientId, 'demande'],
+    queryFn: () => staffApi.clients.listAll().then(cs => cs.find(c => c.id === clientId)?.demande ?? null),
+    enabled: ouvert,
+  });
+  const demande = demandeQuery.data ?? null;
+
+  useEffect(() => {
+    if (!ouvert || !demande) return;
+    setForm({
+      montant: demande.montant != null ? String(demande.montant) : '',
+      duree: demande.duree ?? '',
+      apport: demande.apport != null ? String(demande.apport) : '',
+      commune: demande.commune ?? '',
+      adresse_projet: demande.adresseProjet ?? '',
+    });
+  }, [ouvert, demande]);
+
+  const mutation = useMutation({
+    mutationFn: (payload: DemandeInput) => staffApi.clients.updateDemande(clientId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: ['staff', 'clients', clientId, 'demande'] });
+      setOuvert(false);
+    },
+  });
+
+  const enregistrer = () => {
+    if (!demande) return;
+    // N'envoyer que ce qui a bougé.
+    const payload: DemandeInput = {};
+    if (form.montant !== (demande.montant != null ? String(demande.montant) : '')) {
+      payload.montant = form.montant.trim() === '' ? null : Number(form.montant);
+    }
+    if (form.duree !== (demande.duree ?? '')) payload.duree = form.duree;
+    if (form.apport !== (demande.apport != null ? String(demande.apport) : '')) payload.apport = Number(form.apport || 0);
+    if (form.commune !== (demande.commune ?? '')) payload.commune = form.commune || null;
+    if (form.adresse_projet !== (demande.adresseProjet ?? '')) payload.adresse_projet = form.adresse_projet || null;
+
+    if (Object.keys(payload).length === 0) { setOuvert(false); return; }
+    mutation.mutate(payload);
+  };
+
+  const CHAMPS: Array<[string, string]> = [
+    ['montant', 'Montant (FCFA)'],
+    ['duree', 'Durée'],
+    ['apport', 'Apport (FCFA)'],
+    ['commune', 'Commune'],
+    ['adresse_projet', 'Adresse du projet'],
+  ];
+
+  if (!ouvert) {
+    return (
+      <button onClick={() => setOuvert(true)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginBottom: 16, padding: '9px 12px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: 'white', cursor: 'pointer', textAlign: 'left' }}>
+        <PenLine className="w-4 h-4" style={{ color: A.bordeaux }} />
+        <span style={{ flex: 1, fontSize: '0.8125rem', fontWeight: 700, color: A.text }}>Corriger la demande</span>
+        <span style={{ fontSize: '0.6875rem', color: A.muted }}>journalisé</span>
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 16, padding: 14, borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: '#FAF7F7' }}>
+      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: A.text, marginBottom: 4 }}>Corriger la demande de {clientNom}</div>
+      <div style={{ fontSize: '0.6875rem', color: A.muted, marginBottom: 10 }}>
+        La correction est journalisée (ancienne et nouvelle valeur) et le client en est informé.
+      </div>
+
+      {demandeQuery.isPending ? (
+        <div style={{ fontSize: '0.75rem', color: A.muted }}>Chargement…</div>
+      ) : !demande ? (
+        <div style={{ fontSize: '0.75rem', color: A.muted }}>Ce dossier n'a pas encore de demande.</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            {CHAMPS.map(([cle, label]) => (
+              <label key={cle} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: A.muted }}>{label}</span>
+                <input value={form[cle] ?? ''} onChange={e => setForm(f => ({ ...f, [cle]: e.target.value }))}
+                  style={{ padding: '7px 9px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, fontSize: '0.8125rem', color: A.text }} />
+              </label>
+            ))}
+          </div>
+
+          {mutation.isError && (
+            <div role="alert" style={{ marginTop: 10, fontSize: '0.75rem', fontWeight: 600, color: A.red }}>
+              {apiErrorMessage(mutation.error, "La correction n'a pas pu être enregistrée.")}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button onClick={enregistrer} disabled={mutation.isPending}
+              style={{ padding: '7px 16px', borderRadius: 'var(--r-sm)', border: 'none', background: A.bordeaux, color: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: mutation.isPending ? 'wait' : 'pointer' }}>
+              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer la correction'}
+            </button>
+            <button onClick={() => setOuvert(false)} disabled={mutation.isPending}
+              style={{ padding: '7px 16px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: 'transparent', color: A.muted, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+              Annuler
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Toutes les demandes — pilotage + drawer de gestion ───────────────────────
 
 const DOC_STATUS: Record<string, { label: string; color: string }> = {
@@ -1446,6 +1569,10 @@ function DemandesView({ agentName }: { agentName: string }) {
                 ))}
               </div>
             </div>
+
+            {/* Correction de la demande — le client perd la main dès l'étape
+                « Analyse », l'agent la garde pour rattraper une coquille. */}
+            <CorrigerDemande clientId={selected.c.id} clientNom={selected.c.name} />
 
             {/* Pièces */}
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: A.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Pièces justificatives</div>
