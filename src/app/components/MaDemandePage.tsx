@@ -443,6 +443,14 @@ export default function MaDemandePage({ user: _user }: Props) {
     onError: e => addToast('error', apiErrorMessage(e, "L'envoi de votre demande a échoué.")),
   });
 
+  // Le succès est le téléchargement lui-même : pas de toast « réussi » qui
+  // s'afficherait même si rien n'était arrivé — c'était le défaut de l'ancienne
+  // version, qui annonçait la réussite sans jamais produire de fichier.
+  const recapMutation = useMutation({
+    mutationFn: () => clientApi.telechargerRecapitulatif(),
+    onError: e => addToast('error', apiErrorMessage(e, 'Le récapitulatif n\'a pas pu être généré.')),
+  });
+
   const sending = submitMutation.isPending || saveMutation.isPending;
 
   // ── Erreur / chargement ───────────────────────────────────────────
@@ -963,15 +971,21 @@ export default function MaDemandePage({ user: _user }: Props) {
             </button>
 
             <button
-              onClick={() => { addToast('info', 'Génération du PDF en cours…'); setTimeout(() => addToast('success', 'Récapitulatif téléchargé avec succès'), 1600); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: 'pointer', textAlign: 'left' }}
+              onClick={() => recapMutation.mutate()}
+              disabled={recapMutation.isPending}
+              aria-busy={recapMutation.isPending || undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: recapMutation.isPending ? 'wait' : 'pointer', textAlign: 'left' }}
             >
               <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--secondary)' }}>
-                <Printer size={16} style={{ color: 'var(--primary)' }} />
+                {recapMutation.isPending
+                  ? <Loader2 size={16} style={{ color: 'var(--primary)', animation: 'spin 0.8s linear infinite' }} />
+                  : <Printer size={16} style={{ color: 'var(--primary)' }} />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: 1 }}>Télécharger le récapitulatif</div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Exporter le résumé complet de votre demande en PDF</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  {recapMutation.isPending ? 'Génération du PDF en cours…' : 'Exporter le résumé complet de votre demande en PDF'}
+                </div>
               </div>
               <ArrowRight size={14} style={{ color: 'var(--muted-foreground)', flexShrink: 0, opacity: 0.5 }} />
             </button>

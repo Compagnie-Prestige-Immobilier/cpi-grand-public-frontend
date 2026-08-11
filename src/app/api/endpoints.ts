@@ -434,6 +434,31 @@ export const clientApi = {
   submitMaDemande: async (): Promise<DemandeData> =>
     (await api.post('/client/ma-demande/submit')).data.data,
 
+  /**
+   * Récapitulatif PDF du dossier.
+   *
+   * Passe par axios plutôt que par un `<a href>` : la route exige le jeton
+   * Sanctum, qu'un lien ordinaire n'enverrait pas (le navigateur ne connaît que
+   * les cookies). On récupère donc le binaire puis on déclenche la sauvegarde
+   * localement. L'URL objet est révoquée aussitôt, sinon le blob resterait en
+   * mémoire jusqu'au rechargement de la page.
+   */
+  telechargerRecapitulatif: async (): Promise<void> => {
+    const reponse = await api.get('/client/ma-demande/recapitulatif', { responseType: 'blob' });
+
+    const nom = /filename="?([^";]+)"?/.exec(reponse.headers['content-disposition'] ?? '')?.[1]
+      ?? 'recapitulatif.pdf';
+
+    const url = URL.createObjectURL(reponse.data as Blob);
+    const lien = document.createElement('a');
+    lien.href = url;
+    lien.download = nom;
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    URL.revokeObjectURL(url);
+  },
+
   mesDocuments: async (): Promise<RequisDocData[]> =>
     (await api.get('/client/mes-documents')).data.data,
 
