@@ -1,4 +1,4 @@
-import api, { startImpersonation, stopImpersonation } from './client';
+import api, { getToken, startImpersonation, stopImpersonation } from './client';
 
 // Types générés depuis les DTOs backend (namespace global déclaré
 // dans ./types/generated.d.ts — régénéré via `php artisan typescript:transform`).
@@ -75,8 +75,25 @@ export const auth = {
   login: async (input: { email: string; password: string }): Promise<AuthPayload> =>
     (await api.post('/auth/login', input)).data.data,
 
+  /**
+   * Déconnexion — révoque le jeton CÔTÉ SERVEUR.
+   *
+   * Le jeton est lu ici, de façon SYNCHRONE, et joint explicitement à la
+   * requête. L'intercepteur d'axios, lui, ne s'exécute qu'à la microtâche
+   * suivante : l'appelant avait le temps d'effacer le jeton entre-temps, la
+   * requête partait sans en-tête `Authorization`, le serveur répondait 401 et
+   * ne révoquait rien. Le jeton restait alors valable indéfiniment — vérifié :
+   * après déconnexion, il ouvrait encore /auth/me et /client/profile.
+   *
+   * Passer l'en-tête ici rend la révocation indépendante de l'ordre des
+   * opérations chez l'appelant : le bug ne peut pas revenir par un réagencement
+   * de App.tsx.
+   */
   logout: async (): Promise<void> => {
-    await api.post('/auth/logout');
+    const jeton = getToken();
+    await api.post('/auth/logout', null, jeton
+      ? { headers: { Authorization: `Bearer ${jeton}` } }
+      : undefined);
   },
 
   me: async (): Promise<AuthPayload> =>
