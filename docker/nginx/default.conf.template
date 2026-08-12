@@ -24,12 +24,23 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    # CSP pragmatique pour cette SPA :
-    #  - style-src 'unsafe-inline' : l'app utilise massivement des styles inline (props React)
-    #  - fonts.googleapis/gstatic  : polices (préconnexions dans index.html)
-    #  - img-src https:            : R2 (URL signées), avatars Google, visuels Unsplash
-    #  - googletagmanager/analytics: inertes tant que VITE_GTAG_ID n'est pas défini au build
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    # La CSP complète est écrite DANS index.html, générée au build par
+    # `politiqueCsp()` (vite.config.ts). Elle y a sa place plutôt qu'ici :
+    #
+    #  1. Elle protège alors TOUS les déploiements — `npm run dev`, une
+    #     prévisualisation, un `dist/` servi par un autre hébergeur — et pas
+    #     seulement cette image Docker.
+    #  2. Elle peut autoriser les scripts en ligne par leur EMPREINTE sha256,
+    #     calculée au build. Ces empreintes changent à chaque construction,
+    #     nginx ne peut pas les connaître. La politique posée ici auparavant
+    #     déclarait `script-src 'self' googletagmanager` sans empreinte : les
+    #     deux politiques s'appliquant par INTERSECTION, elle bloquait les
+    #     données structurées Schema.org de la page d'accueil — le seul écran
+    #     que le référencement cible — ainsi que l'extrait Google Analytics.
+    #
+    # Seul `frame-ancestors` reste ici : la spécification CSP l'ignore dans une
+    # balise <meta>, il n'existe donc qu'en en-tête.
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
 
     # --- Santé ---------------------------------------------------------------
     # Répondu par nginx lui-même : valide le rendu de la config au démarrage.

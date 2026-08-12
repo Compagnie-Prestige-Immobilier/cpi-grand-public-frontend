@@ -19,6 +19,7 @@ import { setToken, apiErrorMessage, apiFieldError } from '../api/client';
 import bgWelcome from '../../assets/BG.jpg';
 import cpiLogo from '../../assets/image.png';
 import ConditionsPage, { ConditionsModal } from './ConditionsPage';
+import { fondPhoto } from '../lib/images';
 
 type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
 
@@ -586,7 +587,9 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
       <div className="auth-visual" style={{
         position: 'relative', display: 'flex', flexDirection: 'column',
         justifyContent: 'flex-end', padding: '48px 40px',
-        backgroundImage: `url(${PHOTO})`,
+        // Dégradé de repli sous la photo : si Unsplash ne répond pas, le
+        // panneau reste sombre et le texte blanc lisible (voir lib/images.ts).
+        backgroundImage: fondPhoto(PHOTO),
         backgroundSize: 'cover', backgroundPosition: 'center top', minHeight: '100vh',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(28,8,16,0.25) 0%, rgba(28,8,16,0.82) 60%, rgba(28,8,16,0.97) 100%)' }} />

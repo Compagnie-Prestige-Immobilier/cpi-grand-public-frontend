@@ -5,7 +5,7 @@ import OnboardingPage from './components/OnboardingPage';
 import { PermissionProvider } from './auth/PermissionContext';
 import type { Permission, UserRole as ApiUserRole } from './auth/permissions';
 import { auth, type AuthPayload, type UserData } from './api/endpoints';
-import { getToken, setToken, clearToken, UNAUTHENTICATED_EVENT } from './api/client';
+import { apiErrorMessage, getToken, setToken, clearToken, UNAUTHENTICATED_EVENT } from './api/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { homePath, type NavArea } from './routes';
@@ -58,10 +58,33 @@ export function areaForRole(role: UserRole): NavArea {
   return role === 'agent-cpi' || role === 'admin' ? 'staff' : 'client';
 }
 
+/** Vrai lorsque le navigateur est sur l'URL de retour du fournisseur Google. */
+function surRetourGoogle(): boolean {
+  return window.location.pathname === GOOGLE_CALLBACK_PATH;
+}
+
 /** Code OAuth présent quand Google redirige vers /auth/google/callback?code=… */
 function googleCallbackCode(): string | null {
-  if (window.location.pathname !== GOOGLE_CALLBACK_PATH) return null;
+  if (!surRetourGoogle()) return null;
   return new URLSearchParams(window.location.search).get('code');
+}
+
+/**
+ * Message destiné à l'utilisateur lorsque Google revient SANS code.
+ *
+ * C'est le cas nominal d'un refus : l'utilisateur ferme la fenêtre de
+ * consentement ou clique « Annuler », et Google redirige vers
+ * `/auth/google/callback?error=access_denied`. Jusqu'ici, l'application ne
+ * lisait que le paramètre `code` : sans lui, l'effet de montage rendait la
+ * main immédiatement, la route de retour affichait son écran de chargement…
+ * et n'en sortait jamais. L'utilisateur restait devant un squelette animé,
+ * sans message, sans bouton, sans moyen de revenir à la connexion autrement
+ * qu'en modifiant l'URL lui-même.
+ */
+function messageRetourGoogle(erreur: string | null): string {
+  if (erreur === 'access_denied')
+    return "Vous n'avez pas autorisé CPI à utiliser votre compte Google. Vous pouvez réessayer, ou vous connecter avec votre adresse e-mail et votre mot de passe.";
+  return "La connexion avec Google n'a pas abouti. Réessayez, ou connectez-vous avec votre adresse e-mail et votre mot de passe.";
 }
 
 // Écran de transition pendant le chargement du chunk de l'espace connecté.
@@ -137,6 +160,16 @@ export default function App() {
   // Au montage : échange du code Google, ou restauration de session via /auth/me.
   useEffect(() => {
     const code = googleCallbackCode();
+
+    // Retour de Google sans code : refus de l'utilisateur, ou échec côté
+    // fournisseur. Il faut le dire et ramener à la connexion — sinon l'écran
+    // de chargement de cette route tourne indéfiniment.
+    if (!code && surRetourGoogle()) {
+      toast.error(messageRetourGoogle(new URLSearchParams(window.location.search).get('error')));
+      routerNavigate(PUBLIC_PATHS.login, { replace: true });
+      return;
+    }
+
     if (!code && !getToken()) return;
     (async () => {
       try {
@@ -163,15 +196,12 @@ export default function App() {
       } catch (err) {
         clearToken();
         if (code) {
-          // Un échec du retour Google était jusqu'ici totalement muet :
-          // l'utilisateur revenait sur l'écran de connexion sans savoir
-          // pourquoi, et recommençait la même manipulation.
-          toast.error(
-            "La connexion avec Google n'a pas abouti. Réessayez, ou connectez-vous avec votre adresse e-mail et votre mot de passe.",
-          );
+          // Échec de l'ÉCHANGE du code (jeton expiré, compte refusé côté API…).
+          // Muet à l'origine : l'utilisateur revenait sur l'écran de connexion
+          // sans savoir pourquoi, et recommençait la même manipulation.
+          toast.error(apiErrorMessage(err, messageRetourGoogle(null)));
           routerNavigate(PUBLIC_PATHS.login, { replace: true });
         }
-        void err;
       } finally {
         setBooting(false);
       }

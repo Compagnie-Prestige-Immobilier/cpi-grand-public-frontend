@@ -16,6 +16,7 @@ import { useNavigate } from '../contexts/NavigationContext';
 import { Modal } from './ui/overlays';
 import { DS, type StatusVariant } from './ui/index';
 import { STATUT_CHANTIER } from '../lib/statuts';
+import { fondPhoto } from '../lib/images';
 
 const HERO_PHOTO = 'https://images.unsplash.com/photo-1783260606348-bb2deaa215a3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
 
@@ -462,7 +463,10 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
       {/* ═══ 1. HERO ═══════════════════════════════════════════════════════════ */}
       <div style={{
         position: 'relative', borderRadius: 'var(--r-xl)', overflow: 'hidden',
-        backgroundImage: `url(${HERO_PHOTO})`, backgroundSize: 'cover', backgroundPosition: 'center',
+        // Dégradé de repli sous la photo (voir lib/images.ts) : sans lui, un
+        // Unsplash injoignable laissait un bandeau transparent, texte blanc
+        // compris.
+        backgroundImage: fondPhoto(HERO_PHOTO), backgroundSize: 'cover', backgroundPosition: 'center',
         minHeight: '280px',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(110deg, rgba(28,8,16,0.96) 0%, rgba(56,8,15,0.88) 45%, rgba(99,2,16,0.6) 100%)' }} />

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 // lucide-react 1.x ne fournit plus les icônes de marque (voir BrandIcons.tsx).
 import { Facebook, Instagram, Linkedin } from './BrandIcons';
+import { replierImage } from '../lib/images';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -334,7 +335,7 @@ export default function LandingPage({ onLogin, onRegister }: LandingPageProps) {
             {properties.map((p) => (
               <div key={p.type} className="bg-white overflow-hidden" style={{ border: `1px solid ${CPI_BORDER}` }}>
                 <div className="relative h-48 bg-gray-100 overflow-hidden">
-                  <img src={p.img} alt={p.type} className="w-full h-full object-cover" />
+                  <img src={p.img} alt={`${p.type} — ${p.location}`} className="w-full h-full object-cover" onError={replierImage} />
                   <div className="absolute top-3 left-3 px-2 py-1" style={{ background: p.tag === 'Disponible' ? '#1A6B44' : CPI_PRIMARY, fontSize: '0.6875rem', fontWeight: 700, color: 'white', letterSpacing: '0.05em' }}>
                     {p.tag}
                   </div>

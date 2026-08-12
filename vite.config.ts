@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
+import { createHash } from 'node:crypto'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
@@ -12,7 +13,86 @@ import react from '@vitejs/plugin-react'
  * ils contiennent l'adresse du site, et les fichiers de public/ sont copiés tels
  * quels, sans substitution — un jeton non résolu s'y retrouverait en production.
  */
-function seoAndAnalytics(SITE_URL: string, GTAG_ID: string) {
+/**
+ * Politique de sécurité du contenu (CSP) injectée dans index.html.
+ *
+ * L'application n'en avait aucune dans sa page : seule l'image Docker en
+ * posait une, en en-tête nginx. Autrement dit, `npm run dev`, un `dist/` servi
+ * par n'importe quel autre hébergeur, et toute prévisualisation n'étaient
+ * protégés par rien du tout.
+ *
+ * `frame-ancestors` n'est PAS déclarée ici : cette directive est ignorée dans
+ * une balise `<meta>` (spécification CSP). Elle reste un en-tête nginx, aux
+ * côtés de X-Frame-Options.
+ *
+ * Les scripts en ligne de la page — les données structurées Schema.org et,
+ * s'il est configuré, l'extrait Google Analytics — sont autorisés par leur
+ * EMPREINTE sha256, calculée au build sur leur contenu final. C'est ce qui
+ * permet de garder `script-src` sans `'unsafe-inline'` en production. L'ancienne
+ * CSP nginx, elle, autorisait `'self'` et googletagmanager mais aucune
+ * empreinte : elle bloquait donc les données structurées de la page d'accueil,
+ * le seul écran que le référencement cible.
+ *
+ * En développement, Vite injecte ses propres scripts en ligne (préambule Fast
+ * Refresh) et ouvre une connexion WebSocket : la politique y est assouplie
+ * juste ce qu'il faut, et uniquement là.
+ */
+function politiqueCsp(opts: {
+  dev: boolean;
+  gtagId: string;
+  apiOrigin: string;
+  empreintes: string[];
+}): string {
+  const { dev, gtagId, apiOrigin, empreintes } = opts;
+
+  const script = ["'self'"];
+  if (dev) script.push("'unsafe-inline'");
+  else script.push(...empreintes.map(h => `'${h}'`));
+  if (gtagId) script.push('https://www.googletagmanager.com');
+
+  // `style-src 'unsafe-inline'` est structurel : toute l'application décrit ses
+  // styles par la prop `style` de React, que le navigateur traite comme du
+  // style en ligne. S'en passer supposerait de réécrire chaque écran.
+  const style = ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'];
+
+  const connect = ["'self'"];
+  if (apiOrigin) connect.push(apiOrigin);
+  if (gtagId) connect.push('https://www.google-analytics.com', 'https://*.google-analytics.com');
+  if (dev) connect.push('ws:', 'wss:');
+
+  return [
+    "default-src 'self'",
+    `script-src ${script.join(' ')}`,
+    `style-src ${style.join(' ')}`,
+    "font-src 'self' data: https://fonts.gstatic.com",
+    // `https:` en img-src : liens signés R2 (pièces, documents, photos de
+    // chantier), avatars Google, visuels d'illustration. Les domaines des liens
+    // signés ne sont pas connus au build.
+    "img-src 'self' data: blob: https:",
+    `connect-src ${connect.join(' ')}`,
+    // Visionneuse de documents : « Mon dossier » affiche le PDF réel du contrat
+    // dans une iframe pointant sur un lien signé.
+    "frame-src 'self' blob: https:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
+/** Empreintes sha256 des scripts EN LIGNE d'un document HTML, format CSP. */
+function empreintesScriptsEnLigne(html: string): string[] {
+  const empreintes: string[] = [];
+  const balise = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+  for (const m of html.matchAll(balise)) {
+    const contenu = m[1];
+    if (!contenu) continue;
+    empreintes.push('sha256-' + createHash('sha256').update(contenu, 'utf8').digest('base64'));
+  }
+  return empreintes;
+}
+
+function seoAndAnalytics(SITE_URL: string, GTAG_ID: string, API_ORIGIN: string) {
   const robots = `# MONESPACE.CPI — Compagnie Prestige Immobilier
 #
 # Seuls l'accueil et les écrans de connexion / inscription ont vocation à être
@@ -42,11 +122,11 @@ Sitemap: ${SITE_URL}/sitemap.xml
   return {
     name: 'cpi-seo-analytics',
 
-    transformIndexHtml(html: string) {
-      const out = html.replaceAll('__SITE_URL__', SITE_URL)
-      if (!GTAG_ID) return out
-
-      const tag = `
+    transformIndexHtml(html: string, ctx?: { server?: unknown }) {
+      const dev = Boolean(ctx?.server)
+      let out = html.replaceAll('__SITE_URL__', SITE_URL)
+      if (GTAG_ID) {
+        const tag = `
     <!-- Google Analytics (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${GTAG_ID}"></script>
     <script>
@@ -57,7 +137,19 @@ Sitemap: ${SITE_URL}/sitemap.xml
       gtag('config', '${GTAG_ID}', { anonymize_ip: true });
     </script>
   `
-      return out.replace('</head>', `${tag}</head>`)
+        out = out.replace('</head>', `${tag}</head>`)
+      }
+
+      // Les empreintes se calculent sur le document FINAL : l'extrait Google
+      // Analytics ci-dessus en fait partie, et son contenu dépend de GTAG_ID.
+      const csp = politiqueCsp({
+        dev,
+        gtagId: GTAG_ID,
+        apiOrigin: API_ORIGIN,
+        empreintes: empreintesScriptsEnLigne(out),
+      })
+      const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}" />\n    `
+      return out.replace('<title>', `${meta}<title>`)
     },
 
     generateBundle(this: { emitFile: (f: { type: 'asset'; fileName: string; source: string }) => void }) {
@@ -119,10 +211,15 @@ export default defineConfig(({ mode }) => {
   // build : en production, c'est VITE_API_URL que lit src/app/api/client.ts.
   const API_PROXY_TARGET = env.VITE_API_PROXY_TARGET || 'http://localhost:8000'
 
+  // Origine de l'API en production. Vide quand `dist/` est servi par le même
+  // hôte que l'API : `connect-src 'self'` suffit alors. Renseignée, elle doit
+  // figurer dans la CSP, sans quoi le navigateur bloquerait tous les appels.
+  const API_ORIGIN = env.VITE_API_URL ? new URL(env.VITE_API_URL).origin : ''
+
   return {
     base,
     plugins: [
-      seoAndAnalytics(SITE_URL, GTAG_ID),
+      seoAndAnalytics(SITE_URL, GTAG_ID, API_ORIGIN),
       // `react()` : Fast Refresh en développement et transformation JSX.
       // `tailwindcss()` : Tailwind 4 s'intègre en greffon Vite, pas en PostCSS.
       // Les deux sont réellement utilisés (utilitaires Tailwind dans AppShell
