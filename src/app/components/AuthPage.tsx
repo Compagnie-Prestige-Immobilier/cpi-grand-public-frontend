@@ -1,4 +1,10 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  schemaInscription, schemaConnexion, MOT_DE_PASSE_LONGUEUR_MIN, REGLES_MOT_DE_PASSE,
+  type Inscription, type Connexion,
+} from '../lib/schemas';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import {
   Eye, EyeOff, Shield, Zap, Headphones, Handshake, Lock,
@@ -73,20 +79,32 @@ interface Props {
 }
 
 // ─── Shared: Field input ──────────────────────────────────────────────────────
-function FieldHelp({ error, hint }: { error?: string; hint?: string }) {
+function FieldHelp({ id, error, hint }: { id?: string; error?: string; hint?: string }) {
   if (!error && !hint) return null;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', lineHeight: 1.4, color: error ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
+    <span
+      id={id}
+      // `role="alert"` fait annoncer l'erreur dès son apparition : sans lui, un
+      // utilisateur de lecteur d'écran soumettait le formulaire, revenait sur
+      // le champ, et n'apprenait jamais ce qui n'allait pas.
+      role={error ? 'alert' : undefined}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', lineHeight: 1.4, color: error ? 'var(--destructive)' : 'var(--muted-foreground)' }}
+    >
       {error ? <AlertCircle size={11} style={{ flexShrink: 0 }} /> : null}{error || hint}
     </span>
   );
 }
 
-function Field({ label, type = 'text', placeholder, value, onChange, error, valid, hint, icon }: {
+function Field({ label, type = 'text', placeholder, value, onChange, onBlur, error, valid, hint, icon, autoComplete, required }: {
   label: string; type?: string; placeholder?: string;
-  value: string; onChange: (v: string) => void;
+  value: string; onChange: (v: string) => void; onBlur?: () => void;
   error?: string; valid?: boolean; hint?: string; icon?: React.ReactNode;
+  autoComplete?: string; required?: boolean;
 }) {
+  // `useId` garantit l'unicité même si le même champ est rendu deux fois
+  // (l'écran de connexion affiche deux formulaires, client et professionnel).
+  const inputId = useId();
+  const helpId = `${inputId}-aide`;
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState(false);
   const [hover, setHover] = useState(false);
@@ -97,7 +115,7 @@ function Field({ label, type = 'text', placeholder, value, onChange, error, vali
   const rightPad = isPwd ? 42 : showCheck ? 38 : 14;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-medium)' as any, color: 'var(--foreground)' }}>
+      <label htmlFor={inputId} style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-medium)' as any, color: 'var(--foreground)' }}>
         {label}
       </label>
       <div style={{ position: 'relative' }}>
@@ -105,12 +123,16 @@ function Field({ label, type = 'text', placeholder, value, onChange, error, vali
           <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', display: 'flex', pointerEvents: 'none', color: focused ? 'var(--primary)' : 'var(--muted-foreground)', transition: 'color var(--dur-1) var(--ease-out)' }}>{icon}</span>
         )}
         <input
+          id={inputId}
           type={isPwd && show ? 'text' : type}
           placeholder={placeholder}
           value={value}
+          autoComplete={autoComplete}
+          required={required}
           aria-invalid={!!error || undefined}
+          aria-describedby={error || hint ? helpId : undefined}
           onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); onBlur?.(); }}
           onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
           style={{
             width: '100%', boxSizing: 'border-box',
@@ -123,14 +145,21 @@ function Field({ label, type = 'text', placeholder, value, onChange, error, vali
           }}
         />
         {isPwd ? (
-          <button type="button" onClick={() => setShow(!show)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 0 }}>
+          <button
+            type="button"
+            onClick={() => setShow(!show)}
+            aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            aria-pressed={show}
+            aria-controls={inputId}
+            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 0 }}
+          >
             {show ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         ) : showCheck ? (
-          <Check size={15} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--success)', pointerEvents: 'none' }} />
+          <Check size={15} aria-hidden="true" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--success)', pointerEvents: 'none' }} />
         ) : null}
       </div>
-      <FieldHelp error={error} hint={hint} />
+      <FieldHelp id={helpId} error={error} hint={hint} />
     </div>
   );
 }
@@ -143,15 +172,17 @@ const normalizeSenegalPhone = (value: string) => {
 function PhoneField({ label = 'Téléphone *', value, onChange, error, valid }: {
   label?: string; value: string; onChange: (v: string) => void; error?: string; valid?: boolean;
 }) {
+  const inputId = useId();
+  const helpId = `${inputId}-aide`;
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-    <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>{label}</label>
+    <label htmlFor={inputId} style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>{label}</label>
     <div style={{ display: 'flex', alignItems: 'stretch', border: `1.5px solid ${error ? 'var(--destructive)' : valid ? 'var(--success)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', background: 'var(--input-background)', overflow: 'hidden' }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', whiteSpace: 'nowrap' }}><span aria-label="Sénégal">🇸🇳</span> +221</span>
-      <input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} aria-invalid={!!error || undefined} onChange={e => onChange(normalizeSenegalPhone(e.target.value))}
+      <input id={inputId} type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} aria-invalid={!!error || undefined} aria-describedby={helpId} onChange={e => onChange(normalizeSenegalPhone(e.target.value))}
         style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: 0, outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', color: 'var(--foreground)' }} />
-      {valid && <Check size={15} style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
+      {valid && <Check size={15} aria-hidden="true" style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
     </div>
-    <FieldHelp error={error} hint="Format sénégalais : 9 chiffres" />
+    <FieldHelp id={helpId} error={error} hint="Format sénégalais : 9 chiffres" />
   </div>;
 }
 
@@ -160,18 +191,23 @@ function SelectField({ label, value, onChange, options, placeholder, error, vali
   options: { value: string; label: string }[]; placeholder?: string;
   error?: string; valid?: boolean; hint?: string;
 }) {
+  const selectId = useId();
+  const helpId = `${selectId}-aide`;
   const [focused, setFocused] = useState(false);
   const [hover, setHover] = useState(false);
   const borderColor = error ? 'var(--destructive)' : focused ? 'var(--primary)' : valid ? 'var(--success)' : hover ? 'var(--muted-foreground)' : 'var(--border)';
   const boxShadow = !focused ? 'none' : error ? '0 0 0 3px rgba(192,57,43,0.14)' : '0 0 0 3px rgba(99,2,16,0.12)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-medium)' as any, color: 'var(--foreground)' }}>
+      <label htmlFor={selectId} style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-medium)' as any, color: 'var(--foreground)' }}>
         {label}
       </label>
       <div style={{ position: 'relative' }}>
         <select
+          id={selectId}
           value={value}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error || hint ? helpId : undefined}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -192,9 +228,9 @@ function SelectField({ label, value, onChange, options, placeholder, error, vali
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <ChevronDown size={16} style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', pointerEvents: 'none' }} />
+        <ChevronDown size={16} aria-hidden="true" style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', pointerEvents: 'none' }} />
       </div>
-      <FieldHelp error={error} hint={hint} />
+      <FieldHelp id={helpId} error={error} hint={hint} />
     </div>
   );
 }
@@ -477,39 +513,47 @@ function GoogleIcon() {
 // ─── SCREEN 2 — Login ─────────────────────────────────────────────────────────
 function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => void; onNavigate: (p: AppPage) => void }) {
   const [mode, setMode] = useState<'client' | 'pro'>('client');
-  // Espace client
-  const [email, setEmail] = useState('');
-  const [pwd, setPwd] = useState('');
-  // Espace professionnel
-  const [proEmail, setProEmail] = useState('');
-  const [proPwd, setProPwd] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+
+  /**
+   * Un formulaire par espace : les deux sont montés en même temps (l'onglet ne
+   * fait que masquer l'autre), et partager un état les ferait se contaminer.
+   * `schemaConnexion` n'impose AUCUNE règle de robustesse sur le mot de passe —
+   * un compte créé avant le durcissement de la politique doit pouvoir se
+   * connecter, précisément pour aller le changer.
+   */
+  const clientForm = useForm<Connexion>({
+    resolver: zodResolver(schemaConnexion),
+    mode: 'onTouched',
+    defaultValues: { email: '', password: '' },
+  });
+  const proForm = useForm<Connexion>({
+    resolver: zodResolver(schemaConnexion),
+    mode: 'onTouched',
+    defaultValues: { email: '', password: '' },
+  });
+
+  const actif = mode === 'client' ? clientForm : proForm;
+  const loading = actif.formState.isSubmitting;
 
   // Connexion unifiée : l'API renvoie le rôle (client / agent-cpi / super-admin)
   // et les permissions résolues ; l'app redirige en conséquence.
   const doLogin = async (mail: string, password: string, fallback: string) => {
     setError('');
-    setLoading(true);
     try {
       const payload = await auth.login({ email: mail.trim(), password });
       if (payload.token) setToken(payload.token);
       onLogin(payload);
     } catch (err) {
       setError(apiErrorMessage(err, fallback));
-      setLoading(false);
     }
   };
 
-  const handleClientSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void doLogin(email, pwd, 'Identifiants incorrects.');
-  };
+  const handleClientSubmit = clientForm.handleSubmit(v =>
+    doLogin(v.email, v.password, 'Identifiants incorrects.'));
 
-  const handleProSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void doLogin(proEmail, proPwd, 'Identifiants professionnels incorrects.');
-  };
+  const handleProSubmit = proForm.handleSubmit(v =>
+    doLogin(v.email, v.password, 'Identifiants professionnels incorrects.'));
 
   const handleGoogle = async () => {
     setError('');
@@ -590,8 +634,12 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
 
           {mode === 'client' ? (
             <form onSubmit={handleClientSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <Field label="E-mail" type="email" placeholder="bonjour@email.com" value={email} onChange={setEmail} icon={<Mail size={15} />} />
-              <Field label="Mot de passe" type="password" placeholder="••••••••" value={pwd} onChange={setPwd} icon={<Lock size={15} />} />
+              <Field label="E-mail" type="email" placeholder="bonjour@email.com" required autoComplete="email"
+                value={clientForm.watch('email')} onChange={v => clientForm.setValue('email', v, { shouldValidate: clientForm.formState.submitCount > 0 })}
+                error={clientForm.formState.errors.email?.message} icon={<Mail size={15} />} />
+              <Field label="Mot de passe" type="password" placeholder="••••••••" required autoComplete="current-password"
+                value={clientForm.watch('password')} onChange={v => clientForm.setValue('password', v, { shouldValidate: clientForm.formState.submitCount > 0 })}
+                error={clientForm.formState.errors.password?.message} icon={<Lock size={15} />} />
               <div style={{ marginTop: '4px' }}>
                 <PrimaryBtn type="submit" disabled={loading}>
                   {loading
@@ -629,8 +677,12 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
             </form>
           ) : (
             <form onSubmit={handleProSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <Field label="Identifiant professionnel" type="email" placeholder="agent@cpi.sn" value={proEmail} onChange={setProEmail} icon={<Mail size={15} />} />
-              <Field label="Mot de passe" type="password" placeholder="••••••••" value={proPwd} onChange={setProPwd} icon={<Lock size={15} />} />
+              <Field label="Identifiant professionnel" type="email" placeholder="agent@cpi.sn" required autoComplete="email"
+                value={proForm.watch('email')} onChange={v => proForm.setValue('email', v, { shouldValidate: proForm.formState.submitCount > 0 })}
+                error={proForm.formState.errors.email?.message} icon={<Mail size={15} />} />
+              <Field label="Mot de passe" type="password" placeholder="••••••••" required autoComplete="current-password"
+                value={proForm.watch('password')} onChange={v => proForm.setValue('password', v, { shouldValidate: proForm.formState.submitCount > 0 })}
+                error={proForm.formState.errors.password?.message} icon={<Lock size={15} />} />
               <div style={{ marginTop: '4px' }}>
                 <PrimaryBtn type="submit" disabled={loading}>
                   {loading
@@ -671,37 +723,51 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
   const [step, setStep] = useState<1 | 2>(initialProfile ? 2 : 1);
   const [profil, setProfil] = useState<ProfilType | null>(initialProfile);
   const [hovered, setHovered] = useState<ProfilType | null>(null);
-  const [form, setForm] = useState({
-    nom: '', email: '', tel: '',
-    employeur: '', revenus: '',
-    pwd: '', pwd2: '',
-  });
-  const [accepted, setAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState('');
 
-  const set = (k: keyof typeof form) => (v: string) => setForm(f => ({ ...f, [k]: v }));
+  /**
+   * Validation par `schemaInscription`, miroir des règles de
+   * `Api/Auth/AuthController::register` et de la politique de mot de passe.
+   *
+   * Elle était auparavant réécrite à la main en booléens (`pwdOk =
+   * form.pwd.length >= 8`) : le formulaire se déclarait valide avec 8
+   * caractères, l'API en exige 10 avec lettres et chiffres, et l'utilisateur
+   * recevait un 422 sans savoir quelle règle il violait.
+   */
+  const {
+    watch, setValue, handleSubmit: rhfSubmit, formState: { errors, isSubmitting, submitCount },
+  } = useForm<Inscription>({
+    resolver: zodResolver(schemaInscription),
+    // `onTouched` : on ne reproche rien avant que l'utilisateur ait quitté le
+    // champ, puis on corrige en direct. Valider à chaque frappe affiche
+    // « trop court » dès la première lettre.
+    mode: 'onTouched',
+    defaultValues: { nom: '', email: '', tel: '', employeur: '', revenus: '', pwd: '', pwd2: '', accepted: false as unknown as true },
+  });
+
+  const form = watch();
+  const accepted = form.accepted === true;
+  const attempted = submitCount > 0;
+  const loading = isSubmitting;
+  const set = (k: keyof Inscription) => (v: string) =>
+    setValue(k, v as Inscription[typeof k], { shouldValidate: attempted, shouldDirty: true });
+  const setAccepted = (v: boolean) =>
+    setValue('accepted', v as unknown as true, { shouldValidate: attempted, shouldDirty: true });
 
   const profilInfo = PROFIL_OPTIONS.find(p => p.type === profil);
 
-  // ── Validation en direct des champs requis ──
-  const nomOk   = form.nom.trim().length >= 2;
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
-  const telOk   = form.tel.replace(/\D/g, '').length === 9;
-  const empOk   = form.employeur.trim().length >= 2;
-  const revOk   = form.revenus !== '';
-  const pwdOk   = form.pwd.length >= 8;
-  const pwd2Ok  = form.pwd2.length > 0 && form.pwd2 === form.pwd;
-  const formValid = nomOk && emailOk && telOk && empOk && revOk && pwdOk && pwd2Ok && accepted;
+  // Coche verte « ce champ est bon » : dérivée du schéma, plus d'un doublon
+  // de règles écrit à côté.
+  const champOk = (k: keyof Inscription) => {
+    const v = form[k];
+    if (v === undefined || v === '') return false;
+    return !errors[k];
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = rhfSubmit(async form => {
     if (!profil) return;
-    if (!formValid) { setAttempted(true); return; }
     setError('');
-    setLoading(true);
     try {
       // Crée le compte côté API : rôle client + fiche dossier générée côté serveur.
       const payload = await auth.register({
@@ -727,9 +793,8 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
       setError(apiFieldError(err, 'email')
         ? 'Cette adresse e-mail est déjà utilisée.'
         : apiErrorMessage(err, 'Impossible de créer votre compte. Réessayez.'));
-      setLoading(false);
     }
-  };
+  });
 
   const REVENUS_OPTIONS = [
     { value: '150000-250000', label: '150 000 – 250 000 FCFA / mois' },
@@ -918,14 +983,14 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
 
             <div style={{ maxWidth: '560px' }}>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <Field label="Nom complet *" placeholder="Prénom Nom" value={form.nom} onChange={set('nom')}
-                  icon={<UserCircle size={15} />} valid={nomOk} hint={form.nom && !nomOk ? 'Indiquez votre prénom et votre nom.' : undefined} error={attempted && !nomOk ? 'Indiquez votre nom complet.' : undefined} />
+                <Field label="Nom complet *" placeholder="Prénom Nom" value={form.nom} onChange={set('nom')} required autoComplete="name"
+                  icon={<UserCircle size={15} />} valid={champOk('nom')} error={errors.nom?.message} />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <Field label="E-mail *" type="email" placeholder="vous@email.com" value={form.email} onChange={set('email')}
-                    icon={<Mail size={15} />} valid={emailOk} hint={form.email && !emailOk ? 'Exemple : vous@email.com' : undefined} error={attempted && !emailOk ? 'Adresse e-mail invalide.' : undefined} />
+                  <Field label="E-mail *" type="email" placeholder="vous@email.com" value={form.email} onChange={set('email')} required autoComplete="email"
+                    icon={<Mail size={15} />} valid={champOk('email')} error={errors.email?.message} />
                   <PhoneField value={form.tel} onChange={set('tel')}
-                    valid={telOk} error={attempted && !telOk ? 'Entrez 9 chiffres.' : undefined} />
+                    valid={champOk('tel')} error={errors.tel?.message} />
                 </div>
 
                 <Field
@@ -933,8 +998,8 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                   placeholder={profil === 'fonctionnaire' ? "Ex: Ministère de l'Éducation" : "Ex: Sonatel, Orange SN..."}
                   value={form.employeur}
                   onChange={set('employeur')}
-                  icon={<Building2 size={15} />} valid={empOk}
-                  error={attempted && !empOk ? 'Ce champ est requis.' : undefined}
+                  icon={<Building2 size={15} />} valid={champOk('employeur')} required autoComplete="organization"
+                  error={errors.employeur?.message}
                 />
 
                 <SelectField
@@ -943,19 +1008,36 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                   onChange={set('revenus')}
                   options={REVENUS_OPTIONS}
                   placeholder="Sélectionnez une tranche"
-                  valid={revOk}
-                  error={attempted && !revOk ? 'Sélectionnez une tranche.' : undefined}
+                  valid={champOk('revenus')}
+                  error={errors.revenus?.message}
                 />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <Field label="Mot de passe *" type="password" placeholder="Min. 8 caractères" value={form.pwd} onChange={set('pwd')}
-                    icon={<Lock size={15} />} valid={pwdOk}
-                    hint={!attempted && !pwdOk ? '8 caractères minimum.' : undefined}
-                    error={attempted && !pwdOk ? 'Au moins 8 caractères.' : undefined} />
+                  <Field label="Mot de passe *" type="password" placeholder={`Min. ${MOT_DE_PASSE_LONGUEUR_MIN} caractères`} value={form.pwd} onChange={set('pwd')}
+                    required autoComplete="new-password"
+                    icon={<Lock size={15} />} valid={champOk('pwd')}
+                    error={errors.pwd?.message} />
                   <Field label="Confirmer *" type="password" placeholder="Répétez" value={form.pwd2} onChange={set('pwd2')}
-                    icon={<Lock size={15} />} valid={pwd2Ok}
-                    error={attempted && !pwd2Ok ? (form.pwd2 ? 'Ne correspond pas.' : 'Confirmez.') : undefined} />
+                    required autoComplete="new-password"
+                    icon={<Lock size={15} />} valid={champOk('pwd2') && form.pwd2 === form.pwd}
+                    error={errors.pwd2?.message} />
                 </div>
+
+                {/* Ce que le serveur exige, dit AVANT l'envoi. Le formulaire
+                    annonçait « 8 caractères minimum » ; l'API en refusait
+                    l'enregistrement sans jamais expliquer pourquoi. */}
+                <ul aria-label="Exigences du mot de passe" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', listStyle: 'none', margin: 0, padding: 0 }}>
+                  {REGLES_MOT_DE_PASSE.map(regle => {
+                    const ok = regle.verifie(form.pwd ?? '');
+                    return (
+                      <li key={regle.libelle} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: ok ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                        <Check size={11} aria-hidden="true" style={{ flexShrink: 0, opacity: ok ? 1 : 0.35 }} />
+                        <span>{regle.libelle}</span>
+                        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{ok ? '— satisfait' : '— non satisfait'}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
 
                 {/* Champ OBLIGATOIRE de l'inscription. Il était rendu en
                     `<div onClick>` : ni focusable, ni actionnable au clavier,
@@ -968,8 +1050,8 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                       id="cgu"
                       checked={accepted}
                       onCheckedChange={valeur => setAccepted(valeur === true)}
-                      aria-invalid={attempted && !accepted}
-                      aria-describedby={attempted && !accepted ? 'cgu-erreur' : undefined}
+                      aria-invalid={Boolean(errors.accepted)}
+                      aria-describedby={errors.accepted ? 'cgu-erreur' : undefined}
                       style={{
                         marginTop: '2px', flexShrink: 0, width: 18, height: 18, padding: 0,
                         border: 0, background: 'none', cursor: 'pointer', lineHeight: 0,
@@ -977,7 +1059,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                     >
                       {accepted
                         ? <CheckSquare size={18} style={{ color: 'var(--primary)' }} />
-                        : <Square size={18} style={{ color: attempted ? 'var(--destructive)' : 'var(--border)' }} />
+                        : <Square size={18} style={{ color: errors.accepted ? 'var(--destructive)' : 'var(--border)' }} />
                       }
                     </Checkbox.Root>
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
@@ -987,8 +1069,8 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                       </button>
                     </span>
                   </div>
-                  {attempted && !accepted && (
-                    <div id="cgu-erreur" style={{ marginTop: 6, marginLeft: 28 }}><FieldHelp error="Vous devez accepter les conditions." /></div>
+                  {errors.accepted?.message && (
+                    <div style={{ marginTop: 6, marginLeft: 28 }}><FieldHelp id="cgu-erreur" error={errors.accepted.message} /></div>
                   )}
                 </div>
 

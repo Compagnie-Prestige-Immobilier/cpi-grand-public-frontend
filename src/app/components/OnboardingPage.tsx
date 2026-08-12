@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { Landmark, Briefcase, UserCircle, Lock, Check, AlertCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { auth, type UserData, type OnboardingInput } from '../api/endpoints';
 import { apiErrorMessage } from '../api/client';
+import { schemaOnboarding, erreursDe } from '../lib/schemas';
 
 type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
 
@@ -36,16 +37,17 @@ const normalizeSenegalPhone = (value: string) => {
   return digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
 };
 
-function PhoneField({ value, onChange, invalid }: { value: string; onChange: (v: string) => void; invalid: boolean }) {
+function PhoneField({ id, value, onChange, erreur }: { id: string; value: string; onChange: (v: string) => void; erreur?: string }) {
   const valid = value.replace(/\D/g, '').length === 9;
+  const invalid = Boolean(erreur);
   return <div style={{ position: 'relative' }}>
     <div style={{ display: 'flex', alignItems: 'stretch', border: `1.5px solid ${invalid ? 'var(--destructive)' : valid ? 'var(--success)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', background: 'var(--input-background)', overflow: 'hidden', boxShadow: invalid ? '0 0 0 3px rgba(192,57,43,0.12)' : 'none' }}>
       <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem' }}>+221</span>
-      <input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} onChange={e => onChange(normalizeSenegalPhone(e.target.value))} aria-invalid={invalid || undefined} style={{ ...inputStyle, border: 0, borderRadius: 0, background: 'transparent' }} />
-      {valid && <Check size={15} style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
+      <input id={id} type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} onChange={e => onChange(normalizeSenegalPhone(e.target.value))} aria-invalid={invalid || undefined} aria-describedby={`${id}-aide`} style={{ ...inputStyle, border: 0, borderRadius: 0, background: 'transparent' }} />
+      {valid && <Check size={15} aria-hidden="true" style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
     </div>
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: invalid ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
-      {invalid && <AlertCircle size={11} />} {invalid ? 'Entrez 9 chiffres.' : 'Format sénégalais : 9 chiffres'}
+    <span id={`${id}-aide`} role={invalid ? 'alert' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: invalid ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
+      {invalid && <AlertCircle size={11} aria-hidden="true" />} {erreur ?? 'Format sénégalais : 9 chiffres'}
     </span>
   </div>;
 }
@@ -65,16 +67,30 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
   const [revenus, setRevenus] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tente, setTente] = useState(false);
 
-  const phoneOk = phone.replace(/\D/g, '').length === 9;
-  const formValid = phoneOk && employer.trim().length >= 2 && profil !== null && revenus !== '';
+  const idPhone = useId();
+  const idEmployer = useId();
+  const idRevenus = useId();
+  const idProfil = useId();
+
+  /**
+   * Validation par `schemaOnboarding`, calqué sur
+   * `Api/Auth/AuthController::completeOnboarding` (`phone`, `employer`,
+   * `profile_type` et `revenus` tous `required`).
+   *
+   * Le formulaire se contentait auparavant d'un « Veuillez remplir tous les
+   * champs » global : l'utilisateur devait deviner lequel manquait.
+   */
+  const erreurs = tente
+    ? erreursDe(schemaOnboarding, { phone, employer, profile_type: profil ?? undefined, revenus })
+    : {};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formValid || !profil) {
-      setError('Veuillez remplir tous les champs.');
-      return;
-    }
+    setTente(true);
+    const problemes = erreursDe(schemaOnboarding, { phone, employer, profile_type: profil ?? undefined, revenus });
+    if (Object.keys(problemes).length > 0 || !profil) return;
     setError('');
     setLoading(true);
     try {
@@ -106,13 +122,13 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={labelStyle}>Votre profil *</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <span id={idProfil} style={labelStyle}>Votre profil *</span>
+            <div role="radiogroup" aria-labelledby={idProfil} aria-invalid={Boolean(erreurs.profile_type) || undefined} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {PROFIL_OPTIONS.map(p => {
                 const Icon = p.icon;
                 const active = profil === p.type;
                 return (
-                  <button key={p.type} type="button" onClick={() => setProfil(p.type)}
+                  <button key={p.type} type="button" role="radio" aria-checked={active} onClick={() => setProfil(p.type)}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '12px 6px', cursor: 'pointer', borderRadius: 'var(--r-sm)',
@@ -127,24 +143,33 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
                 );
               })}
             </div>
+            {erreurs.profile_type && (
+              <span role="alert" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)' }}>{erreurs.profile_type}</span>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={labelStyle}>Téléphone *</label>
-            <PhoneField value={phone} onChange={setPhone} invalid={!!error && !phoneOk} />
+            <label htmlFor={idPhone} style={labelStyle}>Téléphone *</label>
+            <PhoneField id={idPhone} value={phone} onChange={setPhone} erreur={erreurs.phone} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={labelStyle}>{profil === 'fonctionnaire' ? 'Ministère / Structure *' : 'Employeur / Entreprise *'}</label>
-            <input placeholder={profil === 'fonctionnaire' ? "Ex: Ministère de l'Éducation" : 'Ex: Sonatel, Orange SN…'} value={employer} onChange={e => setEmployer(e.target.value)} style={inputStyle} />
+            <label htmlFor={idEmployer} style={labelStyle}>{profil === 'fonctionnaire' ? 'Ministère / Structure *' : 'Employeur / Entreprise *'}</label>
+            <input id={idEmployer} autoComplete="organization" required aria-invalid={Boolean(erreurs.employer) || undefined} aria-describedby={erreurs.employer ? `${idEmployer}-err` : undefined} placeholder={profil === 'fonctionnaire' ? "Ex: Ministère de l'Éducation" : 'Ex: Sonatel, Orange SN…'} value={employer} onChange={e => setEmployer(e.target.value)} style={inputStyle} />
+            {erreurs.employer && (
+              <span id={`${idEmployer}-err`} role="alert" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)' }}>{erreurs.employer}</span>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={labelStyle}>Revenus nets mensuels *</label>
-            <select value={revenus} onChange={e => setRevenus(e.target.value)} style={{ ...inputStyle, color: revenus ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+            <label htmlFor={idRevenus} style={labelStyle}>Revenus nets mensuels *</label>
+            <select id={idRevenus} required aria-invalid={Boolean(erreurs.revenus) || undefined} aria-describedby={erreurs.revenus ? `${idRevenus}-err` : undefined} value={revenus} onChange={e => setRevenus(e.target.value)} style={{ ...inputStyle, color: revenus ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
               <option value="" disabled>Sélectionnez une tranche</option>
               {REVENUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            {erreurs.revenus && (
+              <span id={`${idRevenus}-err`} role="alert" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)' }}>{erreurs.revenus}</span>
+            )}
           </div>
 
           <button type="submit" disabled={loading}
