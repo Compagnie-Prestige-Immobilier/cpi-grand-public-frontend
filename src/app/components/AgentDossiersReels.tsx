@@ -9,6 +9,8 @@ import { useClientContext } from '../contexts/ClientContext';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useCpiDocs, type CpiDoc, type CreateDocHooks } from '../data/cpiDocsContext';
 import { useClientData } from '../data/useClientData';
+import { statutDocCpi } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 import {
   TIMELINE_STEPS, computeJourneyStep,
   DOCS_VALIDES_INDEX, SIGNATURE_INDEX,
@@ -37,14 +39,6 @@ const CPI_CAT_CFG: Record<string, { label: string; icon: LucideIcon }> = {
   pv: { label: 'PV', icon: ClipboardList }, autorisations: { label: 'Autorisation', icon: FileSignature },
 };
 
-const CPI_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  brouillon:  { label: 'Brouillon',  color: 'var(--muted-foreground)', bg: 'var(--muted)' },
-  disponible: { label: 'Disponible', color: 'var(--primary)',          bg: 'var(--secondary)' },
-  publie:     { label: 'Publié',     color: 'var(--primary)',          bg: 'var(--secondary)' },
-  'a-signer': { label: 'À signer',   color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)' },
-  signe:      { label: 'Signé',      color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)' },
-  archive:    { label: 'Archivé',    color: 'var(--muted-foreground)', bg: 'var(--muted)' },
-};
 
 // ─── Dérivation de l'état d'un client ─────────────────────────────────────────
 
@@ -83,9 +77,9 @@ function deriveClientState(
 function CommentModal({ title, cta, onConfirm, onClose }: { title: string; cta: string; onConfirm: (c: string) => void; onClose: () => void }) {
   const [txt, setTxt] = useState('');
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: 16 }}>
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: 440, padding: 24, boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal open onClose={onClose} titre={title} largeur={440} sansCroix
+      style={{ borderRadius: 'var(--r-md)', padding: 24 }}>
+      <>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 12 }}>{title}</div>
         <textarea value={txt} onChange={e => setTxt(e.target.value)} rows={4} placeholder="Précisez le motif pour le client…"
           style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', resize: 'vertical', boxSizing: 'border-box' }} />
@@ -94,8 +88,8 @@ function CommentModal({ title, cta, onConfirm, onClose }: { title: string; cta: 
           <button disabled={txt.trim().length < 3} onClick={() => onConfirm(txt.trim())}
             style={{ padding: '9px 18px', borderRadius: 'var(--radius)', border: 'none', background: txt.trim().length >= 3 ? 'var(--destructive)' : 'var(--muted)', color: '#fff', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: txt.trim().length >= 3 ? 'pointer' : 'not-allowed' }}>{cta}</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
@@ -268,7 +262,7 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visibleCpi.map(d => {
-              const scfg = CPI_STATUS_CFG[d.status] ?? CPI_STATUS_CFG.disponible;
+              const scfg = statutDocCpi(d.status);
               const cat = CPI_CAT_CFG[d.categorie];
               return (
                 <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', flexWrap: 'wrap' }}>
@@ -382,9 +376,10 @@ function UploadDocModal({ onClose, onPublish }: {
   };
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: 16 }}>
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto', padding: 24, boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal open onClose={onClose} titre="Téléverser un document"
+      description="Le document sera transmis au client, qui pourra le télécharger et le signer si nécessaire."
+      largeur={480} sansCroix style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh', padding: 24 }}>
+      <>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 4 }}>Téléverser un document</div>
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: 16 }}>Le document sera transmis au client, qui pourra le télécharger et le signer si nécessaire.</div>
 
@@ -454,8 +449,8 @@ function UploadDocModal({ onClose, onPublish }: {
             <Send size={14} /> Transmettre au client
           </button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 

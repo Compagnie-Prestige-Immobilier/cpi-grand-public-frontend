@@ -20,6 +20,8 @@ import { apiErrorMessage } from '../api/client';
 import { useDossierJourney, TIMELINE_STEPS } from '../data/dossierJourney';
 import { useNavigate } from '../contexts/NavigationContext';
 import { formatFCFA } from '../lib/format';
+import { DS } from './ui/index';
+import { Modal } from './ui/overlays';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,20 +115,20 @@ function computeCpiDocs(docs: CpiDoc[]): CpiFolder['docs'] {
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
-  'accepte':      { label: 'Validé',          color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
-  'refuse':       { label: 'Refusé',          color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: XCircle },
-  'a-remplacer':  { label: 'À corriger',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: RefreshCw },
-  'verification': { label: 'En vérification', color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
-  'en-attente':   { label: 'À déposer',       color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
-  'depose':       { label: 'Déposé — analyse', color: 'var(--chart-4)',         bg: 'rgba(176,80,112,0.08)', icon: Send },
+  'accepte':      { label: 'Validé',           icon: CheckCircle2, ...DS.status.success },
+  'refuse':       { label: 'Refusé',           icon: XCircle,      ...DS.status.danger  },
+  'a-remplacer':  { label: 'À corriger',       icon: RefreshCw,    ...DS.status.danger  },
+  'verification': { label: 'En vérification',  icon: Clock,        ...DS.status.warning },
+  'en-attente':   { label: 'À déposer',        icon: Clock,        ...DS.status.muted   },
+  'depose':       { label: 'Déposé — analyse', icon: Send,         ...DS.status.info    },
 };
 
 const CPI_STATUS_MAP: Record<string, { color: string; bg: string }> = {
-  'Signé':      { color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'    },
-  'À signer':   { color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)'    },
-  'À venir':    { color: 'var(--muted-foreground)', bg: 'var(--muted)'            },
-  'Disponible': { color: 'var(--primary)',          bg: 'var(--secondary)'        },
-  'Refusé':     { color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)'    },
+  'Signé':      DS.status.success,
+  'À signer':   DS.status.danger,
+  'À venir':    DS.status.muted,
+  'Disponible': DS.status.primary,
+  'Refusé':     DS.status.danger,
 };
 
 // ─── Progress — counts dossiers, not individual files ─────────────────────────
@@ -613,10 +615,15 @@ function downloadDocText(doc: SignDocTarget, client: ReturnType<typeof useClient
 function PreviewModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => void }) {
   const client = useClientData();
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '16px' }}>
-      <div className="cpi-scale-in" style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: '560px', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal
+      open
+      onClose={onClose}
+      titre={`Aperçu du document — ${doc.nom}`}
+      largeur={560}
+      sansCroix
+      style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflowY: 'visible' }}
+    >
+      <>
         <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <Eye size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -625,7 +632,7 @@ function PreviewModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => voi
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fermer l'aperçu" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} aria-hidden="true" /></button>
         </div>
         <div style={{ padding: '16px 22px', overflowY: 'auto', background: 'var(--muted)' }}>
           <DocumentPreview doc={doc} client={client} />
@@ -636,8 +643,8 @@ function PreviewModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => voi
           </button>
           <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--primary)', color: 'var(--primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>Fermer</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
@@ -658,11 +665,19 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
   };
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget && phase !== 'processing') onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '16px' }}>
+    <Modal
+      open
+      // Pendant la signature, la modale ne se ferme plus : ni Échap, ni clic
+      // extérieur. Fermer à cet instant laisserait l'utilisateur sans savoir si
+      // le document a été signé ou non.
+      onClose={() => { if (phase !== 'processing') onClose(); }}
+      titre={`Signature électronique — ${doc.nom}`}
+      largeur={500}
+      sansCroix
+      style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh' }}
+    >
+      <>
       <style>{`@keyframes cpiSpin { to { transform: rotate(360deg); } }`}</style>
-      <div className="cpi-scale-in" style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: '500px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
 
         {phase === 'done' ? (
           <div style={{ padding: '36px 28px', textAlign: 'center' }}>
@@ -689,7 +704,7 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
                 </div>
               </div>
               {phase !== 'processing' && (
-                <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} /></button>
+                <button onClick={onClose} aria-label="Fermer" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} aria-hidden="true" /></button>
               )}
             </div>
 
@@ -759,8 +774,8 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
             </div>
           </>
         )}
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 

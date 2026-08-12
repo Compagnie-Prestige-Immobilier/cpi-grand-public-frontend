@@ -4,6 +4,8 @@ import {
   AlertCircle, Edit2, Upload, Plus, Calendar, Send, Loader2,
 } from 'lucide-react';
 import { useChantierState, type ChantierStatut, type CalendarEventType, type PublicationType } from '../data/chantierStateContext';
+import { STATUT_TRANCHE } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 
 type TrancheStatus = 'valide' | 'en-cours' | 'en-attente' | 'bloque';
 type ChantierEtape = 'Préparation' | 'Fondations' | 'Gros œuvre' | 'Second œuvre' | 'Finitions' | 'Livraison';
@@ -23,12 +25,6 @@ interface ChantierProject {
   commentaires: { auteur: string; date: string; texte: string }[];
 }
 
-const TRANCHE_STATUS_CFG: Record<TrancheStatus, { label: string; color: string; bg: string }> = {
-  'valide':    { label: 'Validée',    color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)'  },
-  'en-cours':  { label: 'En cours',   color: 'var(--primary)',    bg: 'var(--secondary)'      },
-  'en-attente':{ label: 'En attente', color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)' },
-  'bloque':    { label: 'Bloquée',    color: 'var(--destructive)',           bg: 'rgba(192,57,43,0.08)'  },
-};
 
 const ETAPES: ChantierEtape[] = ['Préparation', 'Fondations', 'Gros œuvre', 'Second œuvre', 'Finitions', 'Livraison'];
 const STATUTS: { value: ChantierStatut; label: string }[] = [
@@ -452,7 +448,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '12px' }}>Tranches bancaires</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {ch.tranches.map(t => {
-                      const cfg = TRANCHE_STATUS_CFG[t.status];
+                      const cfg = STATUT_TRANCHE[t.status];
                       return (
                         <div key={t.num} style={{ padding: '12px 14px', background: 'var(--background)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <div style={{ width: '28px', height: '28px', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.875rem', color: 'var(--primary)' }}>T{t.num}</div>
@@ -545,16 +541,18 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
 
       {/* Tranche comment modal */}
       {trancheComment && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', width: '100%', maxWidth: '440px', padding: '24px' }}>
+        <Modal open onClose={() => setTrancheComment(null)} sansCroix
+          titre={`Commentaire de la tranche T${trancheComment.trNum}`} largeur={440}
+          style={{ borderRadius: 0, padding: 24 }}>
+          <>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '12px' }}>Commentaire — Tranche T{trancheComment.trNum}</div>
             <textarea value={trancheCommentText} onChange={e => setTrancheCommentText(e.target.value)} rows={3} placeholder="Ex : Travaux de gros œuvre en bonne progression..." style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.55, marginBottom: '14px', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button onClick={() => setTrancheComment(null)} style={btnOutline}>Annuler</button>
               <button onClick={saveTrancheComment} style={btnPrimary}><CheckCircle2 size={13} /> Enregistrer</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {toast && (

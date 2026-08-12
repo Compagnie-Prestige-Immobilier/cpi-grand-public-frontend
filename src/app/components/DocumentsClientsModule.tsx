@@ -6,6 +6,8 @@ import {
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
 import { ageDepotLabel, parseFrDate } from '../lib/format';
+import { DS } from './ui/index';
+import { Modal } from './ui/overlays';
 
 type DocStatus = 'accepte' | 'en-analyse' | 'a-remplacer' | 'refuse' | 'manquant';
 
@@ -32,12 +34,16 @@ interface ClientEntry {
 
 interface Props { agentName?: string; }
 
+// `DocStatus` est ici le vocabulaire propre au module (« en-analyse »,
+// « manquant »), distinct des statuts de l'API. Seules les couleurs sont
+// reprises du registre partagé — pour qu'un « refusé » ait le même rouge
+// partout — via `DS.status`.
 const DOC_STATUS_CFG: Record<DocStatus, { label: string; color: string; bg: string }> = {
-  'accepte':    { label: 'Accepté',         color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'  },
-  'en-analyse': { label: 'À vérifier',      color: 'var(--accent-text)',                 bg: 'rgba(200,146,26,0.10)' },
-  'a-remplacer':{ label: 'À remplacer',     color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'  },
-  'refuse':     { label: 'Refusé',          color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'  },
-  'manquant':   { label: 'Non déposé',      color: 'var(--muted-foreground)', bg: 'var(--muted)'          },
+  'accepte':    { label: 'Accepté',     ...DS.status.success },
+  'en-analyse': { label: 'À vérifier',  ...DS.status.warning },
+  'a-remplacer':{ label: 'À remplacer', ...DS.status.danger  },
+  'refuse':     { label: 'Refusé',      ...DS.status.danger  },
+  'manquant':   { label: 'Non déposé',  ...DS.status.muted   },
 };
 
 type StoreDocStatus = 'en-attente' | 'depose' | 'verification' | 'accepte' | 'refuse' | 'a-remplacer';
@@ -367,15 +373,15 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
           .filter(e => e.action.toLowerCase().includes(preview.doc.label.toLowerCase()));
         const cfg = DOC_STATUS_CFG[preview.doc.status];
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div onClick={() => setPreview(null)} style={{ position: 'absolute', inset: 0 }} />
-            <div style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
+          <Modal open onClose={() => setPreview(null)} sansCroix
+            titre={`Pièce justificative — ${preview.doc.label}`} largeur={520} style={{ padding: 24 }}>
+            <>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: 'var(--foreground)' }}>{preview.doc.label}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{preview.clientName} · {preview.ref}</div>
                 </div>
-                <button onClick={() => setPreview(null)} style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} style={{ color: 'var(--muted-foreground)' }} /></button>
+                <button onClick={() => setPreview(null)} aria-label="Fermer l'aperçu" style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} aria-hidden="true" style={{ color: 'var(--muted-foreground)' }} /></button>
               </div>
 
               {/* Fichier réel déposé par le client (lien signé, valable quelques minutes) */}
@@ -437,15 +443,16 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                   <button onClick={() => { accept(preview.clientId, preview.doc.id); setPreview(null); }} style={btnPrimary}><CheckCircle2 size={13} /> Accepter</button>
                 )}
               </div>
-            </div>
-          </div>
+            </>
+          </Modal>
         );
       })()}
 
       {/* Modal commentaire (refus / remplacement) */}
       {commentModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: '480px', padding: '24px' }}>
+        <Modal open onClose={() => setCommentModal(null)} sansCroix largeur={480} style={{ padding: 24 }}
+          titre={commentModal.mode === 'refus' ? 'Refuser ce document' : 'Demander un remplacement'}>
+          <>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '6px' }}>
               {commentModal.mode === 'refus' ? 'Refuser ce document' : 'Demander un remplacement'}
             </div>
@@ -465,8 +472,8 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                 <MessageSquare size={13} /> {commentModal.mode === 'refus' ? 'Refuser & notifier' : 'Envoyer & notifier'}
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {toast && (

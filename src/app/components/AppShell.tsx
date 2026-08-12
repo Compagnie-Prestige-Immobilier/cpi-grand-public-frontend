@@ -644,13 +644,17 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
               <Bell className="w-4 h-4" />
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent)' }} />
             </button>
-            <div
+            {/* `<div onClick>` : ni focusable, ni actionnable au clavier. C'était
+                le seul accès au profil depuis la barre supérieure. */}
+            <button
+              type="button"
               onClick={() => navigate('mon-profil')}
+              aria-label={`Mon profil — ${user.name}`}
               className="w-8 h-8 flex items-center justify-center text-white cursor-pointer"
-              style={{ background: 'var(--primary)', fontSize: '0.75rem', fontWeight: 700 }}
+              style={{ background: 'var(--primary)', fontSize: '0.75rem', fontWeight: 700, border: 'none' }}
             >
               {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </div>
+            </button>
           </div>
         </header>
 
@@ -727,12 +731,12 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <>
-          <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <button type="button" aria-label="Fermer le menu" className="lg:hidden fixed inset-0 z-40 bg-black/50" style={{ border: 'none' }} onClick={() => setSidebarOpen(false)} />
           <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 flex flex-col overflow-hidden" style={{ background: 'var(--sidebar)' }}>
             <div className="px-5 py-5 border-b flex items-center justify-between" style={{ borderColor: 'var(--sidebar-border)' }}>
               <img src={cpiLogo} alt="CPI" style={{ height: '32px', width: 'auto', maxWidth: '110px' }} />
-              <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
-                <X className="w-4 h-4" />
+              <button onClick={() => setSidebarOpen(false)} aria-label="Fermer le menu" className="text-white/60 hover:text-white">
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
             <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>

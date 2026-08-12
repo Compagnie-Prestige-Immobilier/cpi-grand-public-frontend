@@ -1,6 +1,7 @@
 import { ArrowLeft, CheckCircle2, FileText, ShieldCheck } from 'lucide-react';
 import cpiLogo from '../../assets/image.png';
 import type { AppPage } from '../App';
+import { Modal } from './ui/overlays';
 
 export const sections = [
   ['1. Objet et identité de CPI', <>Les présentes conditions régissent l’utilisation de MONESPACE.CPI, l’espace numérique de la Compagnie Prestige Immobilier (CPI SARL), société immobilière sénégalaise créée en 2003. La plateforme permet notamment de créer un compte, de renseigner un projet immobilier, de transmettre des informations et pièces justificatives, de suivre l’avancement d’un dossier et d’échanger avec les équipes CPI et, lorsque cela est nécessaire, ses partenaires autorisés.</>],
@@ -51,8 +52,24 @@ export const sections = [
 ] as const;
 
 export function ConditionsModal({ onClose }: { onClose: () => void }) {
-  return <div className="cpi-terms-modal" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16, background: 'rgba(28,8,16,.72)', backdropFilter: 'blur(6px)' }}>
-    <section className="cpi-terms-dialog" role="dialog" aria-modal="true" aria-labelledby="terms-title" style={{ width: 'min(1080px, 100%)', maxHeight: 'min(94vh, 940px)', overflowY: 'auto', background: 'var(--card)', border: '1px solid rgba(255,255,255,.5)', borderRadius: 18, boxShadow: '0 28px 100px rgba(28,8,16,.35)', overflowX: 'hidden' }}>
+  // Radix apporte le piège de focus et la fermeture par Échap, qui manquaient.
+  // Les classes `cpi-terms-modal` / `cpi-terms-dialog` sont conservées : la
+  // mise en page mobile de globals.css les cible nommément.
+  return <Modal
+    open
+    onClose={onClose}
+    titre="Conditions générales d’utilisation"
+    description="Version 1.0 · Applicable à compter du 12 août 2026"
+    sansCroix
+    largeur="min(1080px, 100%)"
+    zIndex={1000}
+    voile="rgba(28,8,16,.72)"
+    classNameVoile="cpi-terms-modal"
+    styleVoile={{ display: 'grid', placeItems: 'center', backdropFilter: 'blur(6px)' }}
+    className="cpi-terms-dialog"
+    style={{ maxHeight: 'min(94vh, 940px)', border: '1px solid rgba(255,255,255,.5)', borderRadius: 18, boxShadow: '0 28px 100px rgba(28,8,16,.35)', overflowX: 'hidden', padding: 0 }}
+  >
+    <>
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, padding: 'clamp(24px, 4vw, 42px)', background: 'var(--sidebar)', color: 'white' }}>
         <div><div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#F1CC76', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>MONESPACE.CPI · CPI SARL</div><h1 id="terms-title" style={{ margin: '10px 0 8px', fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', lineHeight: 1.05 }}>Conditions générales d’utilisation</h1><p style={{ margin: 0, color: 'rgba(255,255,255,.68)', lineHeight: 1.6 }}>Version 1.0 · Applicable à compter du 12 août 2026</p></div>
         <button type="button" aria-label="Fermer les conditions générales d’utilisation" onClick={onClose} style={{ flexShrink: 0, border: '1px solid rgba(255,255,255,.35)', borderRadius: '50%', width: 40, height: 40, background: 'rgba(255,255,255,.08)', color: 'white', cursor: 'pointer', fontSize: 24, lineHeight: 1 }}>×</button>
@@ -66,8 +83,8 @@ export function ConditionsModal({ onClose }: { onClose: () => void }) {
         {sections.map(([title, content]) => <section key={title} style={{ padding: '24px 0', borderTop: '1px solid var(--border)' }}><h2 style={{ margin: '0 0 10px', fontFamily: 'var(--font-display)', fontSize: '1.12rem', color: 'var(--foreground)' }}>{title}</h2><p style={{ margin: 0, color: 'var(--muted-foreground)', lineHeight: 1.82, fontSize: '.92rem' }}>{content}</p></section>)}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 24, borderTop: '1px solid var(--border)' }}><button type="button" onClick={onClose} style={{ padding: '13px 20px', border: 0, borderRadius: 'var(--r-sm)', background: 'var(--primary)', color: 'var(--primary-foreground)', cursor: 'pointer', fontWeight: 700 }}>Retour à l’inscription</button></div>
       </div>
-    </section>
-  </div>;
+    </>
+  </Modal>;
 }
 
 export default function ConditionsPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {

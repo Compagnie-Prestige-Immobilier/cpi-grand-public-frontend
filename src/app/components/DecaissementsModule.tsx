@@ -8,6 +8,7 @@ import { useDocState } from '../data/docStateContext';
 import { resolveClientBank } from '../data/bankRegistry';
 import { apiErrorMessage } from '../api/client';
 import { formatAmount, formatFCFA, parseAmount } from '../lib/format';
+import { ConfirmDialog, Modal } from './ui/overlays';
 import {
   useDecaissementsQuery, useUpdateDecaissement, useValidateFoncierStep,
   useValidateTerrain, useValidateTranche, defaultDecaissement, toTranchesInput,
@@ -106,11 +107,26 @@ export default function DecaissementsModule() {
     );
   };
 
-  const validateTranche = (id: string, tr: number, name: string) => {
+  /**
+   * Décaissement d'une tranche — confirmation obligatoire.
+   *
+   * Un simple clic déclenchait un virement : la somme part vers le compte du
+   * client, le client est notifié, et rien dans l'interface ne permet de
+   * revenir en arrière. C'est la seule action de l'application qui engage
+   * directement de l'argent réel ; elle ne peut pas dépendre d'un clic distrait.
+   */
+  const [aDecaisser, setADecaisser] = useState<{ id: string; tr: number; name: string; montant: number } | null>(null);
+
+  const demanderDecaissement = (id: string, tr: number, name: string) => {
     const montant = Math.round(st(id).constructionMontant * CONSTRUCTION_TRANCHES[tr].pct / 100);
+    setADecaisser({ id, tr, name, montant });
+  };
+
+  const validateTranche = (id: string, tr: number, name: string, montant: number) => {
     trancheMutation.mutate({ clientId: id, num: tr }, journaliseSiOk(() => {
       pushNotification(id, `Tranche ${tr + 1} décaissée (${CONSTRUCTION_TRANCHES[tr].label}) — ${formatFCFA(montant)}.`, 'Notification', 'CPI');
       showToast(`Tranche ${tr + 1} décaissée pour ${name} · client notifié.`);
+      setADecaisser(null);
     }, 'Le décaissement de la tranche a échoué.'));
   };
 
@@ -323,7 +339,7 @@ export default function DecaissementsModule() {
                                 {t.validated ? (
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', fontWeight: 700, color: 'var(--success)', background: 'rgba(26,107,68,0.1)', padding: '3px 9px', borderRadius: 'var(--r-full)' }}><CheckCircle2 size={11} /> Décaissé</span>
                                 ) : prevDone ? (
-                                  <button onClick={() => validateTranche(c.id, i, c.name)} disabled={trancheMutation.isPending} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={11} /> Décaisser</button>
+                                  <button onClick={() => demanderDecaissement(c.id, i, c.name)} disabled={trancheMutation.isPending} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={11} /> Décaisser</button>
                                 ) : (
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', fontWeight: 700, color: 'var(--accent-text)', background: 'rgba(200,146,26,0.1)', padding: '3px 9px', borderRadius: 'var(--r-full)' }}><Clock size={11} /> En attente</span>
                                 )}
@@ -342,10 +358,29 @@ export default function DecaissementsModule() {
         );
       })}
 
+      <ConfirmDialog
+        open={aDecaisser !== null}
+        onOpenChange={ouvert => { if (!ouvert) setADecaisser(null); }}
+        titre={aDecaisser ? `Décaisser la tranche ${aDecaisser.tr + 1} ?` : ''}
+        description={aDecaisser ? (
+          <>
+            <strong style={{ color: 'var(--foreground)' }}>{formatFCFA(aDecaisser.montant)}</strong> vont être décaissés
+            pour <strong style={{ color: 'var(--foreground)' }}>{aDecaisser.name}</strong>
+            {' '}({CONSTRUCTION_TRANCHES[aDecaisser.tr].label}).
+            Le client sera notifié. Cette opération ne peut pas être annulée depuis l'application.
+          </>
+        ) : ''}
+        libelleConfirmer="Décaisser"
+        ton="engageant"
+        enCours={trancheMutation.isPending}
+        onConfirmer={() => { if (aDecaisser) validateTranche(aDecaisser.id, aDecaisser.tr, aDecaisser.name, aDecaisser.montant); }}
+      />
+
       {/* Comment modal */}
       {commentFor && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="cpi-scale-in" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 440, padding: 24 }}>
+        <Modal open onClose={() => setCommentFor(null)} sansCroix
+          titre={`Commenter la tranche T${commentFor.tr + 1}`} largeur={440} style={{ padding: 24 }}>
+          <>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 12 }}>Commenter la tranche T{commentFor.tr + 1}</div>
             <textarea value={commentText} onChange={e => setCommentText(e.target.value)} rows={3} placeholder="Ex : Décaissement effectué après inspection du chantier." style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', background: 'var(--input-background)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', outline: 'none', fontSize: '0.875rem', color: 'var(--foreground)', resize: 'vertical', lineHeight: 1.55, marginBottom: 14 }} />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -354,8 +389,8 @@ export default function DecaissementsModule() {
                 <CheckCircle2 size={13} /> {updateMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {toast && (

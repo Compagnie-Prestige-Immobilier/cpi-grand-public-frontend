@@ -850,11 +850,14 @@ export function MediaThumb({
 }) {
   const [hov, setHov] = useState(false);
   return (
-    <div
+    <button
+      type="button"
       onClick={onView}
+      aria-label={label ? `Ouvrir ${label}` : 'Ouvrir le média'}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
+        display: 'block', width: '100%', padding: 0, border: 'none', font: 'inherit', textAlign: 'left',
         aspectRatio: '4/3', borderRadius: DS.radius.lg, overflow: 'hidden',
         background, position: 'relative', cursor: 'pointer',
         transform: hov ? 'scale(1.03)' : 'scale(1)',
@@ -872,7 +875,7 @@ export function MediaThumb({
           {date && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', color: 'rgba(255,255,255,0.5)' }}>{date}</span>}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 

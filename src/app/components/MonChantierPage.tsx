@@ -133,8 +133,12 @@ function TrancheCard({ t }: { t: Tranche }) {
       boxShadow: t.etat === 'en-cours' ? '0 4px 20px rgba(99,2,16,0.1)' : 'none',
       transition: 'box-shadow 0.2s',
     }}>
-      <div
-        style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}
+      {/* `<button>` et non `<div onClick>` : la tranche est le seul moyen
+          d'ouvrir le détail, et elle n'était atteignable qu'à la souris. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', font: 'inherit', color: 'inherit' }}
         onClick={() => setOpen(o => !o)}
       >
         {/* Status dot */}
@@ -172,10 +176,10 @@ function TrancheCard({ t }: { t: Tranche }) {
             {t.pct}%
           </div>
           <div style={{ color: 'var(--muted-foreground)' }}>
-            {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            {open ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
           </div>
         </div>
-      </div>
+      </button>
 
       {open && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', background: 'var(--input-background)' }}>

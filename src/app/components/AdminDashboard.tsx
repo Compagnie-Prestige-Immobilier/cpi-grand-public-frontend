@@ -41,6 +41,8 @@ import DecaissementsModule from './DecaissementsModule';
 import NotificationsModule from './NotificationsModule';
 import HistoriqueModule from './HistoriqueModule';
 import { MONTHS_ABBR, frDateSortKey, parseFrDate } from '../lib/format';
+import { ConfirmDialog, Modal } from './ui/overlays';
+import { STATUT_DOC_CPI, STATUT_PIECE } from '../lib/statuts';
 
 interface Props { user: AuthUser; activeNav?: string }
 
@@ -1033,6 +1035,16 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
     : null;
 
   const motDePasse = seed.data?.motDePasse ?? null;
+
+  /**
+   * Suppression des données de démonstration — confirmation obligatoire.
+   *
+   * L'appel efface des dossiers, des comptes de connexion, des banques et des
+   * entrées de journal. Il est censé ne toucher que les enregistrements
+   * préfixés `DEMO-`, mais rien à l'écran ne rappelait cette portée avant de
+   * cliquer, et l'opération est irréversible côté serveur.
+   */
+  const [confirmerPurge, setConfirmerPurge] = useState(false);
   const copyPassword = () => {
     if (!motDePasse) return;
     void navigator.clipboard.writeText(motDePasse).then(
@@ -1071,7 +1083,7 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
           {seed.isPending ? 'Chargement en cours…' : 'Charger 30 dossiers de démo'}
         </button>
         <button
-          onClick={() => { seed.reset(); clear.mutate(); }}
+          onClick={() => setConfirmerPurge(true)}
           disabled={busy || demoCount === 0}
           className="flex items-center gap-2 px-4 py-2"
           style={{
@@ -1135,6 +1147,23 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
           </span>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmerPurge}
+        onOpenChange={setConfirmerPurge}
+        titre="Supprimer les données de démonstration ?"
+        description={
+          <>
+            <strong style={{ color: 'var(--foreground)' }}>{demoCount} dossier(s)</strong> de démonstration
+            seront supprimés, avec leurs comptes de connexion, leurs banques et leurs entrées de journal.
+            Seuls les enregistrements dont la référence commence par «&nbsp;{DEMO_REF_PREFIX}&nbsp;» sont
+            concernés : les vrais dossiers clients ne sont pas touchés. L'opération est définitive.
+          </>
+        }
+        libelleConfirmer="Supprimer les données de démo"
+        enCours={clear.isPending}
+        onConfirmer={() => { seed.reset(); clear.mutate(undefined, { onSettled: () => setConfirmerPurge(false) }); }}
+      />
     </div>
   );
 }
@@ -1276,25 +1305,10 @@ function CorrigerDemande({ clientId, clientNom }: { clientId: string; clientNom:
 
 // ─── Toutes les demandes — pilotage + drawer de gestion ───────────────────────
 
-const DOC_STATUS: Record<string, { label: string; color: string }> = {
-  accepte:      { label: 'Validée',        color: A.green },
-  depose:       { label: 'À vérifier',     color: A.gold },
-  verification: { label: 'En vérification',color: A.gold },
-  refuse:       { label: 'Refusée',        color: A.red },
-  'a-remplacer':{ label: 'À remplacer',    color: A.red },
-  // Le client ne l'a pas encore déposée. « En attente » se lisait comme
-  // « en attente de traitement par CPI » — l'inverse de la réalité.
-  'en-attente': { label: 'Non déposée',    color: A.muted },
-};
-const CPI_STATUS: Record<string, { label: string; color: string }> = {
-  brouillon:  { label: 'Brouillon',  color: A.muted },
-  disponible: { label: 'Disponible', color: A.gold },
-  'a-signer': { label: 'À signer',   color: A.bordeaux },
-  signe:      { label: 'Signé',      color: A.green },
-  publie:     { label: 'Publié',     color: A.gold },
-  archive:    { label: 'Archivé',    color: A.muted },
-  refuse:     { label: 'Refusé',     color: A.red },
-};
+// Libellés et couleurs viennent du registre partagé (src/app/lib/statuts.ts) :
+// les tables locales avaient divergé d'un écran à l'autre.
+const DOC_STATUS = STATUT_PIECE;
+const CPI_STATUS = STATUT_DOC_CPI;
 const cs: React.CSSProperties = { border: `1px solid ${A.border}`, borderRadius: 'var(--r-md)' };
 
 function DemandesView({ agentName }: { agentName: string }) {
@@ -1487,9 +1501,18 @@ function DemandesView({ agentName }: { agentName: string }) {
 
       {/* Drawer latéral de gestion */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60 }}>
-          <div onClick={() => { setSelectedId(null); setCommentFor(null); }} className="cpi-backdrop-enter" style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5 cpi-drawer-enter" style={{ position: 'absolute', top: 0, right: 0, height: '100%', width: 'min(460px, 100%)', background: 'white', overflowY: 'auto', boxShadow: '-8px 0 32px rgba(0,0,0,0.18)' }}>
+        <Modal
+          open
+          onClose={() => { setSelectedId(null); setCommentFor(null); }}
+          titre={`Gestion du dossier ${selected.c.ref} — ${selected.c.name}`}
+          sansCroix
+          largeur="min(460px, 100%)"
+          className="p-5 cpi-drawer-enter"
+          // Tiroir plaqué à droite : Radix positionne le panneau, la mise en
+          // page reste celle d'avant.
+          style={{ position: 'fixed', top: 0, right: 0, height: '100%', maxHeight: '100%', borderRadius: 0, border: 'none', boxShadow: '-8px 0 32px rgba(0,0,0,0.18)' }}
+        >
+          <>
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -1694,8 +1717,8 @@ function DemandesView({ agentName }: { agentName: string }) {
               <button onClick={() => navigate('documents-clients')} className="flex-1 px-3 py-2" style={{ background: '#FAF7F7', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Ouvrir Documents clients</button>
               <button onClick={() => navigate('documents-admin')} className="flex-1 px-3 py-2" style={{ background: '#FAF7F7', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Ouvrir Documents CPI</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Toast */}
@@ -1917,9 +1940,8 @@ function UsersView({ agentName }: { agentName: string }) {
 
       {/* Modale : ajouter un utilisateur */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setShowAdd(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(440px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setShowAdd(false)} sansCroix titre="Ajouter un utilisateur" largeur={440} className="p-5">
+          <>
             <div className="flex items-center justify-between mb-4">
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Ajouter un utilisateur</h3>
               <button onClick={() => setShowAdd(false)} style={{ background: '#FAF7F7', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X className="w-4 h-4" style={{ color: A.muted }} /></button>
@@ -1956,15 +1978,14 @@ function UsersView({ agentName }: { agentName: string }) {
                 <button onClick={() => setShowAdd(false)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Modale : identifiants à transmettre */}
       {creds && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setCreds(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(460px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setCreds(null)} sansCroix titre="Compte créé — identifiants à transmettre" largeur={460} zIndex={310} className="p-5">
+          <>
             <div className="flex items-center gap-2 mb-1">
               <CheckCircle2 className="w-5 h-5" style={{ color: A.green }} />
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Compte créé — identifiants à transmettre</h3>
@@ -1993,15 +2014,14 @@ function UsersView({ agentName }: { agentName: string }) {
               <button onClick={sendEmail} className="flex items-center gap-1 px-3 py-2" style={{ background: A.bordeaux, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}><Mail className="w-3.5 h-3.5" /> Envoyer par e-mail</button>
               <button onClick={() => setCreds(null)} className="ml-auto px-3 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Modale : notifier un client */}
       {notifyFor && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setNotifyFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(420px, 100%)', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setNotifyFor(null)} sansCroix titre="Notifier le client" largeur={420} zIndex={310} className="p-5">
+          <>
             <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: A.text, marginBottom: 4 }}>Notifier {notifyFor.name}</h3>
             <p style={{ fontSize: '0.75rem', color: A.muted, marginBottom: 10 }}>Le message apparaîtra dans l'espace Notifications du client.</p>
             <textarea value={notifyText} onChange={e => setNotifyText(e.target.value)} rows={3} placeholder="Votre message…"
@@ -2010,8 +2030,8 @@ function UsersView({ agentName }: { agentName: string }) {
               <button onClick={sendNotify} className="flex-1 px-4 py-2" style={{ background: A.bordeaux, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}>Envoyer</button>
               <button onClick={() => setNotifyFor(null)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Toast */}
@@ -2197,9 +2217,8 @@ function PartnersView() {
 
       {/* Modale : ajouter une banque */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setShowAdd(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(480px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setShowAdd(false)} sansCroix titre="Ajouter une banque partenaire" largeur={480} className="p-5">
+          <>
             <div className="flex items-center justify-between mb-4">
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Ajouter une banque partenaire</h3>
               <button onClick={() => setShowAdd(false)} style={{ background: '#FAF7F7', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X className="w-4 h-4" style={{ color: A.muted }} /></button>
@@ -2240,24 +2259,20 @@ function PartnersView() {
                 <button onClick={() => setShowAdd(false)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Confirmation de suppression */}
-      {confirmDel && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setConfirmDel(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(380px, 100%)', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: A.text, marginBottom: 6 }}>Retirer {confirmDel.name} ?</h3>
-            <p style={{ fontSize: '0.8125rem', color: A.muted, marginBottom: 14 }}>Cette banque ne sera plus proposée aux dossiers, et les orientations déjà enregistrées vers elle seront retirées.</p>
-            <div className="flex gap-2">
-              <button onClick={removeBank} disabled={deleteMutation.isPending} className="flex-1 px-4 py-2" style={{ background: A.red, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}>{deleteMutation.isPending ? 'Retrait…' : 'Retirer'}</button>
-              <button onClick={() => setConfirmDel(null)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmDel !== null}
+        onOpenChange={ouvert => { if (!ouvert) setConfirmDel(null); }}
+        titre={confirmDel ? `Retirer ${confirmDel.name} ?` : ''}
+        description="Cette banque ne sera plus proposée aux dossiers, et les orientations déjà enregistrées vers elle seront retirées."
+        libelleConfirmer="Retirer la banque"
+        enCours={deleteMutation.isPending}
+        onConfirmer={removeBank}
+      />
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: A.text, color: 'white', padding: '10px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, zIndex: 70, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>{toast}</div>

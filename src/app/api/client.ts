@@ -108,7 +108,18 @@ export function apiFieldError(error: unknown, field: string): boolean {
   return Boolean(data?.errors?.[field]?.length);
 }
 
-/** Message d'erreur lisible pour l'UI à partir d'une erreur axios. */
+/**
+ * Message d'erreur lisible pour l'UI à partir d'une erreur axios.
+ *
+ * L'ordre compte : d'abord la première erreur de validation (422), puis le
+ * `message` du serveur, et seulement à défaut le repli fourni par l'appelant.
+ *
+ * C'est ce qui rend présentables les **409 de transition illégale** que renvoie
+ * désormais l'API (passer un chantier de « non démarré » à « livré », mettre en
+ * vérification une pièce jamais déposée…). Leur `message` énumère les
+ * transitions possibles : il est écrit pour l'utilisateur et doit être affiché
+ * tel quel. Ne jamais le remplacer par un texte générique.
+ */
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as

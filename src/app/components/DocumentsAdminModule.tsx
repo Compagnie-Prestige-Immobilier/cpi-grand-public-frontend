@@ -7,18 +7,12 @@ import {
 import { useCpiDocs, type CpiDoc, type CpiDocStatus, type CpiCategorie } from '../data/cpiDocsContext';
 import { useDocState } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
+import { ConfirmDialog } from './ui/overlays';
+import { STATUT_DOC_CPI } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
-const CPI_STATUS_CFG: Record<CpiDocStatus, { label: string; color: string; bg: string }> = {
-  brouillon:  { label: 'Brouillon',   color: 'var(--muted-foreground)', bg: 'var(--muted)'             },
-  publie:     { label: 'Publié',      color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
-  disponible: { label: 'Disponible',  color: 'var(--primary)',          bg: 'var(--secondary)'         },
-  'a-signer': { label: 'À signer',    color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'     },
-  signe:      { label: 'Signé',       color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
-  refuse:     { label: 'Refusé',      color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'     },
-  archive:    { label: 'Archivé',     color: 'var(--accent-text)',                 bg: 'rgba(200,146,26,0.10)'    },
-};
 
 const CATEGORIE_LABELS: Record<CpiCategorie, string> = {
   contrats: 'Contrat', conventions: 'Convention', bancaires: 'Document bancaire',
@@ -125,13 +119,21 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   };
   const doMarkSigned = (doc: CpiDoc, clientId: string) => { markSigned(doc.id, agentName, clientId); showToast('Document marqué comme signé.'); };
   const doArchive = (doc: CpiDoc, clientId: string) => { archiveDoc(doc.id, agentName, clientId); showToast('Document archivé.'); };
-  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId); showToast("Document retiré de l'espace client."); };
+  /**
+   * Retrait d'un document de l'espace client — confirmation obligatoire.
+   *
+   * Le document disparaît de chez le client sans préavis. S'il s'agit d'un
+   * contrat qu'il consultait, ou d'un acte qu'il devait signer, il n'a aucun
+   * moyen de savoir ce qui s'est passé ni de le récupérer lui-même.
+   */
+  const [aRetirer, setARetirer] = useState<{ doc: CpiDoc; clientId: string } | null>(null);
+  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId); showToast("Document retiré de l'espace client."); setARetirer(null); };
 
   const downloadRecap = (clientName: string, ref: string, doc: CpiDoc, timeline: { action: string; date: string; heure: string }[]) => {
     const lines = [
       'CPI IMMOBILIER — Document', `Client : ${clientName}   Dossier : ${ref}`,
       `Document : ${doc.nom}`, `Catégorie : ${CATEGORIE_LABELS[doc.categorie]}   Version : ${doc.version}`,
-      `Statut : ${CPI_STATUS_CFG[doc.status].label}   Signature requise : ${doc.signatureRequise ? 'oui' : 'non'}`,
+      `Statut : ${STATUT_DOC_CPI[doc.status].label}   Signature requise : ${doc.signatureRequise ? 'oui' : 'non'}`,
       doc.commentaire ? `Note : ${doc.commentaire}` : '', '',
       'Historique :', ...(timeline.length ? timeline.map(t => `  - ${t.date} ${t.heure} — ${t.action}`) : ['  (aucun événement)']),
     ].filter(Boolean);
@@ -300,7 +302,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
           {queueOpen && (
             <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border)' }}>
               {queue.map(({ clientId, clientName, ref, doc }) => {
-                const cfg = CPI_STATUS_CFG[doc.status];
+                const cfg = STATUT_DOC_CPI[doc.status];
                 return (
                   <div key={clientId + doc.id} style={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 180 }}>
@@ -379,7 +381,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
             ) : (
               <div style={{ borderTop: '1px solid var(--border)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--background)' }}>
                 {docs.map((doc: CpiDoc) => {
-                  const cfg = CPI_STATUS_CFG[doc.status];
+                  const cfg = STATUT_DOC_CPI[doc.status];
                   const dateDisplay = doc.datePublication || doc.dateCreation || '—';
                   return (
                     <div key={doc.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
@@ -401,7 +403,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                         {doc.status === 'brouillon' && <button onClick={() => doPublish(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={12} /> Publier</button>}
                         {(doc.status === 'disponible' || doc.status === 'publie') && <button onClick={() => doRequestSign(doc, client.id)} style={btnSm('#8B5CF6', 'rgba(139,92,246,0.10)')}><PenSquare size={12} /> Demander signature</button>}
                         {doc.status === 'a-signer' && <button onClick={() => doMarkSigned(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><CheckCircle2 size={12} /> Marquer signé</button>}
-                        {doc.visibleClient && doc.status !== 'archive' && <button onClick={() => doRetire(doc, client.id)} style={btnSm('var(--muted-foreground)', 'var(--muted)')}><EyeOff size={12} /> Retirer</button>}
+                        {doc.visibleClient && doc.status !== 'archive' && <button onClick={() => setARetirer({ doc, clientId: client.id })} style={btnSm('var(--muted-foreground)', 'var(--muted)')}><EyeOff size={12} /> Retirer</button>}
                         {doc.status !== 'archive' && <button onClick={() => doArchive(doc, client.id)} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><Archive size={12} /> Archiver</button>}
                       </div>
                     </div>
@@ -416,17 +418,17 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       {/* (N3 + suivi signature) Aperçu */}
       {preview && (() => {
         const timeline = (allCpiHistoryByClient[preview.clientId] ?? []).filter(e => e.action.toLowerCase().includes(preview.doc.nom.toLowerCase()));
-        const cfg = CPI_STATUS_CFG[preview.doc.status];
+        const cfg = STATUT_DOC_CPI[preview.doc.status];
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div onClick={() => setPreview(null)} style={{ position: 'absolute', inset: 0 }} />
-            <div style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
+          <Modal open onClose={() => setPreview(null)} sansCroix
+            titre={`Document — ${preview.doc.nom}`} largeur={520} style={{ padding: 24 }}>
+            <>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: 'var(--foreground)' }}>{preview.doc.nom}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{preview.clientName} · {preview.ref}</div>
                 </div>
-                <button onClick={() => setPreview(null)} style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} style={{ color: 'var(--muted-foreground)' }} /></button>
+                <button onClick={() => setPreview(null)} aria-label="Fermer l'aperçu" style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} aria-hidden="true" style={{ color: 'var(--muted-foreground)' }} /></button>
               </div>
               <div style={{ background: 'var(--background)', border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', padding: '28px 20px', textAlign: 'center', marginBottom: 14 }}>
                 <FileText size={30} style={{ color: cfg.color, margin: '0 auto 8px', display: 'block' }} />
@@ -474,10 +476,26 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={() => downloadRecap(preview.clientName, preview.ref, preview.doc, timeline)} style={btnOutline}><Download size={13} /> Télécharger le récap</button>
               </div>
-            </div>
-          </div>
+            </>
+          </Modal>
         );
       })()}
+
+      <ConfirmDialog
+        open={aRetirer !== null}
+        onOpenChange={ouvert => { if (!ouvert) setARetirer(null); }}
+        titre="Retirer ce document de l'espace client ?"
+        description={aRetirer ? (
+          <>
+            « <strong style={{ color: 'var(--foreground)' }}>{aRetirer.doc.nom}</strong> » disparaîtra immédiatement de
+            l'espace de <strong style={{ color: 'var(--foreground)' }}>{nameOf(aRetirer.clientId)}</strong>, sans
+            notification. S'il était en cours de consultation ou de signature, le client n'aura aucun moyen de
+            comprendre sa disparition ni de le récupérer.
+          </>
+        ) : ''}
+        libelleConfirmer="Retirer le document"
+        onConfirmer={() => { if (aRetirer) doRetire(aRetirer.doc, aRetirer.clientId); }}
+      />
 
       {/* Toast */}
       {toast && (

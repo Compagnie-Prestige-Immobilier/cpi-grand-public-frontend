@@ -21,6 +21,7 @@ import { usePermission } from '../auth/PermissionContext';
 import { JOURNEY_QUERY_KEY, useDossierJourney } from '../data/dossierJourney';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
 import { formatMontantSaisi } from '../lib/format';
+import { DS } from './ui/index';
 
 interface Props { user: AuthUser }
 
@@ -51,13 +52,16 @@ interface DemandeForm {
 //
 // Les CLÉS sont les statuts du serveur et ne changent pas — seuls les libellés
 // affichés évoluent. Renommer une clé casserait la lecture des réponses API.
+// Libellés côté CLIENT : ils s'adressent à lui et diffèrent volontairement de
+// ceux du back-office (« À envoyer » plutôt que « Non déposée »). Les couleurs,
+// elles, sont celles du registre partagé.
 const DOC_STATUS_CFG: Record<SharedDoc['status'], { label: string; color: string; bg: string }> = {
-  'en-attente':  { label: 'À envoyer',              color: 'var(--muted-foreground)', bg: 'var(--muted)'           },
-  depose:        { label: 'En attente de validation', color: 'var(--chart-4)',        bg: 'rgba(176,80,112,0.08)' },
-  verification:  { label: 'En vérification',        color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.09)' },
-  accepte:       { label: 'Validé',                 color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)'   },
-  refuse:        { label: 'Refusé',                 color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
-  'a-remplacer': { label: 'À remplacer',             color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
+  'en-attente':  { label: 'À envoyer',                ...DS.status.muted   },
+  depose:        { label: 'En attente de validation', ...DS.status.info    },
+  verification:  { label: 'En vérification',          ...DS.status.warning },
+  accepte:       { label: 'Validé',                   ...DS.status.success },
+  refuse:        { label: 'Refusé',                   ...DS.status.danger  },
+  'a-remplacer': { label: 'À remplacer',              ...DS.status.danger  },
 };
 
 const DOC_DESCRIPTIONS: Record<string, string> = {
