@@ -3,13 +3,14 @@ import { Bell, Send, Users, User } from 'lucide-react';
 import { useDocState } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
 import type { HistoEntry } from '../data/demoStore';
+import { frDateSortKey } from '../lib/format';
 
 type NotifType = 'notification' | 'email' | 'sms' | 'whatsapp';
 type NotifCible = 'client' | 'tous';
 
 const TYPE_CFG: Record<NotifType, { label: string; color: string; bg: string }> = {
   notification: { label: 'Notification', color: 'var(--primary)', bg: 'var(--secondary)'      },
-  email:        { label: 'Email',        color: '#C8921A',        bg: 'rgba(200,146,26,0.10)' },
+  email:        { label: 'Email',        color: 'var(--accent-text)',        bg: 'rgba(200,146,26,0.10)' },
   sms:          { label: 'SMS',          color: 'var(--success)', bg: 'rgba(26,107,68,0.10)'  },
   whatsapp:     { label: 'WhatsApp',     color: '#25D366',        bg: 'rgba(37,211,102,0.10)' },
 };
@@ -22,16 +23,6 @@ const TEMPLATES = [
   'Un décaissement a été effectué. Consultez le suivi de votre dossier.',
 ];
 
-// Tri des dates FR.
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function sortKey(date: string, heure: string): string {
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return date + ' ' + heure;
-  const day = m[1].padStart(2, '0');
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  const month = String((monthIdx < 0 ? 0 : monthIdx) + 1).padStart(2, '0');
-  return `${m[3]}-${month}-${day} ${heure || '00:00'}`;
-}
 
 interface Props { agentName?: string; }
 
@@ -65,7 +56,7 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
     const all = Object.values(allHistoryByClient).flat().filter(e => e.type === 'notification') as HistoEntry[];
     const seen = new Set<string>();
     const unique = all.filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)));
-    return unique.sort((a, b) => sortKey(b.date, b.heure).localeCompare(sortKey(a.date, a.heure)));
+    return unique.sort((a, b) => frDateSortKey(b.date, b.heure).localeCompare(frDateSortKey(a.date, a.heure)));
   }, [allHistoryByClient]);
 
   const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 'var(--r-sm)', background: 'var(--input-background)', border: '1px solid var(--border)', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)' };
@@ -87,8 +78,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Cible */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Destinataire</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <span id="groupe-destinataire" style={labelStyle}>Destinataire</span>
+          <div role="group" aria-labelledby="groupe-destinataire" style={{ display: 'flex', gap: '8px' }}>
             {([['client', 'Un client', User], ['tous', 'Tous les clients', Users]] as const).map(([val, lbl, Icon]) => (
               <button key={val} onClick={() => setCible(val)} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 14px', borderRadius: 'var(--r-sm)', border: `1px solid ${cible === val ? 'var(--primary)' : 'var(--border)'}`, background: cible === val ? 'var(--primary)' : 'transparent', color: cible === val ? 'var(--primary-foreground)' : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: cible === val ? 700 : 500, cursor: 'pointer' }}>
                 <Icon size={14} /> {lbl}
@@ -99,8 +90,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {cible === 'client' && (
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Client</label>
-            <select value={selectedClient} onChange={e => setSelectedClient(e.target.value)} style={inputStyle}>
+            <label htmlFor="champ-client" style={labelStyle}>Client</label>
+            <select id="champ-client" value={selectedClient} onChange={e => setSelectedClient(e.target.value)} style={inputStyle}>
               <option value="">Sélectionner un client</option>
               {allClients.map(c => <option key={c.id} value={c.id}>{c.name} — {c.ref}</option>)}
             </select>
@@ -109,8 +100,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Canal */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Canal</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <span id="groupe-canal" style={labelStyle}>Canal</span>
+          <div role="group" aria-labelledby="groupe-canal" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(Object.keys(TYPE_CFG) as NotifType[]).map(t => (
               <button key={t} onClick={() => setType(t)} style={{ padding: '6px 14px', borderRadius: 'var(--r-full)', border: `1px solid ${type === t ? TYPE_CFG[t].color : 'var(--border)'}`, background: type === t ? TYPE_CFG[t].bg : 'transparent', color: type === t ? TYPE_CFG[t].color : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: type === t ? 700 : 500, cursor: 'pointer' }}>
                 {TYPE_CFG[t].label}
@@ -121,8 +112,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Message */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Message</label>
-          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Rédigez votre message..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55 }} />
+          <label htmlFor="champ-message" style={labelStyle}>Message</label>
+          <textarea id="champ-message" value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Rédigez votre message..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55 }} />
         </div>
 
         {/* Templates */}

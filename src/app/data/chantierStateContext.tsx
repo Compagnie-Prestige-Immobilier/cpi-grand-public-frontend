@@ -16,7 +16,7 @@
  * navigateur — le serveur est la seule source de vérité.
  */
 
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
   clientApi, staffApi,
@@ -25,12 +25,12 @@ import {
   type ChantierStatut, type ChantierTrancheEtat, type PublicationType,
   type CalendarEventType, type CalendarEventStatut, type ChantierMediaType,
 } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
+import { toast } from 'sonner';
 import { usePermission } from '../auth/PermissionContext';
 import {
   HISTORIQUE_QUERY_KEY, propertyNumber, toActivityEntries, useHistoriqueQuery,
 } from './activityLog';
-import { ApiErrorBanner } from './docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -132,17 +132,17 @@ interface ChantierStateCtx {
   medias: ChantierMedia[];
   events: CalendarEvent[];
   chantierHistory: ChantierHistoryEntry[];
-  updateProgression: (pct: number, agentName: string, role?: string) => void;
-  updateEtape: (etape: string, agentName: string) => void;
-  updateStatut: (statut: ChantierStatut, agentName: string) => void;
+  updateProgression: (pct: number, agentName: string, role?: string, onOk?: () => void) => void;
+  updateEtape: (etape: string, agentName: string, onOk?: () => void) => void;
+  updateStatut: (statut: ChantierStatut, agentName: string, onOk?: () => void) => void;
   /** `date` au format ISO (AAAA-MM-JJ) — l'API valide une vraie date. */
-  updateLivraison: (date: string, agentName: string) => void;
-  validateTranche: (trancheNum: number, agentName: string) => void;
-  addTrancheComment: (trancheNum: number, comment: string, agentName: string) => void;
-  addPublication: (pub: Omit<ChantierPublication, 'id' | 'date' | 'heure'>, agentName: string) => void;
+  updateLivraison: (date: string, agentName: string, onOk?: () => void) => void;
+  validateTranche: (trancheNum: number, agentName: string, onOk?: () => void) => void;
+  addTrancheComment: (trancheNum: number, comment: string, agentName: string, onOk?: () => void) => void;
+  addPublication: (pub: Omit<ChantierPublication, 'id' | 'date' | 'heure'>, agentName: string, onOk?: () => void) => void;
   /** Le fichier est obligatoire : le média part sur le stockage privé CPI. */
-  addMedia: (media: Omit<ChantierMedia, 'id' | 'date'>, agentName: string, file?: File) => void;
-  addEvent: (event: Omit<CalendarEvent, 'id'>, agentName: string) => void;
+  addMedia: (media: Omit<ChantierMedia, 'id' | 'date'>, agentName: string, file?: File, onOk?: () => void) => void;
+  addEvent: (event: Omit<CalendarEvent, 'id'>, agentName: string, onOk?: () => void) => void;
   signalerRetard: (reason: string, jours: number, agentName: string) => void;
   /** La construction est-elle lancée ? (entrée de menu « Mon chantier ») */
   hasChantier: boolean;
@@ -326,7 +326,6 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
   const source = isClient ? mienQuery : staffQuery;
   const data = source.data;
 
-  const [actionError, setActionError] = useState<string | null>(null);
   // Le journal vient du serveur (/staff/historique) : chaque contrôleur y écrit
   // son entrée. Réservé au personnel — un client n'a pas accès à cette route.
   const historiqueQuery = useHistoriqueQuery(isStaff);
@@ -384,9 +383,16 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
    * l'historique une fois la mutation acceptée. Une action refusée n'y figure
    * jamais, puisque rien n'est écrit tant que le serveur n'a pas répondu.
    */
-  const journaliseSiOk = (fallback: string) => ({
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: HISTORIQUE_QUERY_KEY }); },
-    onError: (e: unknown) => setActionError(apiErrorMessage(e, fallback)),
+  const journaliseSiOk = (fallback: string, onOk?: () => void) => ({
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: HISTORIQUE_QUERY_KEY });
+      // `onOk` n'est appelé que par le serveur. L'écran d'administration du
+      // chantier annonçait « Avancement mis à jour » dès le clic, avant toute
+      // réponse : sur un 409 de transition (« non démarré » → « livré »),
+      // l'agent lisait donc une confirmation ET le refus, l'un sous l'autre.
+      onOk?.();
+    },
+    onError: (e: unknown) => toast.error(apiErrorMessage(e, fallback)),
   });
 
   /** Rafraîchit le chantier après une mutation (les deux vues possibles). */
@@ -398,48 +404,56 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const progressionMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; pct: number }) =>
       staffApi.chantiers.updateProgression(v.clientId, v.pct),
     onSuccess: invalidateChantier,
   });
 
   const etapeMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; etape: string }) =>
       staffApi.chantiers.updateEtape(v.clientId, v.etape),
     onSuccess: invalidateChantier,
   });
 
   const statutMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; statut: ChantierStatut }) =>
       staffApi.chantiers.updateStatut(v.clientId, v.statut),
     onSuccess: invalidateChantier,
   });
 
   const ficheMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; input: Parameters<typeof staffApi.chantiers.update>[1] }) =>
       staffApi.chantiers.update(v.clientId, v.input),
     onSuccess: invalidateChantier,
   });
 
   const trancheMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; num: number }) =>
       staffApi.chantiers.validateTranche(v.clientId, v.num),
     onSuccess: invalidateChantier,
   });
 
   const publicationMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; input: Parameters<typeof staffApi.chantiers.publications.create>[1] }) =>
       staffApi.chantiers.publications.create(v.clientId, v.input),
     onSuccess: invalidateChantier,
   });
 
   const mediaMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; file: File; input: Parameters<typeof staffApi.chantiers.medias.create>[2] }) =>
       staffApi.chantiers.medias.create(v.clientId, v.file, v.input),
     onSuccess: invalidateChantier,
   });
 
   const eventMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; input: Parameters<typeof staffApi.chantiers.events.create>[1] }) =>
       staffApi.chantiers.events.create(v.clientId, v.input),
     onSuccess: invalidateChantier,
@@ -447,56 +461,56 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
 
   // ── Actions exposées (mêmes signatures qu'avant l'API) ─────────────────────
 
-  const updateProgression = (pct: number, agentName: string, role = 'Agent CPI') => {
+  const updateProgression = (pct: number, agentName: string, _role = 'Agent CPI', onOk?: () => void) => {
     const clamped = Math.max(0, Math.min(100, Math.round(pct)));
     const ancienne = chantierInfo.progression;
     if (clamped === ancienne) return;
-    progressionMutation.mutate({ clientId: selectedClientId, pct: clamped }, journaliseSiOk("La mise à jour de l'avancement a échoué."));
+    progressionMutation.mutate({ clientId: selectedClientId, pct: clamped }, journaliseSiOk("La mise à jour de l'avancement a échoué.", onOk));
   };
 
-  const updateEtape = (etape: string, agentName: string) => {
+  const updateEtape = (etape: string, agentName: string, onOk?: () => void) => {
     if (etape === chantierInfo.etapeActuelle) return;
-    etapeMutation.mutate({ clientId: selectedClientId, etape }, journaliseSiOk("La mise à jour de l'étape a échoué."));
+    etapeMutation.mutate({ clientId: selectedClientId, etape }, journaliseSiOk("La mise à jour de l'étape a échoué.", onOk));
   };
 
-  const updateStatut = (statut: ChantierStatut, agentName: string) => {
+  const updateStatut = (statut: ChantierStatut, agentName: string, onOk?: () => void) => {
     if (statut === chantierInfo.statut) return;
-    statutMutation.mutate({ clientId: selectedClientId, statut }, journaliseSiOk('La mise à jour du statut a échoué.'));
+    statutMutation.mutate({ clientId: selectedClientId, statut }, journaliseSiOk('La mise à jour du statut a échoué.', onOk));
   };
 
-  const updateLivraison = (livDate: string, agentName: string) => {
+  const updateLivraison = (livDate: string, agentName: string, onOk?: () => void) => {
     ficheMutation.mutate(
       { clientId: selectedClientId, input: { date_livraison: livDate || null } },
-      journaliseSiOk('La mise à jour de la date de livraison a échoué.'),
+      journaliseSiOk('La mise à jour de la date de livraison a échoué.', onOk),
     );
   };
 
-  const validateTranche = (trancheNum: number, agentName: string) => {
-    trancheMutation.mutate({ clientId: selectedClientId, num: trancheNum }, journaliseSiOk('La validation de la tranche a échoué.'));
+  const validateTranche = (trancheNum: number, agentName: string, onOk?: () => void) => {
+    trancheMutation.mutate({ clientId: selectedClientId, num: trancheNum }, journaliseSiOk('La validation de la tranche a échoué.', onOk));
   };
 
-  const addTrancheComment = (trancheNum: number, comment: string, agentName: string) => {
+  const addTrancheComment = (trancheNum: number, comment: string, agentName: string, onOk?: () => void) => {
     const texte = comment.trim();
     if (!texte) return;
     publicationMutation.mutate({
       clientId: selectedClientId,
       input: { phase: trancheNum, titre: texte, description: '', type: 'commentaire', visible_client: true },
-    }, journaliseSiOk("L'enregistrement du commentaire a échoué."));
+    }, journaliseSiOk("L'enregistrement du commentaire a échoué.", onOk));
   };
 
-  const addPublication = (pub: Omit<ChantierPublication, 'id' | 'date' | 'heure'>, agentName: string) => {
+  const addPublication = (pub: Omit<ChantierPublication, 'id' | 'date' | 'heure'>, agentName: string, onOk?: () => void) => {
     publicationMutation.mutate({
       clientId: selectedClientId,
       input: {
         phase: pub.phase, titre: pub.titre, description: pub.description,
         type: pub.type, visible_client: pub.visibleClient,
       },
-    }, journaliseSiOk('La publication a échoué.'));
+    }, journaliseSiOk('La publication a échoué.', onOk));
   };
 
-  const addMedia = (media: Omit<ChantierMedia, 'id' | 'date'>, agentName: string, file?: File) => {
+  const addMedia = (media: Omit<ChantierMedia, 'id' | 'date'>, agentName: string, file?: File, onOk?: () => void) => {
     if (!file) {
-      setActionError('Sélectionnez une photo ou une vidéo à envoyer.');
+      toast.error('Sélectionnez une photo ou une vidéo à envoyer.');
       return;
     }
     mediaMutation.mutate({
@@ -506,10 +520,10 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
         type: media.type, titre: media.titre, description: media.description,
         phase: media.phase, bg: media.bg ?? null, visible_client: media.visibleClient,
       },
-    }, journaliseSiOk("L'envoi du média a échoué."));
+    }, journaliseSiOk("L'envoi du média a échoué.", onOk));
   };
 
-  const addEvent = (event: Omit<CalendarEvent, 'id'>, agentName: string) => {
+  const addEvent = (event: Omit<CalendarEvent, 'id'>, agentName: string, onOk?: () => void) => {
     eventMutation.mutate({
       clientId: selectedClientId,
       input: {
@@ -517,10 +531,10 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
         heure: event.heure || null, description: event.description,
         statut: event.statut, visible_client: event.visibleClient,
       },
-    }, journaliseSiOk("La planification de l'événement a échoué."));
+    }, journaliseSiOk("La planification de l'événement a échoué.", onOk));
   };
 
-  const signalerRetard = (reason: string, jours: number, agentName: string) => {
+  const signalerRetard = (reason: string, jours: number, _agentName: string) => {
     const libelle = `Retard signalé — ${jours} jour${jours > 1 ? 's' : ''}`;
     // Deux écritures enchaînées : le statut d'abord, la publication seulement si
     // le serveur l'a acceptée — sinon le fil annoncerait un retard non enregistré.
@@ -529,7 +543,7 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
         clientId: selectedClientId,
         input: { phase: 0, titre: libelle, description: reason, type: 'retard', visible_client: true },
       }, journaliseSiOk('Le signalement du retard a échoué.')),
-      onError: (e: unknown) => setActionError(apiErrorMessage(e, 'Le signalement du retard a échoué.')),
+      onError: (e: unknown) => toast.error(apiErrorMessage(e, 'Le signalement du retard a échoué.')),
     });
   };
 
@@ -548,7 +562,6 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
       validateTranche, addTrancheComment, addPublication, addMedia, addEvent, signalerRetard,
       hasChantier, loading, error, retry,
     }}>
-      {actionError && <ApiErrorBanner message={actionError} onClose={() => setActionError(null)} />}
       {children}
     </ChantierStateContext.Provider>
   );

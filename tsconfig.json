@@ -28,16 +28,13 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/types/**/*.d.ts"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    // Matériel de référence figé, non livré.
-    "src/imports/pasted_text/**",
-    // Échafaudage shadcn/Figma jamais importé, aux specifiers versionnés
-    // (`lucide-react@0.487.0`…) que ni Vite ni tsc ne savent résoudre.
-    // `ui/index.tsx`, lui, est le vrai design system : il reste vérifié, car
-    // ClientDashboardHome l'importe et `exclude` n'écarte pas un fichier
-    // atteint par un import.
-    "src/app/components/ui/**"
-  ]
+  // Aucune exclusion applicative : `tsc --noEmit` couvre tout `src/`.
+  //
+  // Il a longtemps fallu écarter `src/app/components/ui/**` — 48 fichiers
+  // d'échafaudage shadcn jamais importés, aux specifiers versionnés
+  // (`lucide-react@0.487.0`…) que ni Vite ni tsc ne savaient résoudre. Le
+  // typecheck ne passait donc que parce qu'il ignorait ce répertoire. Ces
+  // fichiers ont été supprimés ; seul `ui/index.tsx`, le design system réel,
+  // subsiste, et il est désormais vérifié comme le reste du code.
+  "exclude": ["node_modules", "dist"]
 }

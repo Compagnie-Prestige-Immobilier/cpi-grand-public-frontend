@@ -14,6 +14,8 @@
 
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { parseFrDate } from '../lib/format';
+import { SILENCIEUX } from '../api/client';
 import {
   clientApi, staffApi,
   type BankAssignmentData, type BankAssignmentStatus, type BankCreateInput, type BankData,
@@ -169,6 +171,8 @@ function useInvalidateBanks() {
 export function useCreateBank() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (input: BankCreateInput) => staffApi.banks.create(input),
     onSuccess: invalidate,
   });
@@ -177,6 +181,8 @@ export function useCreateBank() {
 export function useUpdateBank() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { id: string; input: Partial<BankCreateInput> }) => staffApi.banks.update(v.id, v.input),
     onSuccess: invalidate,
   });
@@ -185,6 +191,8 @@ export function useUpdateBank() {
 export function useDeleteBank() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (id: string) => staffApi.banks.delete(id),
     onSuccess: invalidate,
   });
@@ -195,6 +203,8 @@ export function useDeleteBank() {
 export function useAssignBank() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; bankId: string }) => staffApi.banks.assign(v.clientId, v.bankId),
     onSuccess: invalidate,
   });
@@ -203,6 +213,8 @@ export function useAssignBank() {
 export function useSetBankStatus() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; bankId: string; status: BankStatus }) =>
       staffApi.banks.setStatus(v.clientId, v.bankId, v.status),
     onSuccess: invalidate,
@@ -212,6 +224,8 @@ export function useSetBankStatus() {
 export function useRemoveBankAssignment() {
   const invalidate = useInvalidateBanks();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; bankId: string }) =>
       staffApi.banks.removeAssignment(v.clientId, v.bankId),
     onSuccess: invalidate,
@@ -235,14 +249,3 @@ export function resolveClientBank(clientId: string): string {
   return list[0]?.bankName ?? '—';
 }
 
-// ─── util interne ─────────────────────────────────────────────────────────────
-
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function parseFrDate(date: string, now: Date): Date | null {
-  if (!date || /aujourd/i.test(date)) return now;
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(Number(m[3]), monthIdx, Number(m[1]));
-}

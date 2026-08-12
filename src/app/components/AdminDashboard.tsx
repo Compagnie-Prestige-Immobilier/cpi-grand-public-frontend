@@ -21,7 +21,9 @@ import {
   CLIENTS_QUERY_KEY,
   type StaffAccount,
 } from '../data/clientRegistry';
-import { apiErrorMessage, TOKEN_KEY } from '../api/client';
+import { apiErrorMessage, SILENCIEUX, TOKEN_KEY } from '../api/client';
+// Aliasé : `toast` est déjà le nom d'un état local de confirmation.
+import { toast as notifier } from 'sonner';
 import {
   staffApi, DEMO_REF_PREFIX,
   type DemoSeedResult, type DemoClearResult,
@@ -40,30 +42,14 @@ import ChantierModule from './ChantierModule';
 import DecaissementsModule from './DecaissementsModule';
 import NotificationsModule from './NotificationsModule';
 import HistoriqueModule from './HistoriqueModule';
+import { MONTHS_ABBR, frDateSortKey, parseFrDate } from '../lib/format';
+import { ConfirmDialog, Modal } from './ui/overlays';
+import { STATUT_BANQUE, STATUT_DOC_CPI, STATUT_PIECE } from '../lib/statuts';
 
 interface Props { user: AuthUser; activeNav?: string }
 
-const A = { bordeaux: '#630210', gold: '#C8921A', green: '#1A6B44', text: '#1C0810', muted: '#6B4A52', border: 'rgba(99,2,16,0.1)', red: '#C0392B' };
+const A = { bordeaux: '#630210', gold: '#C8921A', green: '#1A6B44', text: '#1C0810', muted: '#6B4A52', border: 'rgba(99,2,16,0.1)', red: 'var(--destructive)' };
 
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-// Abréviations distinctes (juin ≠ juillet).
-const MONTHS_ABBR = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-function sortKey(date: string, heure: string): string {
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return date + ' ' + heure;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  return `${m[3]}-${String((monthIdx < 0 ? 0 : monthIdx) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')} ${heure || '00:00'}`;
-}
-
-// Parse une date FR (« 18 juin 2026 ») en Date réelle ; « Aujourd'hui » → maintenant.
-function parseFrDate(date: string, now: Date): Date | null {
-  if (/aujourd/i.test(date)) return now;
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(Number(m[3]), monthIdx, Number(m[1]));
-}
 
 const ACT_ICON: Record<string, { El: LucideIcon; color: string }> = {
   validation:   { El: CheckCircle2, color: A.green },
@@ -78,11 +64,28 @@ const ACT_ICON: Record<string, { El: LucideIcon; color: string }> = {
 
 const MODULE_NAVS = ['documents-clients', 'documents-admin', 'chantier', 'decaissements', 'notifications-agent', 'historique'];
 
+/**
+ * Aiguillage entre les modules et la vue d'ensemble.
+ *
+ * Ce `return` anticipé se trouvait AVANT une douzaine de hooks, dans le même
+ * composant. Passer d'un onglet module (« Décaissements ») à un onglet de vue
+ * d'ensemble (« Rapports ») changeait donc le nombre de hooks appelés d'un
+ * rendu à l'autre — ce que React interdit : « Rendered fewer hooks than
+ * expected », écran blanc, session perdue. Le défaut ne se voyait pas parce que
+ * la navigation remonte l'arbre et remonte le composant la plupart du temps ;
+ * il attendait la première fois où ce ne serait pas le cas.
+ *
+ * Séparer les deux corps règle la question par construction : chacun appelle
+ * ses propres hooks, toujours dans le même ordre.
+ */
 export default function AdminDashboard({ user, activeNav }: Props) {
   if (MODULE_NAVS.includes(activeNav ?? '')) {
     return <AdminModuleView activeNav={activeNav!} agentName={user.name} />;
   }
+  return <AdminOverview user={user} activeNav={activeNav} />;
+}
 
+function AdminOverview({ user, activeNav }: Props) {
   const { navigate } = useNavigate();
   const { allClients } = useClientContext();
   const { allDocsByClient, dossierEtapes, submittedByClient, allHistoryByClient } = useDocState();
@@ -123,7 +126,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
     const all = [...Object.values(allHistoryByClient).flat(), ...Object.values(allCpiHistoryByClient).flat()];
     const seen = new Set<string>();
     const uniq = all.filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)));
-    return uniq.sort((a, b) => sortKey(b.date, b.heure).localeCompare(sortKey(a.date, a.heure)));
+    return uniq.sort((a, b) => frDateSortKey(b.date, b.heure).localeCompare(frDateSortKey(a.date, a.heure)));
   }, [allHistoryByClient, allCpiHistoryByClient]);
 
   const now = new Date();
@@ -718,7 +721,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                       </div>
                       <span className="flex-1" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text, minWidth: 90 }}>{h.label}</span>
                       {h.ok === null ? (
-                        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>backend</span>
+                        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>non mesuré</span>
                       ) : (
                         <span className="flex items-center gap-1.5" style={{ fontSize: '0.6875rem', fontWeight: 700, color: dot, flexShrink: 0, textAlign: 'right' }}>
                           <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: dot, flexShrink: 0 }} /> {h.value}
@@ -729,7 +732,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                 })}
               </div>
               <p style={{ fontSize: '0.6875rem', color: A.muted, marginTop: 12, lineHeight: 1.5 }}>
-                Les métriques serveur (uptime, latence API, base de données, sauvegardes) s'afficheront ici une fois le backend connecté par vos techniciens.
+                La disponibilité des serveurs, les temps de réponse et les sauvegardes ne sont pas encore mesurés par la plateforme. Ces indicateurs resteront vides tant qu'aucun outil de supervision ne sera en place.
               </p>
             </div>
 
@@ -758,7 +761,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                     <Timer className="w-3.5 h-3.5" style={{ color: A.muted }} />
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Délai moyen de traitement</span>
                   </div>
-                  <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>backend</span>
+                  <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>non mesuré</span>
                 </div>
               </div>
             </div>
@@ -985,7 +988,7 @@ function SystemeView() {
       <div className={cardCls} style={cs}>
         <div className="flex items-center gap-2 mb-1"><Zap className="w-4 h-4" style={{ color: A.gold }} /><h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: A.text }}>Intégrations</h3></div>
         <p style={{ fontSize: '0.75rem', color: A.muted, marginBottom: 14 }}>
-          Services déjà branchés sur la plateforme, et ceux qui restent à connecter par vos techniciens.
+          Services déjà actifs sur la plateforme, et ceux qui restent à mettre en place.
         </p>
         <div className="grid sm:grid-cols-2 gap-2">
           {integrations.map(it => {
@@ -998,7 +1001,7 @@ function SystemeView() {
                   <div style={{ fontSize: '0.625rem', color: A.muted }}>{it.note}</div>
                 </div>
                 <span style={{ fontSize: '0.625rem', fontWeight: 700, color: it.ok ? A.green : A.muted, background: it.ok ? 'rgba(26,107,68,0.10)' : 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>
-                  {it.ok ? 'connecté' : 'à connecter'}
+                  {it.ok ? 'actif' : 'non actif'}
                 </span>
               </div>
             );
@@ -1051,6 +1054,16 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
     : null;
 
   const motDePasse = seed.data?.motDePasse ?? null;
+
+  /**
+   * Suppression des données de démonstration — confirmation obligatoire.
+   *
+   * L'appel efface des dossiers, des comptes de connexion, des banques et des
+   * entrées de journal. Il est censé ne toucher que les enregistrements
+   * préfixés `DEMO-`, mais rien à l'écran ne rappelait cette portée avant de
+   * cliquer, et l'opération est irréversible côté serveur.
+   */
+  const [confirmerPurge, setConfirmerPurge] = useState(false);
   const copyPassword = () => {
     if (!motDePasse) return;
     void navigator.clipboard.writeText(motDePasse).then(
@@ -1089,7 +1102,7 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
           {seed.isPending ? 'Chargement en cours…' : 'Charger 30 dossiers de démo'}
         </button>
         <button
-          onClick={() => { seed.reset(); clear.mutate(); }}
+          onClick={() => setConfirmerPurge(true)}
           disabled={busy || demoCount === 0}
           className="flex items-center gap-2 px-4 py-2"
           style={{
@@ -1153,6 +1166,23 @@ function DemoDataCard({ clients }: { clients: ClientSummary[] }) {
           </span>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmerPurge}
+        onOpenChange={setConfirmerPurge}
+        titre="Supprimer les données de démonstration ?"
+        description={
+          <>
+            <strong style={{ color: 'var(--foreground)' }}>{demoCount} dossier(s)</strong> de démonstration
+            seront supprimés, avec leurs comptes de connexion, leurs banques et leurs entrées de journal.
+            Seuls les enregistrements dont la référence commence par «&nbsp;{DEMO_REF_PREFIX}&nbsp;» sont
+            concernés : les vrais dossiers clients ne sont pas touchés. L'opération est définitive.
+          </>
+        }
+        libelleConfirmer="Supprimer les données de démo"
+        enCours={clear.isPending}
+        onConfirmer={() => { seed.reset(); clear.mutate(undefined, { onSettled: () => setConfirmerPurge(false) }); }}
+      />
     </div>
   );
 }
@@ -1294,25 +1324,10 @@ function CorrigerDemande({ clientId, clientNom }: { clientId: string; clientNom:
 
 // ─── Toutes les demandes — pilotage + drawer de gestion ───────────────────────
 
-const DOC_STATUS: Record<string, { label: string; color: string }> = {
-  accepte:      { label: 'Validée',        color: A.green },
-  depose:       { label: 'À vérifier',     color: A.gold },
-  verification: { label: 'En vérification',color: A.gold },
-  refuse:       { label: 'Refusée',        color: A.red },
-  'a-remplacer':{ label: 'À remplacer',    color: A.red },
-  // Le client ne l'a pas encore déposée. « En attente » se lisait comme
-  // « en attente de traitement par CPI » — l'inverse de la réalité.
-  'en-attente': { label: 'Non déposée',    color: A.muted },
-};
-const CPI_STATUS: Record<string, { label: string; color: string }> = {
-  brouillon:  { label: 'Brouillon',  color: A.muted },
-  disponible: { label: 'Disponible', color: A.gold },
-  'a-signer': { label: 'À signer',   color: A.bordeaux },
-  signe:      { label: 'Signé',      color: A.green },
-  publie:     { label: 'Publié',     color: A.gold },
-  archive:    { label: 'Archivé',    color: A.muted },
-  refuse:     { label: 'Refusé',     color: A.red },
-};
+// Libellés et couleurs viennent du registre partagé (src/app/lib/statuts.ts) :
+// les tables locales avaient divergé d'un écran à l'autre.
+const DOC_STATUS = STATUT_PIECE;
+const CPI_STATUS = STATUT_DOC_CPI;
 const cs: React.CSSProperties = { border: `1px solid ${A.border}`, borderRadius: 'var(--r-md)' };
 
 function DemandesView({ agentName }: { agentName: string }) {
@@ -1339,6 +1354,8 @@ function DemandesView({ agentName }: { agentName: string }) {
   const peutPrendreLaMain = role === 'super-admin';
 
   const impersonation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (userId: string) => staffApi.impersonate(userId),
     // Rechargement complet plutôt qu'une remise à zéro des contextes : toute
     // l'application (menus, requêtes, permissions) doit repartir sur le compte
@@ -1349,8 +1366,15 @@ function DemandesView({ agentName }: { agentName: string }) {
   const [impersonationError, setImpersonationError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
-  const [bankError, setBankError] = useState<string | null>(null);
-  const failWith = (fallback: string) => (e: unknown) => setBankError(apiErrorMessage(e, fallback));
+  /**
+   * Le message du serveur, tel quel, dans le canal unique de l'application.
+   *
+   * Cet écran avait son propre bandeau d'erreur, en plus du toast global de
+   * `main.tsx` : deux messages pour un seul refus. Le repli ne sert que si le
+   * serveur n'a rien dit — un 409 de transition arrive avec un texte écrit pour
+   * l'agent, qui énumère ce qui est possible, et c'est celui-là qui compte.
+   */
+  const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
 
   // Banques partenaires + orientations : /staff/banks porte les deux.
   const banksQuery = useBanksQuery(true);
@@ -1359,12 +1383,6 @@ function DemandesView({ agentName }: { agentName: string }) {
   const assignMutation = useAssignBank();
   const statusMutation = useSetBankStatus();
   const removeMutation = useRemoveBankAssignment();
-
-  const BANK_STATUS_CFG: Record<BankStatus, { label: string; color: string }> = {
-    'en-attente': { label: 'En attente', color: A.gold },
-    accord:       { label: 'Accord',     color: A.green },
-    refus:        { label: 'Refus',      color: A.red },
-  };
 
   const rows = allClients.map(c => {
     const docs = allDocsByClient[c.id] ?? [];
@@ -1505,9 +1523,18 @@ function DemandesView({ agentName }: { agentName: string }) {
 
       {/* Drawer latéral de gestion */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60 }}>
-          <div onClick={() => { setSelectedId(null); setCommentFor(null); }} className="cpi-backdrop-enter" style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5 cpi-drawer-enter" style={{ position: 'absolute', top: 0, right: 0, height: '100%', width: 'min(460px, 100%)', background: 'white', overflowY: 'auto', boxShadow: '-8px 0 32px rgba(0,0,0,0.18)' }}>
+        <Modal
+          open
+          onClose={() => { setSelectedId(null); setCommentFor(null); }}
+          titre={`Gestion du dossier ${selected.c.ref} — ${selected.c.name}`}
+          sansCroix
+          largeur="min(460px, 100%)"
+          className="p-5 cpi-drawer-enter"
+          // Tiroir plaqué à droite : Radix positionne le panneau, la mise en
+          // page reste celle d'avant.
+          style={{ position: 'fixed', top: 0, right: 0, height: '100%', maxHeight: '100%', borderRadius: 0, border: 'none', boxShadow: '-8px 0 32px rgba(0,0,0,0.18)' }}
+        >
+          <>
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -1561,7 +1588,7 @@ function DemandesView({ agentName }: { agentName: string }) {
               <div style={{ fontSize: '0.6875rem', color: A.muted, marginBottom: 6 }}>Faire avancer le dossier :</div>
               <div className="flex gap-2 flex-wrap">
                 {[3, 4, 5].map(e => (
-                  <button key={e} onClick={() => { setDossierEtape(e, agentName, selected.c.id); showToast('Étape mise à jour.'); }}
+                  <button key={e} onClick={() => setDossierEtape(e, agentName, selected.c.id, () => showToast('Étape mise à jour.'))}
                     style={{ padding: '5px 10px', borderRadius: 'var(--r-sm)', border: `1px solid ${selected.etapeCpi === e ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 700,
                       background: selected.etapeCpi === e ? A.bordeaux : 'white', color: selected.etapeCpi === e ? 'white' : A.text }}>
                     → {TIMELINE_STEPS[e]?.label}
@@ -1655,15 +1682,9 @@ function DemandesView({ agentName }: { agentName: string }) {
                       <button onClick={() => { void banksQuery.refetch(); }} style={{ background: 'transparent', border: 'none', color: A.bordeaux, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Réessayer</button>
                     </div>
                   )}
-                  {bankError && (
-                    <div role="alert" style={{ fontSize: '0.8125rem', fontWeight: 600, color: A.red, background: 'rgba(192,57,43,0.08)', border: `1px solid ${A.red}40`, borderRadius: 'var(--r-sm)', padding: '8px 12px' }}>
-                      {bankError}{' '}
-                      <button onClick={() => setBankError(null)} style={{ background: 'transparent', border: 'none', color: A.red, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
-                    </div>
-                  )}
                   {!banksQuery.isPending && !banksQuery.isError && banks.length === 0 && <div style={{ fontSize: '0.8125rem', color: A.muted }}>Aucune banque partenaire enregistrée. Ajoutez-en dans « Partenaires ».</div>}
                   {assigned.map(a => {
-                    const st = BANK_STATUS_CFG[a.status];
+                    const st = STATUT_BANQUE[a.status];
                     return (
                       <div key={a.bankId} className="p-3" style={{ background: '#FAF7F7', borderRadius: 'var(--r-sm)' }}>
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
@@ -1677,14 +1698,14 @@ function DemandesView({ agentName }: { agentName: string }) {
                           </div>
                         </div>
                         <div className="flex gap-1.5 flex-wrap">
-                          {(['en-attente', 'accord', 'refus'] as BankStatus[]).map(s => (
+                          {(Object.keys(STATUT_BANQUE) as BankStatus[]).map(s => (
                             <button key={s} disabled={busy} onClick={() => statusMutation.mutate({ clientId, bankId: a.bankId, status: s }, {
                               onSuccess: () => {
                                 showToast('Statut mis à jour.');
                               },
                               onError: failWith('La mise à jour du statut a échoué.'),
                             })}
-                              style={{ padding: '3px 10px', borderRadius: 'var(--r-xs)', border: `1px solid ${a.status === s ? BANK_STATUS_CFG[s].color : A.border}`, cursor: 'pointer', fontSize: '0.625rem', fontWeight: 700, background: a.status === s ? BANK_STATUS_CFG[s].color : 'white', color: a.status === s ? 'white' : A.muted }}>{BANK_STATUS_CFG[s].label}</button>
+                              style={{ padding: '3px 10px', borderRadius: 'var(--r-xs)', border: `1px solid ${a.status === s ? STATUT_BANQUE[s].color : A.border}`, cursor: 'pointer', fontSize: '0.625rem', fontWeight: 700, background: a.status === s ? STATUT_BANQUE[s].color : 'white', color: a.status === s ? 'white' : A.muted }}>{STATUT_BANQUE[s].label}</button>
                           ))}
                         </div>
                       </div>
@@ -1712,8 +1733,8 @@ function DemandesView({ agentName }: { agentName: string }) {
               <button onClick={() => navigate('documents-clients')} className="flex-1 px-3 py-2" style={{ background: '#FAF7F7', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Ouvrir Documents clients</button>
               <button onClick={() => navigate('documents-admin')} className="flex-1 px-3 py-2" style={{ background: '#FAF7F7', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Ouvrir Documents CPI</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Toast */}
@@ -1935,17 +1956,16 @@ function UsersView({ agentName }: { agentName: string }) {
 
       {/* Modale : ajouter un utilisateur */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setShowAdd(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(440px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setShowAdd(false)} sansCroix titre="Ajouter un utilisateur" largeur={440} className="p-5">
+          <>
             <div className="flex items-center justify-between mb-4">
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Ajouter un utilisateur</h3>
               <button onClick={() => setShowAdd(false)} style={{ background: '#FAF7F7', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X className="w-4 h-4" style={{ color: A.muted }} /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Rôle</label>
-                <div className="flex gap-2 mt-1 flex-wrap">
+                <span id="groupe-role" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Rôle</span>
+                <div role="group" aria-labelledby="groupe-role" className="flex gap-2 mt-1 flex-wrap">
                   {(['client', 'agent-cpi', 'admin'] as const).map(rr => (
                     <button key={rr} onClick={() => setForm(f => ({ ...f, role: rr }))}
                       style={{ padding: '6px 12px', borderRadius: 'var(--r-sm)', border: `1px solid ${form.role === rr ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
@@ -1974,15 +1994,14 @@ function UsersView({ agentName }: { agentName: string }) {
                 <button onClick={() => setShowAdd(false)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Modale : identifiants à transmettre */}
       {creds && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setCreds(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(460px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setCreds(null)} sansCroix titre="Compte créé — identifiants à transmettre" largeur={460} zIndex={310} className="p-5">
+          <>
             <div className="flex items-center gap-2 mb-1">
               <CheckCircle2 className="w-5 h-5" style={{ color: A.green }} />
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Compte créé — identifiants à transmettre</h3>
@@ -2004,22 +2023,21 @@ function UsersView({ agentName }: { agentName: string }) {
             <textarea readOnly value={creds.message} rows={6}
               style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', padding: 10, fontSize: '0.75rem', color: A.text, background: '#FAFAFA', resize: 'vertical' }} />
             <div style={{ fontSize: '0.6875rem', color: A.muted, margin: '8px 0' }}>
-              ⚠️ L'envoi automatique par e-mail nécessitera un backend. Utilisez « Copier » ou « Envoyer par e-mail » (ouvre votre messagerie).
+              La plateforme n'envoie pas ces identifiants elle-même. Utilisez « Copier », ou « Envoyer par e-mail » qui ouvre votre messagerie avec le message prêt.
             </div>
             <div className="flex gap-2 flex-wrap">
               <button onClick={copyCreds} className="flex items-center gap-1 px-3 py-2" style={{ background: 'white', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}><Copy className="w-3.5 h-3.5" /> Copier</button>
               <button onClick={sendEmail} className="flex items-center gap-1 px-3 py-2" style={{ background: A.bordeaux, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}><Mail className="w-3.5 h-3.5" /> Envoyer par e-mail</button>
               <button onClick={() => setCreds(null)} className="ml-auto px-3 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Modale : notifier un client */}
       {notifyFor && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setNotifyFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(420px, 100%)', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setNotifyFor(null)} sansCroix titre="Notifier le client" largeur={420} zIndex={310} className="p-5">
+          <>
             <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: A.text, marginBottom: 4 }}>Notifier {notifyFor.name}</h3>
             <p style={{ fontSize: '0.75rem', color: A.muted, marginBottom: 10 }}>Le message apparaîtra dans l'espace Notifications du client.</p>
             <textarea value={notifyText} onChange={e => setNotifyText(e.target.value)} rows={3} placeholder="Votre message…"
@@ -2028,8 +2046,8 @@ function UsersView({ agentName }: { agentName: string }) {
               <button onClick={sendNotify} className="flex-1 px-4 py-2" style={{ background: A.bordeaux, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}>Envoyer</button>
               <button onClick={() => setNotifyFor(null)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Toast */}
@@ -2049,9 +2067,8 @@ function PartnersView() {
   const [confirmDel, setConfirmDel] = useState<Bank | null>(null);
   const [form, setForm] = useState<{ name: string; conventionDate: string; validity: string; products: string[]; rate: string; contact: string; color: string }>({ name: '', conventionDate: '', validity: '', products: [], rate: '', contact: '', color: BANK_COLORS[0] });
   const [toast, setToast] = useState<string | null>(null);
-  const [bankError, setBankError] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
-  const failWith = (fallback: string) => (e: unknown) => setBankError(apiErrorMessage(e, fallback));
+  const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
 
   // /staff/banks : registre + orientations en un seul appel.
   const banksQuery = useBanksQuery(true);
@@ -2127,14 +2144,6 @@ function PartnersView() {
           <Plus className="w-4 h-4" /> Ajouter une banque
         </button>
       </div>
-
-      {/* Erreur d'action (rien n'échoue en silence) */}
-      {bankError && (
-        <div role="alert" className="p-3" style={{ background: 'rgba(192,57,43,0.08)', border: `1px solid ${A.red}40`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, color: A.red }}>
-          {bankError}{' '}
-          <button onClick={() => setBankError(null)} style={{ background: 'transparent', border: 'none', color: A.red, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
-        </div>
-      )}
 
       {/* Synthèse */}
       <div className="grid grid-cols-3 gap-3">
@@ -2215,9 +2224,8 @@ function PartnersView() {
 
       {/* Modale : ajouter une banque */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setShowAdd(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(480px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+        <Modal open onClose={() => setShowAdd(false)} sansCroix titre="Ajouter une banque partenaire" largeur={480} className="p-5">
+          <>
             <div className="flex items-center justify-between mb-4">
               <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.125rem', color: A.text }}>Ajouter une banque partenaire</h3>
               <button onClick={() => setShowAdd(false)} style={{ background: '#FAF7F7', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X className="w-4 h-4" style={{ color: A.muted }} /></button>
@@ -2237,8 +2245,8 @@ function PartnersView() {
                 </div>
               ))}
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Produits de financement</label>
-                <div className="flex gap-1.5 mt-1 flex-wrap">
+                <span id="groupe-produits" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Produits de financement</span>
+                <div role="group" aria-labelledby="groupe-produits" className="flex gap-1.5 mt-1 flex-wrap">
                   {PRODUCT_OPTIONS.map(p => (
                     <button key={p} onClick={() => toggleProduct(p)}
                       style={{ padding: '5px 10px', borderRadius: 'var(--r-full)', border: `1px solid ${form.products.includes(p) ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 700, background: form.products.includes(p) ? A.bordeaux : 'white', color: form.products.includes(p) ? 'white' : A.muted }}>{p}</button>
@@ -2246,8 +2254,8 @@ function PartnersView() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Couleur d'identité</label>
-                <div className="flex gap-2 mt-1">
+                <span id="groupe-couleur" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Couleur d'identité</span>
+                <div role="group" aria-labelledby="groupe-couleur" className="flex gap-2 mt-1">
                   {BANK_COLORS.map(c => (
                     <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))} style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: c, border: form.color === c ? `3px solid ${A.text}` : '2px solid white', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)', cursor: 'pointer' }} />
                   ))}
@@ -2258,24 +2266,20 @@ function PartnersView() {
                 <button onClick={() => setShowAdd(false)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {/* Confirmation de suppression */}
-      {confirmDel && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 61, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setConfirmDel(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(28,8,16,0.45)' }} />
-          <div className="p-5" style={{ position: 'relative', width: 'min(380px, 100%)', background: 'white', borderRadius: 'var(--r-lg)', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: A.text, marginBottom: 6 }}>Retirer {confirmDel.name} ?</h3>
-            <p style={{ fontSize: '0.8125rem', color: A.muted, marginBottom: 14 }}>Cette banque ne sera plus proposée aux dossiers, et les orientations déjà enregistrées vers elle seront retirées.</p>
-            <div className="flex gap-2">
-              <button onClick={removeBank} disabled={deleteMutation.isPending} className="flex-1 px-4 py-2" style={{ background: A.red, color: 'white', border: 'none', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}>{deleteMutation.isPending ? 'Retrait…' : 'Retirer'}</button>
-              <button onClick={() => setConfirmDel(null)} className="px-4 py-2" style={{ background: 'white', color: A.muted, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmDel !== null}
+        onOpenChange={ouvert => { if (!ouvert) setConfirmDel(null); }}
+        titre={confirmDel ? `Retirer ${confirmDel.name} ?` : ''}
+        description="Cette banque ne sera plus proposée aux dossiers, et les orientations déjà enregistrées vers elle seront retirées."
+        libelleConfirmer="Retirer la banque"
+        enCours={deleteMutation.isPending}
+        onConfirmer={removeBank}
+      />
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: A.text, color: 'white', padding: '10px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, zIndex: 70, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>{toast}</div>

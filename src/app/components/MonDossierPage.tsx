@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
-import { useCpiDocs, type CpiDoc } from '../data/cpiDocsContext';
+import { useCpiDocs, type CpiDoc, type CpiDocStatus } from '../data/cpiDocsContext';
 import {
   ChevronDown, ChevronUp, Download, Eye,
   CheckCircle2, XCircle, Clock, RefreshCw, AlertCircle,
@@ -15,10 +15,14 @@ import type { AuthUser } from '../App';
 import { useClientData } from '../data/useClientData';
 import { libelleProjet, libelleLocalisation, useMaDemandeQuery } from '../data/maDemande';
 import { usePermission } from '../auth/PermissionContext';
-import { useMesBanquesQuery, toBankAssignment, type BankStatus } from '../data/bankRegistry';
+import { useMesBanquesQuery, toBankAssignment } from '../data/bankRegistry';
+import { STATUT_BANQUE } from '../lib/statuts';
 import { apiErrorMessage } from '../api/client';
+import { toast } from 'sonner';
 import { useDossierJourney, TIMELINE_STEPS } from '../data/dossierJourney';
 import { useNavigate } from '../contexts/NavigationContext';
+import { DS } from './ui/index';
+import { Modal } from './ui/overlays';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,16 +74,20 @@ interface CpiFolder {
   id: string;
   label: string;
   icon: LucideIcon;
-  docs: Array<{ id: string; nom: string; date: string; statut: string; canSign: boolean; version: string; format?: string; taille?: string; categorie: string }>;
+  docs: Array<{ id: string; nom: string; date: string; statut: string; canSign: boolean; version: string; format?: string; taille?: string; categorie: string; fileUrl?: string }>;
 }
 
-const CPI_STATUS_LABEL: Record<string, string> = {
+/**
+ * Libellés côté client. `Record<CpiDocStatus, …>` et non `Record<string, …>` :
+ * la table contenait deux clés (`publie`, `refuse`) que l'API ne renvoie pas,
+ * et le repli `|| d.status` aurait affiché la clé technique brute si un statut
+ * venait à manquer. Le compilateur interdit désormais les deux.
+ */
+const CPI_STATUS_LABEL: Record<CpiDocStatus, string> = {
   brouillon:  'À venir',
-  publie:     'Disponible',
   disponible: 'Disponible',
   'a-signer': 'À signer',
   signe:      'Signé',
-  refuse:     'Refusé',
   archive:    'Archivé',
 };
 
@@ -99,12 +107,13 @@ function computeCpiDocs(docs: CpiDoc[]): CpiFolder['docs'] {
     id: d.id,
     nom: d.nom,
     date: d.datePublication || d.dateCreation || '—',
-    statut: (d.signatureRequise && d.status === 'a-signer') ? 'À signer' : (CPI_STATUS_LABEL[d.status] || d.status),
+    statut: (d.signatureRequise && d.status === 'a-signer') ? 'À signer' : CPI_STATUS_LABEL[d.status],
     canSign: d.signatureRequise && d.status === 'a-signer',
     version: d.version,
     format: d.format,
     taille: d.taille,
     categorie: d.categorie,
+    fileUrl: d.fileUrl,
   }));
   return mapped.sort((a, b) => Number(b.canSign) - Number(a.canSign));
 }
@@ -112,20 +121,22 @@ function computeCpiDocs(docs: CpiDoc[]): CpiFolder['docs'] {
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
-  'accepte':      { label: 'Validé',          color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
-  'refuse':       { label: 'Refusé',          color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: XCircle },
-  'a-remplacer':  { label: 'À corriger',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: RefreshCw },
-  'verification': { label: 'En vérification', color: 'var(--accent)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
-  'en-attente':   { label: 'À déposer',       color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
-  'depose':       { label: 'Déposé — analyse', color: 'var(--chart-4)',         bg: 'rgba(176,80,112,0.08)', icon: Send },
+  'accepte':      { label: 'Validé',           icon: CheckCircle2, ...DS.status.success },
+  'refuse':       { label: 'Refusé',           icon: XCircle,      ...DS.status.danger  },
+  'a-remplacer':  { label: 'À corriger',       icon: RefreshCw,    ...DS.status.danger  },
+  'verification': { label: 'En vérification',  icon: Clock,        ...DS.status.warning },
+  'en-attente':   { label: 'À déposer',        icon: Clock,        ...DS.status.muted   },
+  'depose':       { label: 'Déposé — analyse', icon: Send,         ...DS.status.info    },
 };
 
+// Indexée par le libellé affiché, lui-même issu de CPI_STATUS_LABEL : les deux
+// tables ne peuvent donc plus se contredire.
 const CPI_STATUS_MAP: Record<string, { color: string; bg: string }> = {
-  'Signé':      { color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'    },
-  'À signer':   { color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)'    },
-  'À venir':    { color: 'var(--muted-foreground)', bg: 'var(--muted)'            },
-  'Disponible': { color: 'var(--primary)',          bg: 'var(--secondary)'        },
-  'Refusé':     { color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)'    },
+  'Signé':      DS.status.success,
+  'À signer':   DS.status.danger,
+  'À venir':    DS.status.muted,
+  'Disponible': DS.status.primary,
+  'Archivé':    DS.status.warning,
 };
 
 // ─── Progress — counts dossiers, not individual files ─────────────────────────
@@ -179,7 +190,6 @@ function ActionBtn({ icon: Icon, label, variant = 'ghost', disabled, onClick }: 
   return (
     <button
       disabled={disabled}
-      title={disabled ? 'Interface de signature à venir' : undefined}
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
@@ -265,7 +275,7 @@ function DossierJourneyBanner() {
             Étape {activeStep + 1} sur {total}
           </span>
         </div>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.18)', color: 'var(--accent)', border: '1px solid rgba(200,146,26,0.25)', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.18)', color: 'var(--accent-text)', border: '1px solid rgba(200,146,26,0.25)', whiteSpace: 'nowrap' }}>
           {nextEtape}
         </span>
       </div>
@@ -341,7 +351,7 @@ function DossierJourneyBanner() {
           })}
         </div>
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 800, color: 'var(--accent)' }}>{TIMELINE_STEPS[activeStep].label}</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 800, color: 'var(--accent-text)' }}>{TIMELINE_STEPS[activeStep].label}</span>
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)' }}> — {TIMELINE_STEPS[activeStep].sub}</span>
         </div>
       </div>
@@ -383,7 +393,7 @@ function ProjectHeader({ clientName }: { clientName: string }) {
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'var(--input-background)', padding: '2px 8px', borderRadius: 'var(--r-xs)', marginTop: '6px', display: 'inline-block' }}>Réf. {client.ref}</span>
             )}
           </div>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.12)', color: 'var(--accent)', whiteSpace: 'nowrap' }}>{client.statut}</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.12)', color: 'var(--accent-text)', whiteSpace: 'nowrap' }}>{client.statut}</span>
         </div>
         {chips.length > 0 && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -485,137 +495,113 @@ function PiecesSection() {
 
 // ─── Signature électronique (modale) ──────────────────────────────────────────
 
-interface SignDocTarget { id: string; nom: string; categorie: string; date: string; version: string }
-
-// Contenu d'aperçu généré selon la catégorie du document (démo — texte représentatif).
-function buildDocPreview(doc: SignDocTarget, client: ReturnType<typeof useClientData>) {
-  const nom     = client.name;
-  const projet  = client.projectNom;
-  const adresse = client.adresse;
-  const banque  = client.banque && client.banque !== '—' ? client.banque : 'la banque partenaire';
-  const montant = client.finance?.montantFinance ? client.finance.montantFinance.toLocaleString('fr-FR') + ' FCFA' : 'le montant convenu';
-
-  switch (doc.categorie) {
-    case 'conventions':
-      return {
-        intro: `La présente convention définit les modalités de financement du projet immobilier du Client avec le concours de ${banque}.`,
-        articles: [
-          { h: 'Article 1 — Objet du financement', p: `Le financement porte sur le projet « ${projet} » pour un montant de ${montant}, destiné à l'acquisition et/ou la construction du bien situé à ${adresse}.` },
-          { h: 'Article 2 — Durée et remboursement', p: `Le prêt est remboursable par mensualités constantes, prélevées automatiquement, selon l'échéancier annexé à l'offre de prêt.` },
-          { h: 'Article 3 — Garanties', p: `Le Client s'engage à fournir les garanties requises par ${banque} (assurance emprunteur notamment) préalablement au déblocage des fonds.` },
-          { h: 'Article 4 — Engagements du Client', p: `Le Client certifie l'exactitude des informations et pièces transmises, et s'engage à signaler tout changement de situation.` },
-        ],
-        closing: `Fait à Dakar. La signature électronique de la présente convention vaut acceptation sans réserve de l'ensemble de ses clauses.`,
-      };
-    case 'autorisations':
-      return {
-        intro: `Je soussigné(e) ${nom}, autorise par la présente le prélèvement des sommes dues au titre du financement de mon projet « ${projet} ».`,
-        articles: [
-          { h: 'Article 1 — Objet', p: `La présente autorisation porte sur le prélèvement automatique des mensualités de remboursement, au bénéfice de ${banque}.` },
-          { h: 'Article 2 — Montant et périodicité', p: `Les prélèvements sont effectués mensuellement, pour un montant conforme à l'échéancier de remboursement communiqué.` },
-          { h: 'Article 3 — Durée et révocation', p: `Cette autorisation reste valable pendant toute la durée du prêt et peut être révoquée par courrier, sous réserve du respect des obligations contractuelles.` },
-        ],
-        closing: `La signature électronique de la présente autorisation vaut consentement au prélèvement dans les conditions décrites ci-dessus.`,
-      };
-    case 'contrats':
-      return {
-        intro: `Entre CPI Immobilier (le « Promoteur ») et ${nom} (le « Client »), pour le projet « ${projet} » situé à ${adresse}.`,
-        articles: [
-          { h: 'Article 1 — Désignation du bien', p: `Le présent contrat porte sur le bien objet du projet « ${projet} », situé à ${adresse}.` },
-          { h: 'Article 2 — Prix et conditions', p: `Le prix et les conditions de règlement sont ceux figurant à l'offre et au plan de financement annexés.` },
-          { h: 'Article 3 — Obligations des parties', p: `Le Promoteur s'engage à livrer un bien conforme ; le Client s'engage à respecter l'échéancier de paiement.` },
-        ],
-        closing: `La signature électronique du présent contrat engage les parties dans les termes ci-dessus.`,
-      };
-    default:
-      return {
-        intro: `Document établi par CPI Immobilier dans le cadre du dossier ${client.ref} — projet « ${projet} ».`,
-        articles: [
-          { h: 'Objet', p: `Le présent document formalise une étape du traitement de votre dossier immobilier.` },
-          { h: 'Portée', p: `Votre signature électronique atteste que vous avez pris connaissance de son contenu et en acceptez les termes.` },
-        ],
-        closing: `Fait à Dakar. La signature électronique vaut acceptation.`,
-      };
-  }
+interface SignDocTarget {
+  id: string;
+  nom: string;
+  categorie: string;
+  date: string;
+  version: string;
+  /** Lien signé de courte durée vers le fichier réel (R2 privé). */
+  fileUrl?: string;
+  /** Extension déclarée par le serveur (pdf, jpg…), utilisée pour choisir la visionneuse. */
+  format?: string;
 }
 
-// Page « papier » rendue dans l'aperçu.
-function DocumentPreview({ doc, client }: { doc: SignDocTarget; client: ReturnType<typeof useClientData> }) {
-  const content = buildDocPreview(doc, client);
+/**
+ * Visionneuse du document réel.
+ *
+ * Ce composant remplace `buildDocPreview()`, qui FABRIQUAIT côté navigateur un
+ * texte de contrat par interpolation — articles, clauses, montants — à partir
+ * de la seule catégorie du document. Le commentaire d'origine l'assumait :
+ * « démo — texte représentatif ». Mais c'était CE texte que le client lisait
+ * avant de signer, et c'était lui que `downloadDocText()` lui remettait en
+ * `.txt`. Le document que CPI avait réellement déposé n'était jamais affiché.
+ * Un client pouvait donc signer un acte dont il n'avait pas vu une ligne.
+ *
+ * Ce qui s'affiche ici est le fichier déposé par CPI, servi par `fileUrl` (lien
+ * signé de courte durée vers le stockage privé). Sans fichier, rien n'est
+ * inventé : l'écran le dit, et la signature reste bloquée.
+ */
+
+/** Vrai si l'extension désigne une image que le navigateur sait afficher. */
+function estImage(format?: string): boolean {
+  return /^(jpe?g|png|gif|webp|avif)$/i.test((format ?? '').replace(/^\./, ''));
+}
+
+function DocumentViewer({ doc, hauteur = 420 }: { doc: SignDocTarget; hauteur?: number }) {
+  const cadre: React.CSSProperties = {
+    border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+    background: 'var(--card)', overflow: 'hidden',
+  };
+
+  if (!doc.fileUrl) {
+    return (
+      <div role="status" style={{ ...cadre, padding: '28px 22px', textAlign: 'center' }}>
+        <AlertCircle size={22} style={{ color: 'var(--accent-text)', margin: '0 auto 10px', display: 'block' }} aria-hidden="true" />
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 6 }}>
+          Document pas encore consultable
+        </div>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0 auto', maxWidth: 380, lineHeight: 1.6 }}>
+          Le fichier n’a pas encore été joint par votre conseiller CPI. Vous pourrez le lire —
+          et le signer — dès qu’il sera déposé.
+        </p>
+      </div>
+    );
+  }
+
+  if (estImage(doc.format)) {
+    return (
+      <div style={{ ...cadre, display: 'flex', justifyContent: 'center', background: 'var(--muted)' }}>
+        <img
+          src={doc.fileUrl}
+          alt={`Document « ${doc.nom} », version ${doc.version}`}
+          style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
+        />
+      </div>
+    );
+  }
+
+  // PDF et tout le reste : la visionneuse intégrée du navigateur. `title` est
+  // obligatoire — sans lui, un lecteur d’écran annonce « cadre » et rien d’autre.
   return (
-    <div style={{ background: '#ffffff', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '22px 22px 18px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)', color: 'var(--foreground)' }}>
-      {/* En-tête officiel */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--primary)', marginBottom: '16px' }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 800, color: 'var(--primary)' }}>CPI Immobilier</div>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: '#666' }}>Dakar, Sénégal · contact@cpi-immobilier.sn</div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: '#666' }}>Réf. dossier</div>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--foreground)' }}>{client.ref}</div>
-        </div>
-      </div>
-
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '4px' }}>{doc.nom}</div>
-      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', color: '#666', marginBottom: '16px' }}>Version {doc.version} · établi le {doc.date}</div>
-
-      <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#333', lineHeight: 1.7, margin: '0 0 16px' }}>{content.intro}</p>
-
-      {content.articles.map((a, i) => (
-        <div key={i} style={{ marginBottom: '14px' }}>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '3px' }}>{a.h}</div>
-          <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#333', lineHeight: 1.7, margin: 0 }}>{a.p}</p>
-        </div>
-      ))}
-
-      <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#333', lineHeight: 1.7, margin: '16px 0 20px', fontStyle: 'italic' }}>{content.closing}</p>
-
-      {/* Blocs signatures */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', borderTop: '1px dashed #ccc', paddingTop: '14px' }}>
-        {['Le Promoteur — CPI Immobilier', `Le Client — ${client.name}`].map(label => (
-          <div key={label} style={{ flex: 1, minWidth: '140px' }}>
-            <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: '#666', marginBottom: '24px' }}>{label}</div>
-            <div style={{ borderTop: '1px solid #999', fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: '#999', paddingTop: '3px' }}>Signature</div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <iframe
+      src={doc.fileUrl}
+      title={`Document « ${doc.nom} », version ${doc.version}`}
+      style={{ ...cadre, width: '100%', height: hauteur, display: 'block' }}
+    />
   );
 }
 
-// Construit le texte téléchargeable du document depuis l'aperçu.
-function buildDocText(doc: SignDocTarget, client: ReturnType<typeof useClientData>): string {
-  const c = buildDocPreview(doc, client);
-  const lines: string[] = [
-    'CPI IMMOBILIER — Dakar, Sénégal', `Réf. dossier : ${client.ref}`, '',
-    doc.nom.toUpperCase(), `Version ${doc.version} · établi le ${doc.date}`, '',
-    c.intro, '',
-  ];
-  c.articles.forEach(a => { lines.push(a.h, a.p, ''); });
-  lines.push(c.closing, '', `Le Promoteur — CPI Immobilier          Le Client — ${client.name}`);
-  return lines.join('\n');
-}
-
-function downloadDocText(doc: SignDocTarget, client: ReturnType<typeof useClientData>) {
-  const blob = new Blob([buildDocText(doc, client)], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = doc.nom.replace(/[^\w\-]+/g, '_') + '.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+/**
+ * Ouvre le fichier réel du document.
+ *
+ * `downloadDocText()` vivait ici : il assemblait le faux contrat en texte brut
+ * et le téléchargeait sous le nom du document. Le client repartait avec un
+ * `.txt` qui n’était pas son contrat.
+ *
+ * Le lien R2 est inter-origine : l’attribut `download` y est ignoré par les
+ * navigateurs, le fichier s’ouvre donc dans un onglet, d’où il s’enregistre.
+ */
+function ouvrirDocument(doc: SignDocTarget) {
+  if (!doc.fileUrl) {
+    toast.error("Ce document n’a pas encore de fichier joint : il n’y a rien à télécharger.");
+    return;
+  }
+  window.open(doc.fileUrl, '_blank', 'noopener,noreferrer');
 }
 
 // Modale d'aperçu (bouton « Voir »).
 function PreviewModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => void }) {
-  const client = useClientData();
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '16px' }}>
-      <div className="cpi-scale-in" style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: '560px', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal
+      open
+      onClose={onClose}
+      titre={`Aperçu du document — ${doc.nom}`}
+      largeur={560}
+      sansCroix
+      style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflowY: 'visible' }}
+    >
+      <>
         <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <Eye size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -624,44 +610,80 @@ function PreviewModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => voi
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fermer l'aperçu" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} aria-hidden="true" /></button>
         </div>
         <div style={{ padding: '16px 22px', overflowY: 'auto', background: 'var(--muted)' }}>
-          <DocumentPreview doc={doc} client={client} />
+          <DocumentViewer doc={doc} hauteur={480} />
         </div>
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button onClick={() => downloadDocText(doc, client)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--primary)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--primary)', cursor: 'pointer' }}>
+          <button onClick={() => ouvrirDocument(doc)} disabled={!doc.fileUrl} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--primary)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--primary)', cursor: doc.fileUrl ? 'pointer' : 'not-allowed', opacity: doc.fileUrl ? 1 : 0.5 }}>
             <Download size={14} /> Télécharger
           </button>
           <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--primary)', color: 'var(--primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>Fermer</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
+/**
+ * Signature électronique d'un document CPI par le client.
+ *
+ * Trois corrections par rapport à la version d'origine :
+ *
+ *  - Le document affiché est le VRAI fichier (`DocumentViewer`), pas un texte
+ *    fabriqué à la volée. Le client relit ce qu'il signe.
+ *  - Sans fichier joint (`fileUrl` absent), la signature est impossible. On ne
+ *    signe pas un document dont le contenu n'existe pas.
+ *  - Le passage à l'écran « Document signé » suit la réponse du serveur, et
+ *    non un `setTimeout` de 1 100 ms. Cette attente n'était qu'un décor : elle
+ *    affichait la réussite quoi qu'il arrive, y compris quand l'API refusait
+ *    la signature (409 sur un document qui n'est pas « à signer »).
+ *
+ * Le champ de saisie manuscrite a été retiré : le nom qu'on y tapait n'était
+ * transmis nulle part. L'API ne reçoit que l'identifiant du document, et
+ * l'identité du signataire est celle du compte authentifié. Afficher une ligne
+ * de signature laissait croire à un relevé d'identité qui n'existait pas.
+ *
+ * ⚠ Ce que le serveur n'enregistre PAS aujourd'hui : l'horodatage propre à la
+ * signature, l'adresse IP du signataire et l'empreinte SHA-256 du fichier
+ * signé. Sans ces trois éléments, la signature n'est pas opposable et le texte
+ * affiché à l'utilisateur ne le prétend plus. Leur ajout demande une migration
+ * côté API — voir la note d'accompagnement de cette remédiation.
+ */
 function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => void }) {
   const { signDocByClient } = useCpiDocs();
   const client = useClientData();
-  const [signature, setSignature] = useState(client.name || '');
   const [accepted, setAccepted] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [phase, setPhase] = useState<'form' | 'processing' | 'done'>('form');
   const now = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const canSign = accepted && signature.trim().length >= 3;
+  const documentLisible = Boolean(doc.fileUrl);
+  const canSign = accepted && documentLisible;
 
   const handleSign = () => {
     if (!canSign) return;
     setPhase('processing');
-    setTimeout(() => { signDocByClient(doc.id); setPhase('done'); }, 1100);
+    // Le succès vient du serveur. En cas de refus, `signDocByClient` publie le
+    // message de l'API et l'on revient au formulaire — sans jamais afficher
+    // « Document signé » pour une signature qui n'a pas eu lieu.
+    signDocByClient(doc.id, undefined, () => setPhase('done'));
   };
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget && phase !== 'processing') onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: '16px' }}>
+    <Modal
+      open
+      // Pendant la signature, la modale ne se ferme plus : ni Échap, ni clic
+      // extérieur. Fermer à cet instant laisserait l'utilisateur sans savoir si
+      // le document a été signé ou non.
+      onClose={() => { if (phase !== 'processing') onClose(); }}
+      titre={`Signature électronique — ${doc.nom}`}
+      largeur={500}
+      sansCroix
+      style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh' }}
+    >
+      <>
       <style>{`@keyframes cpiSpin { to { transform: rotate(360deg); } }`}</style>
-      <div className="cpi-scale-in" style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: '500px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
 
         {phase === 'done' ? (
           <div style={{ padding: '36px 28px', textAlign: 'center' }}>
@@ -688,7 +710,7 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
                 </div>
               </div>
               {phase !== 'processing' && (
-                <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} /></button>
+                <button onClick={onClose} aria-label="Fermer" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-foreground)', flexShrink: 0 }}><X size={18} aria-hidden="true" /></button>
               )}
             </div>
 
@@ -702,7 +724,7 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
                   <FileText size={22} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{doc.nom}</div>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{showPreview ? 'Masquer l\'aperçu' : 'Cliquez pour afficher le document'}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{showPreview ? 'Masquer le document' : documentLisible ? 'Cliquez pour lire le document' : 'Aucun fichier joint pour l\'instant'}</div>
                   </div>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', flexShrink: 0 }}>
                     {showPreview ? <ChevronUp size={13} /> : <Eye size={13} />} {showPreview ? 'Masquer' : 'Aperçu'}
@@ -710,38 +732,45 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
                 </button>
                 {showPreview && (
                   <div style={{ marginTop: '10px', maxHeight: '320px', overflowY: 'auto', background: 'var(--muted)', borderRadius: 'var(--r-sm)', padding: '10px' }}>
-                    <DocumentPreview doc={doc} client={client} />
+                    <DocumentViewer doc={doc} hauteur={480} />
                   </div>
                 )}
               </div>
 
-              {/* Engagement légal */}
-              <div style={{ display: 'flex', gap: '10px', padding: '12px 14px', background: 'rgba(99,2,16,0.04)', border: '1px solid rgba(99,2,16,0.12)', borderRadius: 'var(--r-sm)' }}>
-                <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '1px' }} />
+              {/* Ce que la signature engage — décrit tel que c'est réellement
+                  enregistré. Le texte précédent promettait un horodatage et une
+                  conservation « sécurisée » que l'API n'assure pas encore. */}
+              <div style={{ display: 'flex', gap: '10px', padding: '12px 14px', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)' }}>
+                <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: 1.6 }}>
-                  Votre signature électronique a la même valeur juridique qu'une signature manuscrite. Elle est horodatée et associée à votre dossier de façon sécurisée.
+                  La signature est enregistrée sous votre compte, <strong style={{ color: 'var(--foreground)' }}>{client.name}</strong>,
+                  et rattachée à votre dossier {client.ref}. Elle vaut acceptation du document ci-dessus.
                 </p>
               </div>
 
-              {/* Champ signature */}
-              <div>
-                <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '7px' }}>Votre signature</label>
+              {/* Consentement — la case est le geste de signature. */}
+              <label htmlFor="signature-consentement" style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: documentLisible ? 'pointer' : 'not-allowed' }}>
                 <input
-                  value={signature}
-                  onChange={e => setSignature(e.target.value)}
-                  placeholder="Saisissez votre nom complet"
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'Segoe Script, "Brush Script MT", cursive', fontSize: '1.375rem', fontStyle: 'italic', color: 'var(--foreground)', boxSizing: 'border-box' }}
+                  id="signature-consentement"
+                  type="checkbox"
+                  checked={accepted}
+                  disabled={!documentLisible}
+                  onChange={e => setAccepted(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: '1px', accentColor: 'var(--primary)', flexShrink: 0, cursor: documentLisible ? 'pointer' : 'not-allowed' }}
                 />
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '6px' }}>Fait le {now}</div>
-              </div>
-
-              {/* Consentement */}
-              <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-                <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} style={{ width: 18, height: 18, marginTop: '1px', accentColor: 'var(--primary)', flexShrink: 0, cursor: 'pointer' }} />
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--foreground)', lineHeight: 1.5 }}>
-                  Je certifie avoir lu l'intégralité de ce document et j'en accepte les termes. Je reconnais que cette signature électronique m'engage.
+                  Je certifie avoir lu l'intégralité de ce document et j'en accepte les termes. Je reconnais que cette signature électronique m'engage. Fait le {now}.
                 </span>
               </label>
+
+              {/* Un document sans fichier joint ne peut pas être signé : il n'y
+                  a rien à lire, donc rien à approuver. */}
+              {!documentLisible && (
+                <p role="status" style={{ display: 'flex', alignItems: 'center', gap: 7, margin: 0, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--accent-text)' }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+                  La signature sera possible dès que votre conseiller CPI aura joint le fichier.
+                </p>
+              )}
             </div>
 
             {/* Footer */}
@@ -758,15 +787,15 @@ function SignatureModal({ doc, onClose }: { doc: SignDocTarget; onClose: () => v
             </div>
           </>
         )}
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
 // ─── Documents CPI — helpers partagés ─────────────────────────────────────────
 
 type CpiListDoc = CpiFolder['docs'][number];
-const toTarget = (d: CpiListDoc): SignDocTarget => ({ id: d.id, nom: d.nom, categorie: d.categorie, date: d.date, version: d.version });
+const toTarget = (d: CpiListDoc): SignDocTarget => ({ id: d.id, nom: d.nom, categorie: d.categorie, date: d.date, version: d.version, fileUrl: d.fileUrl, format: d.format });
 const CPI_CAT_ORDER = ['contrats', 'conventions', 'autorisations', 'bancaires', 'courriers', 'pv'];
 
 // ─── Bandeau d'action : documents à signer ────────────────────────────────────
@@ -777,7 +806,7 @@ function SignatureBanner({ docs, onSign }: { docs: CpiListDoc[]; onSign: (d: Cpi
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', padding: '14px 18px', background: 'rgba(200,146,26,0.10)', border: '1px solid rgba(200,146,26,0.28)', borderRadius: 'var(--r-md)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '13px', minWidth: 0 }}>
         <div style={{ width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'rgba(200,146,26,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <PenSquare size={19} style={{ color: 'var(--accent)' }} />
+          <PenSquare size={19} style={{ color: 'var(--accent-text)' }} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 800, color: 'var(--foreground)' }}>{n} document{n > 1 ? 's' : ''} à signer</div>
@@ -920,7 +949,7 @@ function HistoriqueSection() {
   const iconMap: Record<string, { bg: string; color: string; El: LucideIcon }> = {
     success: { bg: 'rgba(26,107,68,0.12)',  color: 'var(--success)',     El: CheckCircle2 },
     warning: { bg: 'rgba(192,57,43,0.10)',  color: 'var(--destructive)', El: AlertCircle },
-    comment: { bg: 'rgba(200,146,26,0.10)', color: 'var(--accent)',      El: MessageSquare },
+    comment: { bg: 'rgba(200,146,26,0.10)', color: 'var(--accent-text)',      El: MessageSquare },
     info:    { bg: 'var(--secondary)',      color: 'var(--primary)',     El: Info },
   };
 
@@ -934,7 +963,7 @@ function HistoriqueSection() {
 
   return (
     <Section
-      icon={History} iconBg="rgba(200,146,26,0.1)" iconColor="var(--accent)"
+      icon={History} iconBg="rgba(200,146,26,0.1)" iconColor="var(--accent-text)"
       title="Historique du dossier"
       subtitle="Suivi des actions de votre conseiller CPI"
       right={
@@ -976,12 +1005,6 @@ function HistoriqueSection() {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-
-const BANK_STATUS_UI: Record<BankStatus, { label: string; color: string; bg: string }> = {
-  'en-attente': { label: 'En cours d’étude', color: 'var(--accent)',      bg: 'rgba(200,146,26,0.10)' },
-  accord:       { label: 'Accord de principe', color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)' },
-  refus:        { label: 'Non retenue',        color: 'var(--destructive)', bg: 'rgba(192,57,43,0.08)' },
-};
 
 /**
  * Orientations bancaires du dossier connecté — GET /client/mes-banques.
@@ -1033,7 +1056,7 @@ function BanksSection() {
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {assigned.map(a => {
-          const st = BANK_STATUS_UI[a.status];
+          const st = STATUT_BANQUE[a.status];
           return (
             <div key={a.bankId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '12px 14px', background: 'var(--secondary)', borderRadius: 'var(--radius)' }}>
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{a.bankName}</span>
@@ -1048,7 +1071,6 @@ function BanksSection() {
 
 export default function MonDossierPage({ user }: { user: AuthUser }) {
   const { cpiDocs } = useCpiDocs();
-  const client = useClientData();
   const cpiList = useMemo(() => computeCpiDocs(cpiDocs), [cpiDocs]);
   const toSignDocs = cpiList.filter(d => d.canSign);
   const [signTarget, setSignTarget] = useState<SignDocTarget | null>(null);
@@ -1066,7 +1088,7 @@ export default function MonDossierPage({ user }: { user: AuthUser }) {
           docs={cpiList}
           onSign={d => setSignTarget(toTarget(d))}
           onPreview={d => setPreviewTarget(toTarget(d))}
-          onDownload={d => downloadDocText(toTarget(d), client)}
+          onDownload={d => ouvrirDocument(toTarget(d))}
         />
         <HistoriqueSection />
       </div>

@@ -21,7 +21,7 @@ readonly id: string,
 readonly clientId: string,
 readonly bankId: string,
 readonly bankName: string,
-readonly status: string,
+readonly status: App.Enums.BankAssignmentStatut,
 };
 export type BankData = {
 readonly id: string,
@@ -46,7 +46,7 @@ readonly dateDebut: string | null,
 readonly dateLivraison: string | null,
 readonly progression: number,
 readonly etapeActuelle: string,
-readonly statut: string,
+readonly statut: App.Enums.ChantierStatut,
 readonly derniereMaj: string | null,
 readonly tranches: App.Dto.ChantierTrancheData[] | null,
 readonly publications: App.Dto.ChantierPublicationData[] | null,
@@ -130,10 +130,9 @@ readonly reference: string | null,
 readonly dateCreation: string,
 readonly datePublication: string | null,
 readonly version: string,
-readonly status: string,
+readonly status: App.Enums.CpiDocStatut,
 readonly auteur: string,
 readonly fichier: string | null,
-readonly filePath: string | null,
 readonly commentaire: string | null,
 readonly visibleClient: boolean,
 readonly signatureRequise: boolean,
@@ -185,7 +184,7 @@ readonly id: string,
 readonly clientId: string,
 readonly docId: string,
 readonly label: string,
-readonly status: string,
+readonly status: App.Enums.RequisDocStatut,
 readonly commentaire: string | null,
 readonly dateValidation: string | null,
 readonly agentName: string | null,
@@ -193,7 +192,6 @@ readonly version: number,
 readonly submittedLabel: string | null,
 readonly date: string | null,
 readonly taille: string | null,
-readonly filePath: string | null,
 };
 export type UserData = {
 avatarUrl: string | null,
@@ -210,6 +208,12 @@ readonly role: string | null,
 readonly permissions: string[],
 readonly clientId: string | null,
 };
+}
+namespace Enums {
+export type BankAssignmentStatut = 'en-attente' | 'accord' | 'refus';
+export type ChantierStatut = 'non-demarre' | 'en-cours' | 'suspendu' | 'en-retard' | 'termine' | 'livre';
+export type CpiDocStatut = 'brouillon' | 'disponible' | 'a-signer' | 'signe' | 'archive';
+export type RequisDocStatut = 'en-attente' | 'depose' | 'verification' | 'accepte' | 'refuse' | 'a-remplacer';
 }
 }
 declare namespace Illuminate {

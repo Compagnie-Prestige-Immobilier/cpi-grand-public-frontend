@@ -10,19 +10,19 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { auth, clientApi } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
+import { toast } from 'sonner';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
+import { formatFCFA, parseFrDate } from '../lib/format';
 
 interface MonProfilPageProps {
   user: AuthUser;
   onLogout?: () => void;
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ function ProgressRing({ value, size = 56, stroke = 4 }: { value: number; size?: 
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#C8921A" strokeWidth={stroke}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent-border)" strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" />
     </svg>
   );
@@ -264,6 +264,8 @@ function PanneauEdition({
     Object.fromEntries(champs.map(c => [c.cle, valeurs[c.cle] === '—' ? '' : valeurs[c.cle]])));
 
   const mutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (payload: Record<string, string | null>) => clientApi.updateProfile(payload),
     onSuccess: () => {
       // Le registre client dérive de cette requête : sans invalidation, l'écran
@@ -325,6 +327,116 @@ function PanneauEdition({
   );
 }
 
+
+// ─── Photo de profil ─────────────────────────────────────────────────────────
+
+/**
+ * Envoi et retrait de la photo de profil (`POST` / `DELETE /auth/avatar`).
+ *
+ * Ce mécanisme n'existait que sur le profil du personnel. Côté client, le
+ * bouton appareil photo posé sur l'avatar n'avait AUCUN gestionnaire : cliquer
+ * dessus ne faisait rien, sans le moindre retour. La route existe pourtant, et
+ * `UserData.avatarUrl` sert déjà l'image dans toute l'application.
+ *
+ * Les contraintes reproduites ici sont celles de l'API (5 Mo, jpg/jpeg/png/
+ * webp) : elles évitent un aller-retour réseau pour un refus prévisible. Le
+ * serveur reste l'autorité — son message est affiché tel quel s'il refuse.
+ */
+const AVATAR_TAILLE_MAX = 5 * 1024 * 1024;
+const AVATAR_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
+
+function useAvatar(initial: string | null | undefined) {
+  const [avatar, setAvatar] = useState<string | null>(initial ?? null);
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+
+  const choisir = async (file: File) => {
+    if (!AVATAR_FORMATS.includes(file.type)) {
+      toast.error('Format non accepté. Choisissez une image JPG, PNG ou WEBP.');
+      return;
+    }
+    if (file.size > AVATAR_TAILLE_MAX) {
+      toast.error('Image trop lourde : 5 Mo au maximum.');
+      return;
+    }
+    setEnvoiEnCours(true);
+    try {
+      const updated = await auth.updateAvatar(file);
+      setAvatar(updated.avatarUrl ?? null);
+      toast.success('Photo de profil mise à jour.');
+    } catch (e) {
+      toast.error(apiErrorMessage(e, "L'envoi de la photo a échoué."));
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  };
+
+  const retirer = async () => {
+    setEnvoiEnCours(true);
+    try {
+      await auth.removeAvatar();
+      setAvatar(null);
+      toast.success('Photo retirée.');
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'La suppression de la photo a échoué.'));
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  };
+
+  return { avatar, envoiEnCours, choisir, retirer };
+}
+
+/** Pastille appareil photo posée sur l'avatar — un vrai champ de fichier. */
+function BoutonPhoto({ onPick, disabled, id }: { onPick: (f: File) => void; disabled?: boolean; id: string }) {
+  return (
+    <>
+      <label
+        htmlFor={id}
+        title="Changer la photo de profil"
+        style={{
+          position: 'absolute', bottom: '2px', right: '2px',
+          width: '26px', height: '26px', borderRadius: '50%',
+          background: 'var(--accent)', border: '2px solid var(--primary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: disabled ? 'wait' : 'pointer',
+        }}
+      >
+        {disabled ? <Loader2 size={12} style={{ color: '#fff', animation: 'spin 0.8s linear infinite' }} /> : <Camera size={12} style={{ color: '#fff' }} />}
+        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Changer la photo de profil</span>
+      </label>
+      <input
+        id={id}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        disabled={disabled}
+        style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); e.currentTarget.value = ''; }}
+      />
+    </>
+  );
+}
+
+/**
+ * Ancienneté du compte, calculée depuis la date d'inscription réelle.
+ *
+ * La jauge à cinq segments était figée sur `i < 3` : elle affichait trois
+ * segments allumés pour tout le monde, y compris pour un compte créé la
+ * veille. Une donnée inventée présentée comme un fait.
+ */
+function anciennete(dateInscription: string | undefined): { label: string; segments: number } | null {
+  const debut = parseFrDate(dateInscription);
+  if (!debut) return null;
+  const mois = Math.max(0, Math.round((Date.now() - debut.getTime()) / (30.44 * 86_400_000)));
+  const annees = Math.floor(mois / 12);
+  const label =
+    mois < 1 ? "Depuis aujourd'hui"
+    : mois < 12 ? `${mois} mois`
+    : annees === 1 ? '1 an'
+    : `${annees} ans`;
+  // Un segment par année révolue, le premier étant l'année en cours.
+  return { label, segments: Math.min(5, annees + 1) };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function MonProfilPage({ user, onLogout }: MonProfilPageProps) {
@@ -371,7 +483,6 @@ function ClientProfile({ user }: { user: AuthUser }) {
     fonction: clientData.fonction,
     typeContrat: '—',
     dateEmbauche: '—',
-    anciennete: '—',
     secteur: '—',
     revenus: 0,
     autresRevenus: 0,
@@ -402,6 +513,11 @@ function ClientProfile({ user }: { user: AuthUser }) {
   };
 
   const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const photo = useAvatar(user.avatarUrl);
+  // Ancienneté réelle du compte ; `null` tant que la date d'inscription est
+  // inconnue — auquel cas la ligne entière disparaît plutôt que d'afficher
+  // une jauge décorative.
+  const anc = anciennete(clientData.adhesionDate);
   const revenuTotal = PROFILE.revenus + PROFILE.autresRevenus;
   const capacite = revenuTotal - PROFILE.charges;
   const tauxEndettement = revenuTotal > 0 ? Math.round((PROFILE.charges / revenuTotal) * 100) : 0;
@@ -412,7 +528,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
   // d'endettement « 0 % » en vert : une absence de donnée se lisait comme une
   // évaluation financière favorable. Un tiret dit la vérité — la donnée manque.
   const hasFinance = revenuTotal > 0;
-  const montant = (v: number) => (hasFinance ? fmt(v) : '—');
+  const montant = (v: number) => (hasFinance ? formatFCFA(v) : '—');
 
   return (
     <div style={{
@@ -454,25 +570,19 @@ function ClientProfile({ user }: { user: AuthUser }) {
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div style={{
               width: '88px', height: '88px', borderRadius: '50%',
+              overflow: 'hidden',
               background: 'rgba(255,255,255,0.12)',
               border: '2.5px solid rgba(255,255,255,0.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.75rem', fontWeight: 800, color: '#fff',
-              }}>{initials}</span>
+              {photo.avatar
+                ? <img src={photo.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.75rem', fontWeight: 800, color: '#fff',
+                  }}>{initials}</span>}
             </div>
-            <button style={{
-              position: 'absolute', bottom: '2px', right: '2px',
-              width: '26px', height: '26px', borderRadius: '50%',
-              background: 'var(--accent)',
-              border: '2px solid var(--primary)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-            }}>
-              <Camera size={12} style={{ color: '#fff' }} />
-            </button>
+            <BoutonPhoto id="photo-profil-client" onPick={photo.choisir} disabled={photo.envoiEnCours} />
           </div>
 
           {/* Identity block */}
@@ -499,7 +609,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
               <span style={{
-                background: 'rgba(200,146,26,0.22)', color: '#FFC65A',
+                background: 'rgba(200,146,26,0.22)', color: 'var(--accent-on-dark)',
                 fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
                 fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
                 padding: '3px 10px', borderRadius: 'var(--r-full)',
@@ -553,7 +663,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
                 }}>Dossier</div>
                 <div style={{
                   fontFamily: 'var(--font-display)', fontSize: '1.375rem',
-                  fontWeight: 800, color: '#FFC65A', lineHeight: 1,
+                  fontWeight: 800, color: 'var(--accent-on-dark)', lineHeight: 1,
                 }}>{PROFILE.progression}%</div>
               </div>
               <ProgressRing value={PROFILE.progression} size={52} stroke={4} />
@@ -715,10 +825,10 @@ function ClientProfile({ user }: { user: AuthUser }) {
               borderRadius: 'var(--r-sm)',
               display: 'flex', alignItems: 'center', gap: '8px',
             }}>
-              <AlertCircle size={14} style={{ color: '#C8921A', flexShrink: 0 }} />
+              <AlertCircle size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
               <span style={{
                 fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
-                color: '#C8921A', fontWeight: 500,
+                color: 'var(--accent-text)', fontWeight: 500,
               }}>
                 Les pièces d'identité (CNI, date et lieu de naissance) sont renseignées par votre conseiller CPI à partir des documents déposés.
               </span>
@@ -865,31 +975,34 @@ function ClientProfile({ user }: { user: AuthUser }) {
             </div>
           </div>
 
-          <div style={{ height: '40px', width: '1px', background: 'var(--border)', flexShrink: 0 }} />
+          {anc && (
+            <>
+              <div style={{ height: '40px', width: '1px', background: 'var(--border)', flexShrink: 0 }} />
 
-          <div>
-            <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
-              fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
-              color: 'var(--muted-foreground)', marginBottom: '2px',
-            }}>Ancienneté</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                fontFamily: 'var(--font-display)', fontSize: '1rem',
-                fontWeight: 700, color: 'var(--foreground)',
-              }}>{PROFILE.anciennete}</div>
-              <div style={{
-                display: 'flex', gap: '3px', alignItems: 'center',
-              }}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} style={{
-                    width: '20px', height: '5px', borderRadius: 'var(--r-full)',
-                    background: i < 3 ? 'var(--primary)' : 'var(--muted)',
-                  }} />
-                ))}
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-sans)', fontSize: '0.6875rem',
+                  fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'var(--muted-foreground)', marginBottom: '2px',
+                }}>Ancienneté</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    fontFamily: 'var(--font-display)', fontSize: '1rem',
+                    fontWeight: 700, color: 'var(--foreground)',
+                  }}>{anc.label}</div>
+                  {/* Un segment par année révolue — et non trois, quoi qu'il arrive. */}
+                  <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }} aria-hidden="true">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} style={{
+                        width: '20px', height: '5px', borderRadius: 'var(--r-full)',
+                        background: i < anc.segments ? 'var(--primary)' : 'var(--muted)',
+                      }} />
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
 
         <FieldsGrid>
@@ -937,9 +1050,9 @@ function ClientProfile({ user }: { user: AuthUser }) {
               label: 'Charges mensuelles',
               value: montant(PROFILE.charges),
               icon: TrendingDown,
-              color: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
+              color: hasFinance ? 'var(--accent-text)' : 'var(--muted-foreground)',
               bg: hasFinance ? 'rgba(200,146,26,0.08)' : 'var(--muted)',
-              iconColor: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
+              iconColor: hasFinance ? 'var(--accent-text)' : 'var(--muted-foreground)',
             },
             {
               label: 'Capacité de remboursement',
@@ -954,9 +1067,9 @@ function ClientProfile({ user }: { user: AuthUser }) {
               // Pas de revenus connus ⇒ pas de taux, et surtout pas de vert.
               value: hasFinance ? `${tauxEndettement} %` : '—',
               icon: TrendingUp,
-              color: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              color: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? 'var(--destructive)' : '#1A6B44',
               bg: !hasFinance ? 'var(--muted)' : tauxEndettement > 33 ? 'rgba(192,57,43,0.07)' : 'rgba(26,107,68,0.08)',
-              iconColor: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              iconColor: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? 'var(--destructive)' : '#1A6B44',
             },
           ].map(card => (
             <div key={card.label} style={{
@@ -1004,7 +1117,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
             <span style={{
               fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
               fontWeight: 600, color: 'var(--foreground)',
-            }}>{fmt(revenuTotal)}</span>
+            }}>{formatFCFA(revenuTotal)}</span>
           </div>
           <div style={{ height: '8px', borderRadius: 'var(--r-full)', background: 'var(--muted)', overflow: 'hidden' }}>
             <div style={{
@@ -1107,33 +1220,16 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
   // Compteur d'actions du compte, lu dans le journal serveur (écran réservé au
   // personnel CPI, seul habilité sur /staff/historique).
   const historiqueQuery = useHistoriqueQuery(true);
-  const actionsCount = toActivityEntries(historiqueQuery.data).filter(e => e.role === roleLabel).length;
+  // Filtrage sur l'auteur, pas sur le rôle : « Actions enregistrées » comptait
+  // jusqu'ici celles de TOUS les agents CPI et les présentait comme les vôtres.
+  const mesActions = toActivityEntries(historiqueQuery.data).filter(e => e.utilisateur === user.name);
+  const actionsCount = mesActions.length;
+  const derniereAction = mesActions[0];
 
-  // Photo de profil : stockée sur R2 via l'API, servie par lien signé.
-  const [avatar, setAvatar] = useState<string | null>(user.avatarUrl ?? null);
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
-
-  const onPickAvatar = async (file: File) => {
-    if (!file.type.startsWith('image/')) { showToast('Veuillez choisir une image.'); return; }
-    if (file.size > 5 * 1024 * 1024) { showToast('Image trop lourde (max 5 Mo).'); return; }
-    try {
-      const updated = await auth.updateAvatar(file);
-      setAvatar(updated.avatarUrl ?? null);
-      showToast('Photo de profil mise à jour.');
-    } catch {
-      showToast("Échec de l'envoi de la photo.");
-    }
-  };
-  const removeAvatar = async () => {
-    try {
-      await auth.removeAvatar();
-      setAvatar(null);
-      showToast('Photo retirée.');
-    } catch {
-      showToast('Échec de la suppression.');
-    }
-  };
+  // Photo de profil : même mécanisme que le profil client (`useAvatar`), au
+  // lieu de deux implémentations divergentes du même appel d'API.
+  const photo = useAvatar(user.avatarUrl);
+  const avatar = photo.avatar;
 
   const initials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -1148,20 +1244,17 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div style={{ width: '88px', height: '88px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.12)', border: '2.5px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {avatar
-                ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>{initials}</span>}
             </div>
-            <label style={{ position: 'absolute', bottom: '2px', right: '2px', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Changer la photo">
-              <Camera size={12} style={{ color: '#fff' }} />
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onPickAvatar(f); e.currentTarget.value = ''; }} />
-            </label>
+            <BoutonPhoto id="photo-profil-personnel" onPick={photo.choisir} disabled={photo.envoiEnCours} />
           </div>
 
           {/* Identity */}
           <div style={{ flex: 1, minWidth: '200px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.2 }}>{user.name}</h1>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(200,146,26,0.22)', color: '#FFC65A', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 'var(--r-full)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(200,146,26,0.22)', color: 'var(--accent-on-dark)', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 'var(--r-full)' }}>
                 <Shield size={11} /> {roleLabel}
               </span>
             </div>
@@ -1174,7 +1267,7 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
           </div>
 
           {avatar && (
-            <button onClick={removeAvatar} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: 'var(--r-sm)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button onClick={photo.retirer} disabled={photo.envoiEnCours} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: 'var(--r-sm)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <Trash2 size={13} /> Retirer la photo
             </button>
           )}
@@ -1202,10 +1295,14 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Mot de passe</div>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 500, color: 'var(--foreground)', letterSpacing: '0.15em' }}>••••••••</div>
             </div>
-            <button onClick={() => showToast('Le changement de mot de passe sera disponible une fois le backend connecté.')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-              <Edit3 size={13} /> Modifier
-              <span style={{ fontSize: '0.5625rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'rgba(107,74,82,0.10)', padding: '2px 7px', borderRadius: 'var(--r-full)' }}>backend</span>
-            </button>
+            {/* Il n'existe aucune route de changement de mot de passe. Le bouton
+                « Modifier » n'ouvrait donc rien et affichait « sera disponible
+                une fois le backend connecté » — une phrase écrite pour un
+                développeur, dans un écran destiné à un agent CPI. La marche à
+                suivre réelle la remplace. */}
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', maxWidth: 260, lineHeight: 1.5 }}>
+              Pour le renouveler, adressez-vous à l'administrateur de la plateforme.
+            </span>
           </div>
           <Divider />
           {/* Connexion sécurisée */}
@@ -1213,21 +1310,25 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
             <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Shield size={14} style={{ color: 'var(--primary)' }} /></div>
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Connexion sécurisée</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 600, color: httpsOk ? '#1A6B44' : '#C0392B' }}>
-                <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: httpsOk ? '#1A6B44' : '#C0392B' }} /> {httpsOk ? 'HTTPS actif' : 'Non sécurisé'}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 600, color: httpsOk ? '#1A6B44' : 'var(--destructive)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: httpsOk ? '#1A6B44' : 'var(--destructive)' }} /> {httpsOk ? 'HTTPS actif' : 'Non sécurisé'}
               </div>
             </div>
           </div>
           <Divider />
-          {/* Dernière connexion */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 0', flexWrap: 'wrap' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Clock size={14} style={{ color: 'var(--primary)' }} /></div>
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Dernière connexion</div>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 500, color: 'var(--muted-foreground)' }}>Historisée côté serveur</div>
+          {/* Dernière action enregistrée — lue dans le journal d'audit du
+              serveur. L'ancienne ligne annonçait « Dernière connexion » puis
+              répondait « Historisée côté serveur », badge « backend » à
+              l'appui : trois mots pour dire qu'aucune valeur n'existait. */}
+          {derniereAction && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 0', flexWrap: 'wrap' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Clock size={14} style={{ color: 'var(--primary)' }} /></div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Dernière action enregistrée</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 500, color: 'var(--foreground)' }}>{derniereAction.date}{derniereAction.heure ? ` à ${derniereAction.heure}` : ''}</div>
+              </div>
             </div>
-            <span style={{ fontSize: '0.5625rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'rgba(107,74,82,0.10)', padding: '2px 7px', borderRadius: 'var(--r-full)' }}>backend</span>
-          </div>
+          )}
         </div>
       </SectionCard>
 
@@ -1241,15 +1342,12 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
         <div style={{ padding: '4px 24px 22px' }}>
           <button
             onClick={() => onLogout?.()}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: 'var(--r-sm)', border: '1px solid rgba(192,57,43,0.3)', background: 'rgba(192,57,43,0.06)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: '#C0392B', cursor: 'pointer' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: 'var(--r-sm)', border: '1px solid rgba(192,57,43,0.3)', background: 'rgba(192,57,43,0.06)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--destructive)', cursor: 'pointer' }}>
             <LogOut size={15} /> Se déconnecter
           </button>
         </div>
       </SectionCard>
 
-      {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--foreground)', color: 'var(--background)', padding: '12px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.875rem', fontWeight: 600, zIndex: 300, maxWidth: 360 }}>{toast}</div>
-      )}
     </div>
   );
 }

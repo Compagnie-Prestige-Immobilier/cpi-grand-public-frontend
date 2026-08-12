@@ -16,10 +16,12 @@ import { MA_DEMANDE_QUERY_KEY, useMaDemandeQuery } from '../data/maDemande';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useNavigate } from '../contexts/NavigationContext';
 import { clientApi, type DemandeData, type DemandeInput } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
 import { usePermission } from '../auth/PermissionContext';
 import { JOURNEY_QUERY_KEY, useDossierJourney } from '../data/dossierJourney';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
+import { formatMontantSaisi } from '../lib/format';
+import { DS } from './ui/index';
 
 interface Props { user: AuthUser }
 
@@ -45,22 +47,21 @@ interface DemandeForm {
  * La saisie est libre : si elle n'est pas numérique, on la réaffiche telle
  * quelle plutôt que d'écrire « NaN » à l'écran.
  */
-function fmtMontant(valeur: string): string {
-  const n = Number(valeur);
-  return valeur.trim() !== '' && Number.isFinite(n) ? n.toLocaleString('fr-FR') : valeur;
-}
 
 // ── Doc status config (statuts réels, gérés par l'Agent CPI dans "Mon dossier") ──
 //
 // Les CLÉS sont les statuts du serveur et ne changent pas — seuls les libellés
 // affichés évoluent. Renommer une clé casserait la lecture des réponses API.
+// Libellés côté CLIENT : ils s'adressent à lui et diffèrent volontairement de
+// ceux du back-office (« À envoyer » plutôt que « Non déposée »). Les couleurs,
+// elles, sont celles du registre partagé.
 const DOC_STATUS_CFG: Record<SharedDoc['status'], { label: string; color: string; bg: string }> = {
-  'en-attente':  { label: 'À envoyer',              color: 'var(--muted-foreground)', bg: 'var(--muted)'           },
-  depose:        { label: 'En attente de validation', color: 'var(--chart-4)',        bg: 'rgba(176,80,112,0.08)' },
-  verification:  { label: 'En vérification',        color: 'var(--accent)',           bg: 'rgba(200,146,26,0.09)' },
-  accepte:       { label: 'Validé',                 color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)'   },
-  refuse:        { label: 'Refusé',                 color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
-  'a-remplacer': { label: 'À remplacer',             color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
+  'en-attente':  { label: 'À envoyer',                ...DS.status.muted   },
+  depose:        { label: 'En attente de validation', ...DS.status.info    },
+  verification:  { label: 'En vérification',          ...DS.status.warning },
+  accepte:       { label: 'Validé',                   ...DS.status.success },
+  refuse:        { label: 'Refusé',                   ...DS.status.danger  },
+  'a-remplacer': { label: 'À remplacer',              ...DS.status.danger  },
 };
 
 const DOC_DESCRIPTIONS: Record<string, string> = {
@@ -79,16 +80,16 @@ const HISTO_ICON: Record<ActivityType, LucideIcon> = {
   compte: User2, banque: Building2,
 };
 const HISTO_COLOR: Record<ActivityType, string> = {
-  validation: 'var(--success)', document: 'var(--primary)', notification: 'var(--accent)',
+  validation: 'var(--success)', document: 'var(--primary)', notification: 'var(--accent-text)',
   photo: 'var(--primary)', decaissement: 'var(--success)', commentaire: 'var(--muted-foreground)',
   depot: 'var(--primary)', refus: 'var(--destructive)',
-  compte: 'var(--primary)', banque: 'var(--accent)',
+  compte: 'var(--primary)', banque: 'var(--accent-text)',
 };
 
 // ── Constants ──────────────────────────────────────────────────────
 const STATUT_CONFIG: Record<DemandStatut, { label: string; color: string; bg: string; dot: string }> = {
   validee:    { label: 'Validée',                color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)',   dot: 'var(--success)'          },
-  'en-cours': { label: "En cours d'étude",       color: 'var(--accent)',           bg: 'rgba(200,146,26,0.1)', dot: 'var(--accent)'           },
+  'en-cours': { label: "En cours d'étude",       color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.1)', dot: 'var(--accent)'           },
   incomplete: { label: 'Document à corriger',    color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.09)', dot: 'var(--destructive)'      },
   brouillon:  { label: 'Brouillon',              color: 'var(--muted-foreground)', bg: 'var(--muted)',         dot: 'var(--muted-foreground)' },
 };
@@ -134,7 +135,9 @@ function toForm(d: DemandeData): DemandeForm {
 
 /** « 25 000 000 » → 25000000. Renvoie null si la saisie n'est pas un nombre. */
 function parseMontant(value: string): number | null {
-  const cleaned = value.replace(/[\s ]/g, '').replace(',', '.');
+  // \u202F : espace fine insécable, séparateur de milliers du français. Écrite
+  // en toutes lettres — le caractère brut est invisible dans le code source.
+  const cleaned = value.replace(/[\s\u202f]/g, '').replace(',', '.');
   if (cleaned === '') return null;
   const n = Number(cleaned);
   return Number.isFinite(n) && n >= 0 ? n : null;
@@ -319,6 +322,8 @@ function InlineDepot({ label, onDeposit }: { label: string; onDeposit: (file: Fi
     return (
       <div>
         <div
+          role="button" tabIndex={0} aria-label="Choisir la pièce à déposer"
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) pick(f); }}
@@ -431,6 +436,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   };
 
   const saveMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (payload: DemandeInput) => clientApi.saveMaDemande(payload),
     onSuccess: () => {
       refreshDossier();
@@ -441,6 +448,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   });
 
   const submitMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: async (payload: DemandeInput) => {
       await clientApi.saveMaDemande(payload);
       return clientApi.submitMaDemande();
@@ -457,6 +466,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   // s'afficherait même si rien n'était arrivé — c'était le défaut de l'ancienne
   // version, qui annonçait la réussite sans jamais produire de fichier.
   const recapMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: () => clientApi.telechargerRecapitulatif(),
     onError: e => addToast('error', apiErrorMessage(e, 'Le récapitulatif n\'a pas pu être généré.')),
   });
@@ -508,12 +519,18 @@ export default function MaDemandePage({ user: _user }: Props) {
   };
 
   const handleDepot = (docId: string, file: File) => {
-    depositDoc(docId, file);
+    // Le dépôt est refusé (409) dès que le parcours est verrouillé
+    // (`dossier_etape >= 3`) : la confirmation attend donc la réponse du
+    // serveur. Annoncée au clic, elle laissait le client persuadé d'avoir
+    // envoyé une pièce que l'API n'avait pas acceptée — et le message
+    // expliquant le verrouillage passait pour une erreur sans conséquence.
+    depositDoc(docId, file, undefined, () => {
+      // La pièce repasse « en attente de validation » : plus rien à mettre en
+      // évidence, l'encadré rouge et l'alerte disparaissent d'eux-mêmes.
+      setSurligneDocId(null);
+      addToast('success', 'Document envoyé — votre conseiller CPI va le valider.');
+    });
     setDepotDocId(null);
-    // La pièce repasse « en attente de validation » : plus rien à mettre en
-    // évidence, l'encadré rouge et l'alerte disparaissent d'eux-mêmes.
-    setSurligneDocId(null);
-    addToast('success', 'Document envoyé — votre conseiller CPI va le valider.');
   };
 
   const validDocs   = requisDocs.filter(d => d.status === 'accepte').length;
@@ -725,7 +742,7 @@ export default function MaDemandePage({ user: _user }: Props) {
             <div style={{ flex: 1, minWidth: 240 }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)' }}>Prêt à envoyer votre demande ?</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
-                {!canSubmit && <AlertCircle size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                {!canSubmit && <AlertCircle size={13} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />}
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
                   {canSubmit
                     ? 'Votre conseiller CPI étudiera votre projet dès réception.'
@@ -857,8 +874,8 @@ export default function MaDemandePage({ user: _user }: Props) {
             <div style={{ padding: '8px 28px 24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', margin: '16px 0' }}>
                 {[
-                  { label: 'Montant demandé', value: form.montant ? fmtMontant(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
-                  { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent)' },
+                  { label: 'Montant demandé', value: form.montant ? formatMontantSaisi(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
+                  { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent-text)' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'var(--card)', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -899,7 +916,7 @@ export default function MaDemandePage({ user: _user }: Props) {
           {/* Historique (réel — actions de votre conseiller CPI) */}
           <div style={{ background: 'var(--card)', border: CARD_BORDER, borderRadius: CARD_RADIUS, overflow: 'hidden', boxShadow: CARD_SHADOW }}>
             <div style={{ padding: SECTION_PAD, borderBottom: '1px solid rgba(99,2,16,0.06)', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 'var(--r-md)', background: 'rgba(200,146,26,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 'var(--r-md)', background: 'rgba(200,146,26,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-text)' }}>
                 <Clock size={17} />
               </div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Historique de traitement</h3>
@@ -982,7 +999,7 @@ export default function MaDemandePage({ user: _user }: Props) {
 
             <button onClick={() => navigate('mon-dossier')} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: 'pointer', textAlign: 'left' }}>
               <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(200,146,26,0.12)', border: '1px solid rgba(200,146,26,0.2)' }}>
-                <FolderOpen size={16} style={{ color: 'var(--accent)' }} />
+                <FolderOpen size={16} style={{ color: 'var(--accent-text)' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: 1 }}>Suivre mon dossier</div>
@@ -1041,7 +1058,7 @@ export default function MaDemandePage({ user: _user }: Props) {
               </div>
             ) : (
               <div style={{ margin: '0 20px 20px', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(200,146,26,0.07)', border: '1px solid rgba(200,146,26,0.2)', borderRadius: 'var(--r-md)' }}>
-                <AlertCircle size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                <AlertCircle size={15} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: 1.6 }}>
                   Votre demande est en cours d'étude par votre conseiller CPI.
                 </p>
