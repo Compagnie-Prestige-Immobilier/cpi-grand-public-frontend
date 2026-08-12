@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   TrendingUp, TrendingDown, FileText, CheckCircle2, XCircle,
   Clock, Banknote, Users, BarChart3, Download, Eye, MousePointerClick, Repeat, Activity, Percent, UserCheck, UserPlus, Timer, Gauge,
@@ -14,6 +15,11 @@ import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
 import { computeJourneyStep, SIGNATURE_INDEX, DOCS_VALIDES_INDEX, TIMELINE_STEPS } from '../data/dossierJourney';
 import { formatFCFA, parseFrDate } from '../lib/format';
+import { staffApi } from '../api/endpoints';
+import { SILENCIEUX } from '../api/client';
+
+/** Clé de cache des totaux plateforme (GET /staff/stats/dashboard). */
+const STATS_DASHBOARD_QUERY_KEY = ['staff', 'stats', 'dashboard'] as const;
 
 interface Props { user: AuthUser }
 
@@ -198,11 +204,37 @@ export default function StatisticsDashboard({ user }: Props) {
   const funnelLast = FUNNEL_DATA[FUNNEL_DATA.length - 1]?.value ?? 0;
   const conversionGlobal = funnelFirst > 0 ? Math.round((funnelLast / funnelFirst) * 100) : 0;
 
-  // Nombre d'agents réellement connectés à la plateforme (comptes professionnels).
-  const realAgentCount = 1;
+  // ── Totaux de la plateforme — GET /staff/stats/dashboard ───────────────────
+  //
+  // Ces deux valeurs étaient écrites en dur — `realAgentCount = 1` et
+  // `totalMontant = 0` — dans un écran qui affirme par ailleurs n'afficher
+  // « aucune donnée fictive ». « Agents actifs : 1 » et « Montant total
+  // accordé : 0 M FCFA » se lisaient comme des mesures ; c'étaient des
+  // littéraux. Le serveur les connaît : le bloc `admin` porte le décompte des
+  // comptes professionnels et les montants réellement décaissés.
+  //
+  // Un agent CPI reçoit `admin: null` (la route exige `view-stats`) : les
+  // tuiles concernées affichent alors « — », jamais un zéro qui se ferait
+  // passer pour une mesure.
+  const statsQuery = useQuery({
+    queryKey: STATS_DASHBOARD_QUERY_KEY,
+    queryFn: () => staffApi.stats.dashboard(),
+    // L'écran a ses propres tuiles « — » : un toast d'erreur global par-dessus
+    // n'apprendrait rien de plus à l'utilisateur.
+    meta: SILENCIEUX,
+  });
+  const adminStats = statsQuery.data?.admin ?? null;
 
-  // Montant engagé : non suivi à ce stade (pas de données financières réelles).
-  const totalMontant = 0;
+  /** Comptes « agent CPI » enregistrés. `null` si le serveur ne les expose pas. */
+  const realAgentCount: number | null = adminStats?.utilisateurs.agents ?? null;
+
+  /** Total décaissé, en FCFA : acquisition foncière + construction. */
+  const totalMontant: number | null = adminStats
+    ? adminStats.decaissements.montantTerrain + adminStats.decaissements.montantConstruction
+    : null;
+
+  /** Une valeur absente s'écrit « — », jamais « 0 ». */
+  const ouTiret = (v: number | null, format: (n: number) => string) => (v === null ? '—' : format(v));
 
   // Séries temporelles / performance par agent : nécessitent un historique et un
   // suivi par agent non disponibles → laissées vides (état honnête).
@@ -446,8 +478,8 @@ export default function StatisticsDashboard({ user }: Props) {
               {/* KPIs financiers */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'Montant total accordé', value: `${totalMontant} M FCFA`, color: C.bordeaux },
-                  { label: 'Montant moyen / dossier', value: formatFCFA(totalMontant * 1_000_000 / Math.max(1, rFinalises)), color: C.goldText },
+                  { label: 'Montant total décaissé', value: ouTiret(totalMontant, formatFCFA), color: C.bordeaux },
+                  { label: 'Montant moyen / dossier financé', value: ouTiret(totalMontant, m => formatFCFA(m / Math.max(1, rFinalises))), color: C.goldText },
                   { label: 'Dossiers financés', value: String(rFinalises), color: C.goldText },
                   { label: 'Reste à financer', value: `${rEnCours} dossier${rEnCours > 1 ? 's' : ''}`, color: C.bordeaux },
                 ].map(k => (
@@ -484,7 +516,7 @@ export default function StatisticsDashboard({ user }: Props) {
               {/* Aperçu réel */}
               <div className="grid sm:grid-cols-3 gap-4">
                 {[
-                  { label: 'Agents actifs', value: String(realAgentCount), sub: 'Comptes professionnels CPI', color: C.bordeaux },
+                  { label: 'Agents actifs', value: ouTiret(realAgentCount, String), sub: 'Comptes professionnels CPI', color: C.bordeaux },
                   { label: 'Dossiers suivis', value: String(rTotal), sub: 'Portefeuille en cours', color: C.green },
                   { label: 'Dossiers finalisés', value: String(rFinalises), sub: `${rTaux}% du portefeuille`, color: C.goldText },
                 ].map(k => (
