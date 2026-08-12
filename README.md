@@ -44,7 +44,7 @@ Le navigateur ne conserve **aucune donnée métier**. Deux clés seulement subsi
 | Clé | Rôle |
 | --- | --- |
 | `cpi_api_token` | Jeton d'authentification — confiné à [`src/app/api/client.ts`](src/app/api/client.ts) |
-| `cpi_staff_avatar_{email}` | Avatar du compte pro, sans route API dédiée |
+| `cpi_impersonator_token` | Jeton du membre du personnel mis de côté pendant une prise en main — même module |
 
 Une garde d'intégration continue échoue si un autre module se met à écrire dans le navigateur : c'est ce qui empêche un état local de réapparaître en silence et de contredire le serveur.
 
@@ -65,20 +65,25 @@ npm install
 npm run dev        # serveur de développement (http://localhost:5173)
 ```
 
-Le serveur de développement **relaie `/api` vers `http://192.168.1.128:8000`** (voir `API_PROXY_TARGET` dans `vite.config.ts`) : lancez le backend en parallèle.
+Le serveur de développement **relaie `/api` vers `http://localhost:8000`** (voir `API_PROXY_TARGET` dans `vite.config.ts`) : lancez le backend en parallèle.
 
 ```bash
-# côté backend, en écoutant sur l'adresse réseau et non sur localhost
-php artisan serve --host=192.168.1.128 --port=8000
+# côté backend
+php artisan serve --port=8000
 ```
 
 Le client API appelle `/api` en **relatif** : le proxy réécrit vers le backend, le navigateur ne voit qu'une seule origine, et la question du CORS ne se pose jamais. Pour viser un autre backend, une seule valeur change :
 
 ```bash
-VITE_API_PROXY_TARGET=http://autre-hote:8000 npm run dev
+# Backend sur une autre machine, un autre port, ou dans un conteneur.
+VITE_API_PROXY_TARGET=http://192.0.2.10:8000 npm run dev
 ```
 
-Le serveur écoute sur toutes les interfaces (`host: true`) : l'application est donc joignable depuis un autre poste du réseau sur `http://192.168.1.128:5173`.
+> Cette adresse était jusqu'ici l'IP du réseau local d'un développeur, écrite en
+> dur dans quatre passages de ce fichier : le dépôt exposait un poste nommément,
+> et la marche à suivre ne fonctionnait sur aucune autre machine.
+
+Le serveur écoute sur toutes les interfaces (`host: true`) : l'application reste joignable depuis un autre poste du réseau, à l'adresse que Vite affiche au démarrage (ligne « Network »).
 
 > ⚠️ La connexion Google reste configurée sur `http://localhost:5173/auth/google/callback` (`GOOGLE_REDIRECT_URI` côté backend). Depuis un autre appareil du réseau, ce retour ne résout pas : utilisez la connexion par mot de passe, ou déclarez l'adresse réseau comme URI de redirection supplémentaire dans la console Google Cloud.
 
@@ -92,7 +97,7 @@ npm run build      # tsc --noEmit && vite build → dist/
 Le `dist/` n'a **pas** de proxy : `/api` y reste relatif et suppose que l'API est servie par le même hôte. Si ce n'est pas le cas, donnez la base absolue au build — et pensez à autoriser l'origine du site côté backend (`FRONTEND_URL` dans son `.env`, lu par `config/cors.php`), sans quoi le navigateur bloquera les appels :
 
 ```bash
-VITE_API_URL=http://192.168.1.128:8000 npm run build
+VITE_API_URL=https://api.exemple.sn npm run build
 ```
 
 Chargement optimisé : l'espace connecté (dashboards + Recharts) est chargé **à la demande** ; la landing et la connexion restent légères.
