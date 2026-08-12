@@ -1,17 +1,26 @@
 /**
- * NavigationContext — global programmatic navigation for the Client Dashboard.
+ * NavigationContext — adaptateur mince au-dessus de react-router.
  *
- * Any component anywhere in the tree can call `useNavigate()` to change the
- * active page without threading callbacks through props.
+ * L'API publique (`activeNav`, `activeSub`, `navigate`, `goBack`) est
+ * volontairement inchangée : 33 composants appellent déjà
+ * `navigate('mon-dossier')` ou `navigate('mon-chantier', 'tranche-2')`. Seule
+ * l'implémentation change — la pile en mémoire est remplacée par l'URL.
  *
- * Usage:
+ * Ce que cela apporte, et qui n'existait pas :
+ *   - un lien profond partageable vers chaque écran ;
+ *   - le bouton « précédent » du navigateur qui fonctionne enfin ;
+ *   - un rechargement qui reste sur la page consultée ;
+ *   - une URL inconnue qui donne une vraie 404 (`activeNav === null`).
+ *
+ * Usage inchangé :
  *   const { navigate, activeNav, activeSub } = useNavigate();
  *   navigate('mon-dossier');
- *   navigate('mon-dossier', 'bancaires');   // opens dossier → relevés bancaires sub
- *   navigate('mon-chantier', 'tranche-2'); // opens chantier → tranche detail
+ *   navigate('mon-dossier', 'bancaires');   // → /dossier?section=bancaires
  */
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo } from 'react';
+import { useLocation, useNavigate as useRouterNavigate } from 'react-router';
+import { navForPath, pathForNav, type NavArea } from '../routes';
 
 export interface NavTarget {
   page: string;
@@ -19,40 +28,56 @@ export interface NavTarget {
 }
 
 interface NavigationContextValue {
-  activeNav: string;
+  /** Identifiant de la page courante, ou `null` si l'URL n'en désigne aucune. */
+  activeNav: string | null;
   activeSub?: string;
   navigate: (page: string, sub?: string) => void;
-  /** Convenience: go back to the previous page */
+  /** Retour à l'écran précédent — l'historique du navigateur, pas une pile locale. */
   goBack: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
 
+/**
+ * Le sous-écran voyage en paramètre de requête plutôt qu'en segment d'URL :
+ * il n'y a pas de liste exhaustive des sous-écrans possibles, et en inventer
+ * une aurait obligé à déclarer une route par onglet de chaque page.
+ */
+const SUB_PARAM = 'section';
+
 export function NavigationProvider({
   children,
-  defaultPage = 'dashboard',
+  area,
 }: {
   children: React.ReactNode;
-  defaultPage?: string;
+  /** Espace de l'utilisateur : les mêmes identifiants n'ont pas la même URL. */
+  area: NavArea;
 }) {
-  const [history, setHistory] = useState<NavTarget[]>([{ page: defaultPage }]);
-  const current = history[history.length - 1];
+  const routerNavigate = useRouterNavigate();
+  const location = useLocation();
 
-  function navigate(page: string, sub?: string) {
-    setHistory(prev => [...prev, { page, sub }]);
-  }
+  const value = useMemo<NavigationContextValue>(() => {
+    const activeNav = navForPath(area, location.pathname);
+    const activeSub = new URLSearchParams(location.search).get(SUB_PARAM) ?? undefined;
 
-  function goBack() {
-    setHistory(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
-  }
+    return {
+      activeNav,
+      activeSub,
+      navigate(page: string, sub?: string) {
+        const path = pathForNav(area, page);
+        // Un identifiant inconnu n'est pas silencieusement ignoré : on suit
+        // quand même vers une URL, qui affichera la 404. Le contraire — ne
+        // rien faire — laissait l'utilisateur sur un bouton qui semblait mort.
+        const target = path ?? `/${page}`;
+        routerNavigate(sub ? `${target}?${SUB_PARAM}=${encodeURIComponent(sub)}` : target);
+      },
+      goBack() {
+        routerNavigate(-1);
+      },
+    };
+  }, [area, location.pathname, location.search, routerNavigate]);
 
-  return (
-    <NavigationContext.Provider
-      value={{ activeNav: current.page, activeSub: current.sub, navigate, goBack }}
-    >
-      {children}
-    </NavigationContext.Provider>
-  );
+  return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }
 
 export function useNavigate() {

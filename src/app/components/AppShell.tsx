@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Building2, LayoutDashboard, FileText, Bell, UserCircle,
@@ -11,6 +11,9 @@ import cpiLogo from '../../assets/image.png';
 import type { AuthUser, UserRole } from '../App';
 import { ClientProvider } from '../contexts/ClientContext';
 import { NavigationProvider, useNavigate } from '../contexts/NavigationContext';
+import { Navigate, useLocation } from 'react-router';
+import { areaForRole } from '../App';
+import { homePath } from '../routes';
 import type { ClientSummary } from '../data/demoStore';
 import { useClientsQuery, useMyProfileQuery, toClientSummary } from '../data/clientRegistry';
 import { useClientData } from '../data/useClientData';
@@ -21,17 +24,26 @@ import { ChantierStateProvider, useChantierState, useMonChantierQuery } from '..
 import { useDossierJourneyQuery } from '../data/dossierJourney';
 import { apiErrorMessage, isImpersonating } from '../api/client';
 import { auth, clientApi } from '../api/endpoints';
-import ClientDashboardHome from './ClientDashboardHome';
-import AgentDashboard from './AgentDashboard';
-import AdminDashboard from './AdminDashboard';
-import StatisticsDashboard from './StatisticsDashboard';
-import ConventionBancairePage from './ConventionBancairePage';
-import MonDossierPage from './MonDossierPage';
-import MonChantierPage from './MonChantierPage';
-import MaDemandePage from './MaDemandePage';
-import MonProfilPage from './MonProfilPage';
-import SimulateurPage from './SimulateurPage';
-import NotificationsPage from './NotificationsPage';
+
+/**
+ * Un écran = un morceau de bundle.
+ *
+ * Ces onze pages étaient importées statiquement : le morceau `AppShell` pesait
+ * 1 015 ko (237 ko compressés) et il fallait le charger en entier pour afficher
+ * n'importe quel écran — y compris les deux tableaux de bord Recharts qu'un
+ * client ne voit jamais. `lazy()` ne charge que l'écran demandé.
+ */
+const ClientDashboardHome    = lazy(() => import('./ClientDashboardHome'));
+const AgentDashboard         = lazy(() => import('./AgentDashboard'));
+const AdminDashboard         = lazy(() => import('./AdminDashboard'));
+const StatisticsDashboard    = lazy(() => import('./StatisticsDashboard'));
+const ConventionBancairePage = lazy(() => import('./ConventionBancairePage'));
+const MonDossierPage         = lazy(() => import('./MonDossierPage'));
+const MonChantierPage        = lazy(() => import('./MonChantierPage'));
+const MaDemandePage          = lazy(() => import('./MaDemandePage'));
+const MonProfilPage          = lazy(() => import('./MonProfilPage'));
+const SimulateurPage         = lazy(() => import('./SimulateurPage'));
+const NotificationsPage      = lazy(() => import('./NotificationsPage'));
 
 interface AppShellProps {
   user: AuthUser;
@@ -439,6 +451,7 @@ function SupportPage() {
 
 function AppShellInner({ user, onLogout }: AppShellProps) {
   const { activeNav, navigate } = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -466,6 +479,20 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
     return () => { document.body.style.overflow = previous; };
   }, [moreOpen]);
 
+  /**
+   * Écrans que le rôle courant a le droit d'ouvrir.
+   *
+   * Le menu ne proposait déjà que ceux-là, mais rien n'empêchait d'atteindre
+   * les autres — hier c'était impossible faute d'URL, ce ne l'est plus. Un
+   * client qui saisit /admin/decaissements doit obtenir une 404, pas le module
+   * de décaissement.
+   */
+  const allowedNavs = new Set<string>([
+    ...navItems.map(n => n.id),
+    'mon-profil',
+    ...(isClientRole ? ['support'] : []),
+  ]);
+
   const renderDashboard = () => {
     if (activeNav === 'statistiques')  return <StatisticsDashboard user={user} />;
     if (activeNav === 'convention')    return <ConventionBancairePage />;
@@ -480,15 +507,24 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
     if (user.role === 'client-fonctionnaire' || user.role === 'client-public') {
       return <ClientDashboardHome user={user} />;
     }
-    if (user.role === 'agent-cpi') return <AgentDashboard user={user} activeNav={activeNav} />;
-    if (user.role === 'admin') return <AdminDashboard user={user} activeNav={activeNav} />;
+    if (user.role === 'agent-cpi') return <AgentDashboard user={user} activeNav={activeNav ?? 'dashboard'} />;
+    if (user.role === 'admin') return <AdminDashboard user={user} activeNav={activeNav ?? 'dashboard'} />;
     return null;
   };
 
   // Active nav label for the top bar
   // Libellés des entrées hors liste principale (bas de menu) pour le titre du bandeau.
   const EXTRA_NAV_LABELS: Record<string, string> = { support: 'Support', 'mon-profil': 'Mon profil' };
-  const navLabel = navItems.find(n => n.id === activeNav)?.label ?? EXTRA_NAV_LABELS[activeNav] ?? 'Tableau de bord';
+  const introuvable = activeNav === null || !allowedNavs.has(activeNav);
+  const navLabel = introuvable
+    ? 'Page introuvable'
+    : navItems.find(n => n.id === activeNav)?.label ?? EXTRA_NAV_LABELS[activeNav] ?? 'Tableau de bord';
+
+  // La racine « / » n'appartient pas à l'espace du personnel : on l'y emmène
+  // chez lui plutôt que de lui présenter une 404 après connexion.
+  if (activeNav === null && location.pathname === '/') {
+    return <Navigate to={homePath(areaForRole(user.role))} replace />;
+  }
 
   return (
     <div className="cpi-app-shell flex h-screen overflow-hidden" style={{ background: 'var(--background)', fontFamily: 'var(--font-sans)' }}>
@@ -620,8 +656,19 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
 
         {/* Content — animation d'entrée rejouée à chaque changement de page */}
         <main id="cpi-main" tabIndex={-1} className="cpi-shell-main flex-1 overflow-y-auto overflow-x-hidden p-5 lg:p-7" style={{ outline: 'none' }}>
-          <div key={activeNav} className="cpi-page-enter">
-            {renderDashboard()}
+          {/*
+            Pas de `key={activeNav}` ici.
+
+            Il forçait React à démonter puis remonter tout l'écran à chaque clic
+            de menu, pour rejouer l'animation d'entrée. Toute saisie en cours et
+            non enregistrée — un formulaire de demande à moitié rempli, un
+            commentaire d'agent — disparaissait alors sans avertissement. Le
+            gain était une animation ; le coût, du travail perdu.
+          */}
+          <div className="cpi-page-enter">
+            <Suspense fallback={<PageLoading />}>
+              {introuvable ? <PageIntrouvable onRetour={() => navigate('dashboard')} /> : renderDashboard()}
+            </Suspense>
           </div>
         </main>
       </div>
@@ -756,6 +803,52 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
   );
 }
 
+/** Attente du chargement d'un morceau de bundle (une page lazy). */
+function PageLoading() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '8px 0' }}>
+      <div className="cpi-skeleton" style={{ width: 220, height: 26, borderRadius: 'var(--r-sm)' }} />
+      <div className="cpi-skeleton" style={{ width: 320, height: 14, borderRadius: 'var(--r-sm)' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 10 }}>
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="cpi-skeleton" style={{ height: 120, borderRadius: 'var(--r-md)' }} />
+        ))}
+      </div>
+      <span role="status" aria-live="polite" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+        Chargement de la page…
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Page introuvable.
+ *
+ * Elle n'existait pas : une adresse inconnue affichait silencieusement le
+ * tableau de bord, et l'utilisateur croyait que son lien avait fonctionné.
+ */
+function PageIntrouvable({ onRetour }: { onRetour: () => void }) {
+  return (
+    <div role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, minHeight: '55vh', textAlign: 'center', padding: 24 }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: 900, color: 'var(--muted)', lineHeight: 1 }}>404</div>
+      <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '1.375rem', fontWeight: 800, color: 'var(--foreground)' }}>
+        Cette page n'existe pas
+      </h1>
+      <p style={{ margin: 0, maxWidth: 420, fontSize: '0.875rem', lineHeight: 1.6, color: 'var(--muted-foreground)' }}>
+        L'adresse demandée ne correspond à aucun écran de votre espace. Elle a
+        peut-être changé, ou vous n'y avez pas accès avec ce compte.
+      </p>
+      <button
+        type="button"
+        onClick={onRetour}
+        style={{ marginTop: 6, padding: '11px 22px', borderRadius: 'var(--r-full)', border: 'none', background: 'var(--primary)', color: 'var(--primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}
+      >
+        Revenir au tableau de bord
+      </button>
+    </div>
+  );
+}
+
 // ─── Exported shell — wraps all providers ────────────────────────────────────
 
 // ─── Écrans d'attente / d'erreur du chargement initial ───────────────────────
@@ -827,11 +920,10 @@ export default function AppShell({ user, onLogout }: AppShellProps) {
     ? (profileQuery.data?.id ?? user.clientId ?? 'c-none')
     : (allClients[0]?.id ?? 'c-none');
 
-  const defaultPage = isClientRole ? 'simulateur' : 'dashboard';
   return (
     <>
     <BandeauPriseEnMain nom={user.name} />
-    <NavigationProvider defaultPage={defaultPage}>
+    <NavigationProvider area={areaForRole(user.role)}>
     <ClientProvider allClients={allClients} initialId={initialId} locked={isClientRole}>
     <DocStateProvider>
     <CpiDocsProvider>
