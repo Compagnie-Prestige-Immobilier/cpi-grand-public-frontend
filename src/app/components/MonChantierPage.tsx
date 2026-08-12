@@ -3,7 +3,7 @@ import {
   CheckCircle2, Clock, AlertCircle,
   Phone, Mail, MapPin, Calendar, HardHat, Building2,
   Camera, FileText, Layers, Bell, ArrowRight,
-  Banknote, Wrench, Home, Key, ChevronDown, ChevronUp,
+  Banknote, Wrench, Key, ChevronDown, ChevronUp,
   Download, MessageSquare, Eye, TrendingUp,
   CalendarDays, BarChart3, Image, Video,
   Ruler, Star, ArrowUpRight, Zap, User,
@@ -13,6 +13,7 @@ import type { AuthUser } from '../App';
 import { useChantierState } from '../data/chantierStateContext';
 import { useClientData } from '../data/useClientData';
 import { useNavigate } from '../contexts/NavigationContext';
+import { Modal } from './ui/overlays';
 
 const HERO_PHOTO = 'https://images.unsplash.com/photo-1783260606348-bb2deaa215a3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
 
@@ -30,22 +31,44 @@ interface Tranche {
 // ne sont utilisées qu'en repli si le contexte chantier réel est vide.
 const FEED_STATIC: { date: string; entries: { icon: typeof Camera; text: string; type: string }[] }[] = [];
 
-const GALLERY_ITEMS: { bg: string; label: string; tranche: string; date: string }[] = [];
+const GALLERY_ITEMS: { url: string | null; bg: string; label: string; tranche: string; date: string }[] = [];
 
 const CALENDAR_EVENTS: { id: string; titre: string; type: string; date: string; statut: string; color: string }[] = [];
 
 // Feuille de route standard de la construction (labels/roadmap uniquement).
-// Aucun avancement fictif : statut « à venir », pct 0, date « — » tant que le
-// chantier n'a pas démarré / qu'aucune donnée réelle n'est disponible.
-const PHASES = [
-  { id: 'etudes',     label: 'Études',        icon: Ruler,     status: 'pending', pct: 0, date: '—' },
-  { id: 'fondations', label: 'Fondations',    icon: Layers,    status: 'pending', pct: 0, date: '—' },
-  { id: 'elevation',  label: 'Élévation',     icon: Building2,  status: 'pending', pct: 0, date: '—' },
-  { id: 'toiture',    label: 'Toiture',       icon: Home,      status: 'pending', pct: 0, date: '—' },
-  { id: 'secondoeuvre',label: 'Second œuvre', icon: Wrench,    status: 'pending', pct: 0, date: '—' },
-  { id: 'finitions',  label: 'Finitions',     icon: Star,      status: 'pending', pct: 0, date: '—' },
-  { id: 'reception',  label: 'Réception',     icon: Key,       status: 'pending', pct: 0, date: '—' },
+/**
+ * Phases de construction, dans l'ordre réel du chantier.
+ *
+ * Les libellés sont **exactement** ceux que le personnel choisit dans
+ * `ChantierModule` (`ETAPES`) et que l'API renvoie dans
+ * `chantierInfo.etapeActuelle`. C'était tout le problème de la version
+ * précédente : elle listait sept phases inventées (« Études », « Élévation »,
+ * « Toiture », « Réception ») dont aucune ne correspondait à une valeur
+ * existante. Le tableau était figé — `status: 'pending'`, `pct: 0`, `date: '—'`
+ * en dur — et rien ne l'alimentait jamais. La frise restait donc grise du
+ * premier au dernier jour du chantier, y compris une fois la maison livrée.
+ */
+const PHASES: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'preparation',  label: 'Préparation',  icon: Ruler     },
+  { id: 'fondations',   label: 'Fondations',   icon: Layers    },
+  { id: 'gros-oeuvre',  label: 'Gros œuvre',   icon: Building2 },
+  { id: 'second-oeuvre',label: 'Second œuvre', icon: Wrench    },
+  { id: 'finitions',    label: 'Finitions',    icon: Star      },
+  { id: 'livraison',    label: 'Livraison',    icon: Key       },
 ];
+
+/**
+ * Rang de l'étape courante dans `PHASES`, ou −1 si elle est inconnue (chantier
+ * non démarré, ou libellé serveur inattendu). Comparaison insensible à la casse
+ * et aux accents : « Gros œuvre » ne doit pas rater « gros oeuvre ».
+ */
+function rangEtape(etapeActuelle: string): number {
+  const norm = (v: string) =>
+    v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/œ/g, 'oe').replace(/[^a-z]/g, '');
+  const cible = norm(etapeActuelle);
+  if (!cible) return -1;
+  return PHASES.findIndex(p => norm(p.label) === cible);
+}
 
 // ─── Micro components ─────────────────────────────────────────────────────────
 
@@ -120,7 +143,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 // ─── Tranche card (expanded by default if en-cours) ───────────────────────────
-function TrancheCard({ t }: { t: Tranche }) {
+function TrancheCard({ t, onVoirPhotos }: { t: Tranche; onVoirPhotos?: (trancheId: string) => void }) {
   const [open, setOpen] = useState(t.etat === 'en-cours');
   const dotColor = t.etat === 'terminee' ? 'var(--success)' : t.etat === 'en-cours' ? 'var(--primary)' : 'var(--muted-foreground)';
   const pctFill = t.etat === 'terminee' ? 100 : t.etat === 'en-cours' ? 65 : 0;
@@ -230,18 +253,23 @@ function TrancheCard({ t }: { t: Tranche }) {
             </div>
           )}
 
+          {/* Ce bouton n'avait pas de gestionnaire. Il amène désormais à la
+              galerie, filtrée sur la tranche concernée. */}
           {t.photos > 0 && (
-            <button style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '6px 14px', borderRadius: 'var(--r-sm)',
-              border: '1px solid var(--border)', background: 'var(--card)',
-              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
-              color: 'var(--primary)', cursor: 'pointer', marginTop: '4px',
-            }}>
-              <Camera size={13} />
-              {t.photos} photos disponibles
-              <ArrowRight size={12} />
-            </button>
+            <a
+              href="#chantier-galerie"
+              onClick={() => onVoirPhotos?.(t.id)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '6px 14px', borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--border)', background: 'var(--card)',
+                fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
+                color: 'var(--primary)', cursor: 'pointer', marginTop: '4px', textDecoration: 'none',
+              }}>
+              <Camera size={13} aria-hidden="true" />
+              Voir les {t.photos} photos de cette tranche
+              <ArrowRight size={12} aria-hidden="true" />
+            </a>
           )}
         </div>
       )}
@@ -261,7 +289,10 @@ const TRANCHE_DETAILS: Record<number, { detail: string }> = {
 };
 
 export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
-  const [galleryFilter, setGalleryFilter] = useState<'all' | 'T1' | 'T2'>('all');
+  // Le filtre était typé `'all' | 'T1' | 'T2'` et sa liste écrite en dur : les
+  // photos d'une troisième tranche existaient mais n'étaient atteignables par
+  // aucun onglet. Il suit désormais les tranches réellement présentes.
+  const [galleryFilter, setGalleryFilter] = useState<string>('all');
   const [galleryTab, setGalleryTab] = useState('photos');
   const [feedExpanded, setFeedExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -341,14 +372,22 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
   // on l'utilise comme vignette, avec le dégradé en repli le temps du chargement.
   const GALLERY_LIVE = useMemo(() =>
     medias.filter(m => m.type === 'photo' && m.visibleClient).map(m => ({
-      bg: m.url
-        ? `url(${JSON.stringify(m.url)}) center / cover no-repeat`
-        : (m.bg || 'linear-gradient(135deg,var(--primary),#B05070)'),
+      // L'URL est exposée telle quelle, et non enfouie dans un `background`
+      // CSS : une photo rendue en fond n'a pas de texte alternatif possible,
+      // et un lecteur d'écran ne rencontrait donc *aucune* des photos du
+      // chantier — la moitié de l'intérêt de cette page.
+      url: m.url ?? null,
+      bg: m.bg || 'linear-gradient(135deg,var(--primary),#B05070)',
       label: m.titre, tranche: m.phase ? `T${m.phase}` : 'T1', date: m.date,
     })), [medias]);
   const rawGallery = GALLERY_LIVE.length > 0 ? GALLERY_LIVE : GALLERY_ITEMS;
   const galleryItems = galleryFilter === 'all' ? rawGallery : rawGallery.filter(g => g.tranche === galleryFilter);
   const photoCount = rawGallery.length;
+  // Un onglet par tranche effectivement photographiée, dans l'ordre.
+  const galleryFiltres = useMemo(() => {
+    const tranches = [...new Set(rawGallery.map(g => g.tranche))].sort();
+    return [{ id: 'all', label: 'Tout' }, ...tranches.map(t => ({ id: t, label: t }))];
+  }, [rawGallery]);
 
   const CALENDAR_LIVE = useMemo(() => {
     const clientEvents = events.filter(e => e.visibleClient);
@@ -369,6 +408,8 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
   }, [chantierHistory]);
 
   const statut = chantierInfo.statut;
+  const etapeIndex = rangEtape(chantierInfo.etapeActuelle);
+  const [photoOuverte, setPhotoOuverte] = useState<{ url: string | null; label: string; tranche: string; date: string } | null>(null);
   const statutLabel = statut === 'en-cours' ? 'En cours' : statut === 'termine' ? 'Terminé' : statut === 'livre' ? 'Livré' : statut === 'en-retard' ? 'En retard' : statut === 'suspendu' ? 'Suspendu' : 'Non démarré';
   const statutVariant = statut === 'en-cours' ? 'warning' : statut === 'termine' || statut === 'livre' ? 'success' : statut === 'en-retard' ? 'warning' : 'muted';
 
@@ -552,7 +593,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
       {/* ═══ 3. PHASES TIMELINE ════════════════════════════════════════════════ */}
       <Card>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-          <SectionHeader icon={BarChart3} title="Phases de construction" sub="Progression détaillée des 7 étapes du chantier" />
+          <SectionHeader icon={BarChart3} title="Phases de construction" sub={etapeIndex >= 0 ? `Étape en cours : ${chantierInfo.etapeActuelle}` : "Le chantier n'a pas encore démarré."} />
         </div>
         <div style={{ padding: '20px 24px', overflowX: 'auto' }}>
           <div style={{ display: 'flex', gap: '0', minWidth: '560px', position: 'relative' }}>
@@ -561,8 +602,9 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
 
             {PHASES.map((phase, i) => {
               const Icon = phase.icon;
-              const done = phase.status === 'done';
-              const active = phase.status === 'active';
+              // Étape courante déduite de l'API, phases précédentes terminées.
+              const done = etapeIndex >= 0 && i < etapeIndex;
+              const active = i === etapeIndex;
               return (
                 <div key={phase.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', position: 'relative', zIndex: 1 }}>
                   {/* Icon circle */}
@@ -587,14 +629,16 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
                       color: done ? 'var(--success)' : active ? 'var(--primary)' : 'var(--muted-foreground)',
                       marginBottom: '2px', whiteSpace: 'nowrap',
                     }}>{phase.label}</div>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>{phase.date}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                      {done ? 'Terminée' : active ? 'En cours' : 'À venir'}
+                    </div>
                     {active && (
                       <div style={{ marginTop: '4px' }}>
                         <span style={{
                           background: 'rgba(99,2,16,0.1)', color: 'var(--primary)',
                           fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700,
                           padding: '2px 6px', borderRadius: 'var(--r-full)',
-                        }}>{phase.pct}%</span>
+                        }}>{chantierInfo.progression}%</span>
                       </div>
                     )}
                   </div>
@@ -613,25 +657,33 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
           }
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {TRANCHES_LIVE.map(t => <TrancheCard key={t.id} t={t} />)}
+          {TRANCHES_LIVE.map(t => <TrancheCard key={t.id} t={t} onVoirPhotos={id => { setGalleryTab('photos'); setGalleryFilter(id.replace(/^t/, 'T')); }} />)}
         </div>
       </div>
 
       {/* ═══ 5. GALLERY ═══════════════════════════════════════════════════════ */}
-      <div>
+      <div id="chantier-galerie">
         <SectionHeader icon={Camera} title="Galerie du chantier" sub={`${photoCount} photos · Plans · Documents`}
-          action={
-            <button style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '7px 14px', borderRadius: 'var(--r-sm)',
-              border: '1px solid var(--border)', background: 'transparent',
-              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
-              color: 'var(--foreground)', cursor: 'pointer',
-            }}>
-              <Download size={13} />
-              Tout télécharger
+          // « Tout télécharger » n'avait aucun gestionnaire : le bouton
+          // paraissait actif et ne faisait rien. Il n'existe pas d'archive
+          // côté API ; on ouvre donc chaque photo dans un onglet, ce que le
+          // navigateur sait enregistrer, et le bouton disparaît s'il n'y a
+          // rien à télécharger.
+          action={photoCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => rawGallery.forEach(g => { if (g.url) window.open(g.url, '_blank', 'noopener'); })}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '7px 14px', borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--border)', background: 'transparent',
+                fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
+                color: 'var(--foreground)', cursor: 'pointer',
+              }}>
+              <Download size={13} aria-hidden="true" />
+              Ouvrir toutes les photos
             </button>
-          }
+          ) : undefined}
         />
 
         {/* Tab + filter row */}
@@ -668,8 +720,8 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
 
           {galleryTab === 'photos' && (
             <div style={{ display: 'flex', gap: '4px' }}>
-              {[{ id: 'all', label: 'Tout' }, { id: 'T1', label: 'T1' }, { id: 'T2', label: 'T2' }].map(f => (
-                <button key={f.id} onClick={() => setGalleryFilter(f.id as 'all' | 'T1' | 'T2')} style={{
+              {galleryFiltres.map(f => (
+                <button key={f.id} onClick={() => setGalleryFilter(f.id)} style={{
                   padding: '5px 12px', borderRadius: 'var(--r-sm)',
                   border: `1px solid ${galleryFilter === f.id ? 'var(--primary)' : 'var(--border)'}`,
                   background: galleryFilter === f.id ? 'var(--secondary)' : 'transparent',
@@ -685,34 +737,51 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
         {galleryTab === 'photos' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
             {galleryItems.map((item, i) => (
-              <div key={i} style={{
-                aspectRatio: '4/3', borderRadius: 'var(--r-sm)', overflow: 'hidden',
-                background: item.bg, position: 'relative', cursor: 'pointer',
-                transition: 'transform 0.18s, box-shadow 0.18s',
-              }}
+              // Vignette cliquable : c'était un `<div>` qui grossissait au
+              // survol et affichait une icône « œil », sans aucun `onClick`.
+              // Elle promettait un agrandissement qui n'existait pas.
+              <button
+                key={i}
+                type="button"
+                onClick={() => setPhotoOuverte(item)}
+                aria-label={`Agrandir la photo « ${item.label} » — ${item.tranche}${item.date ? `, ${item.date}` : ''}`}
+                style={{
+                  display: 'block', width: '100%', padding: 0, border: 'none', font: 'inherit',
+                  aspectRatio: '4/3', borderRadius: 'var(--r-sm)', overflow: 'hidden',
+                  background: item.bg, position: 'relative', cursor: 'pointer',
+                  transition: 'transform 0.18s, box-shadow 0.18s',
+                }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 10px 32px rgba(0,0,0,0.2)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
               >
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Camera size={24} style={{ color: 'rgba(255,255,255,0.25)' }} />
-                </div>
-                {/* Hover overlay */}
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.18s' }}
+                {item.url ? (
+                  <img
+                    src={item.url}
+                    alt={`${item.label} — chantier, ${item.tranche}${item.date ? `, ${item.date}` : ''}`}
+                    loading="lazy"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Camera size={24} aria-hidden="true" style={{ color: 'rgba(255,255,255,0.25)' }} />
+                  </span>
+                )}
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0)', transition: 'background 0.18s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.3)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0)')}
                 >
-                  <Eye size={20} style={{ color: 'rgba(255,255,255,0)' }}
+                  <Eye size={20} aria-hidden="true" style={{ color: 'rgba(255,255,255,0)' }}
                     onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.9)')}
                     onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0)')} />
-                </div>
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 10px', background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: '#fff' }}>{item.label}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                </span>
+                <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'block', padding: '8px 10px', textAlign: 'left', background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
+                  <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: '#fff' }}>{item.label}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', fontWeight: 700, color: 'rgba(255,255,255,0.65)', background: 'rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: 'var(--r-xs)' }}>{item.tranche}</span>
                     {item.date && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', color: 'rgba(255,255,255,0.5)' }}>{item.date}</span>}
-                  </div>
-                </div>
-              </div>
+                  </span>
+                </span>
+              </button>
             ))}
           </div>
         )}
@@ -993,6 +1062,36 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
           ))}
         </div>
       </div>
+
+      {photoOuverte && (
+        <Modal
+          open
+          onClose={() => setPhotoOuverte(null)}
+          titre={`Photo du chantier — ${photoOuverte.label}`}
+          largeur={880}
+          style={{ padding: 0, background: 'var(--foreground)' }}
+        >
+          <figure style={{ margin: 0 }}>
+            {photoOuverte.url ? (
+              <img
+                src={photoOuverte.url}
+                alt={`${photoOuverte.label} — chantier, ${photoOuverte.tranche}${photoOuverte.date ? `, ${photoOuverte.date}` : ''}`}
+                style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '76vh', objectFit: 'contain' }}
+              />
+            ) : (
+              <div style={{ padding: '64px 24px', textAlign: 'center', color: 'var(--background)' }}>
+                Cette photo n'est plus disponible.
+              </div>
+            )}
+            <figcaption style={{ padding: '14px 20px', background: 'var(--card)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)' }}>
+              <strong>{photoOuverte.label}</strong>
+              <span style={{ color: 'var(--muted-foreground)' }}>
+                {' · '}{photoOuverte.tranche}{photoOuverte.date ? ` · ${photoOuverte.date}` : ''}
+              </span>
+            </figcaption>
+          </figure>
+        </Modal>
+      )}
 
     </div>
   );
