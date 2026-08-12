@@ -1,5 +1,5 @@
 import { ArrowLeft, CheckCircle2, FileText, ShieldCheck } from 'lucide-react';
-import cpiLogo from '../../imports/image.png';
+import cpiLogo from '../../assets/image.png';
 import type { AppPage } from '../App';
 
 export const sections = [

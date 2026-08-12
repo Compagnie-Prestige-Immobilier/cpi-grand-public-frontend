@@ -10,8 +10,8 @@ import type { LucideIcon } from 'lucide-react';
 import type { AppPage } from '../App';
 import { auth, type AuthPayload } from '../api/endpoints';
 import { setToken, apiErrorMessage, apiFieldError } from '../api/client';
-import bgWelcome from '../../imports/BG.jpg';
-import cpiLogo from '../../imports/image.png';
+import bgWelcome from '../../assets/BG.jpg';
+import cpiLogo from '../../assets/image.png';
 import ConditionsPage, { ConditionsModal } from './ConditionsPage';
 
 type ProfilType = 'fonctionnaire' | 'prive' | 'autre';

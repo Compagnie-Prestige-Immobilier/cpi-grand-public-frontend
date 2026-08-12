@@ -7,7 +7,7 @@ import {
   Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye, MoreHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import cpiLogo from '../../imports/image.png';
+import cpiLogo from '../../assets/image.png';
 import type { AuthUser, UserRole } from '../App';
 import { ClientProvider } from '../contexts/ClientContext';
 import { NavigationProvider, useNavigate } from '../contexts/NavigationContext';

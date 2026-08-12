@@ -4,18 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 
-function figmaAssetResolver() {
-  return {
-    name: 'figma-asset-resolver',
-    resolveId(id: any) {
-      if (id.startsWith('figma:asset/')) {
-        const filename = id.replace('figma:asset/', '')
-        return path.resolve(import.meta.dirname, 'src/assets', filename)
-      }
-    },
-  }
-}
-
 /**
  * SEO : résout `__SITE_URL__` dans index.html, génère robots.txt et
  * sitemap.xml, et injecte le marqueur d'analytique si un identifiant existe.
@@ -134,10 +122,11 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [
-      figmaAssetResolver(),
       seoAndAnalytics(SITE_URL, GTAG_ID),
-      // The React and Tailwind plugins are both required for Make, even if
-      // Tailwind is not being actively used – do not remove them
+      // `react()` : Fast Refresh en développement et transformation JSX.
+      // `tailwindcss()` : Tailwind 4 s'intègre en greffon Vite, pas en PostCSS.
+      // Les deux sont réellement utilisés (utilitaires Tailwind dans AppShell
+      // et les grilles responsives, `@apply` dans globals.css).
       react(),
       tailwindcss(),
     ],
