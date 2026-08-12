@@ -666,11 +666,28 @@ export const staffApi = {
     update: async (id: string, input: CpiDocUpdateInput): Promise<CpiDocData> =>
       (await api.put(`/staff/cpi-docs/${id}`, input)).data.data,
 
-    /** Dépose le fichier réel du document (R2 privé, servi via `fileUrl` signée). */
-    upload: async (id: string, file: File): Promise<CpiDocData> => {
+    /**
+     * Dépose le fichier réel du document (R2 privé, servi via `fileUrl` signée).
+     *
+     * `onProgress` reçoit l'avancement réel du transfert. Les écrans affichaient
+     * jusqu'ici une barre animée par `Math.random()`, sans aucun lien avec ce
+     * qui partait effectivement sur le réseau.
+     */
+    upload: async (
+      id: string,
+      file: File,
+      onProgress?: (pourcent: number) => void,
+    ): Promise<CpiDocData> => {
       const fd = new FormData();
       fd.append('file', file);
-      return (await api.post(`/staff/cpi-docs/${id}/upload`, fd)).data.data;
+      return (await api.post(`/staff/cpi-docs/${id}/upload`, fd, {
+        onUploadProgress: e => {
+          if (!onProgress) return;
+          // `total` est absent si le serveur ne renvoie pas la taille : on ne
+          // fabrique pas de pourcentage dans ce cas.
+          if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+        },
+      })).data.data;
     },
 
     /** Réservé au super-admin (403 pour un agent CPI). */

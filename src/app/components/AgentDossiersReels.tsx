@@ -7,7 +7,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useClientContext } from '../contexts/ClientContext';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
-import { useCpiDocs, type CpiDoc } from '../data/cpiDocsContext';
+import { useCpiDocs, type CpiDoc, type CreateDocHooks } from '../data/cpiDocsContext';
 import { useClientData } from '../data/useClientData';
 import {
   TIMELINE_STEPS, computeJourneyStep,
@@ -320,9 +320,14 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
       {showUpload && (
         <UploadDocModal
           onClose={() => setShowUpload(false)}
-          onPublish={(nom, categorie, signatureRequise, taille) => {
-            createDoc({ categorie: categorie as CpiDoc['categorie'], nom, version: 'V1', auteur: agentName, signatureRequise, format: 'PDF', taille }, agentName, true, client.id);
-            setShowUpload(false);
+          onPublish={(nom, categorie, signatureRequise, taille, fichier, hooks) => {
+            // Le 5e argument (`fichier`) manquait : le document partait avec ses
+            // seules métadonnées, `cpiDocsContext` n'appelait jamais l'upload, et
+            // l'agent voyait pourtant une barre de progression puis un succès.
+            createDoc(
+              { categorie: categorie as CpiDoc['categorie'], nom, version: 'V1', auteur: agentName, signatureRequise, format: 'PDF', taille },
+              agentName, true, client.id, fichier, hooks,
+            );
           }}
         />
       )}
@@ -332,10 +337,20 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
 
 // ─── Modale : téléverser un document pour le client ───────────────────────────
 
-function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish: (nom: string, categorie: string, signatureRequise: boolean, taille: string) => void }) {
-  const [file, setFile] = useState<string | null>(null);
+function UploadDocModal({ onClose, onPublish }: {
+  onClose: () => void;
+  onPublish: (
+    nom: string, categorie: string, signatureRequise: boolean, taille: string,
+    fichier: File, hooks: CreateDocHooks,
+  ) => void;
+}) {
+  // L'objet File lui-même, pas seulement son nom : c'est lui qu'il faut
+  // transmettre. L'ancienne version ne gardait que `name` et `size`, puis
+  // laissait le File être ramassé par le GC.
+  const [fichier, setFichier] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
-  const [done, setDone] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [nom, setNom] = useState('');
   const [categorie, setCategorie] = useState('contrats');
@@ -343,15 +358,28 @@ function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish
   const [taille, setTaille] = useState('—');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const startUpload = (name: string, sizeMo?: number) => {
-    setFile(name); setDone(false); setProgress(0);
-    if (!nom) setNom(name.replace(/\.[^.]+$/, ''));
-    setTaille(sizeMo ? `${sizeMo.toFixed(1)} Mo` : '—');
-    let p = 0;
-    const iv = setInterval(() => { p += Math.random() * 24 + 10; if (p >= 100) { p = 100; clearInterval(iv); setDone(true); } setProgress(Math.round(p)); }, 130);
+  const selectFile = (f: File) => {
+    setFichier(f);
+    setErreur(null);
+    setProgress(0);
+    if (!nom) setNom(f.name.replace(/\.[^.]+$/, ''));
+    setTaille(`${(f.size / 1048576).toFixed(1)} Mo`);
   };
 
-  const canPublish = done && nom.trim().length >= 3;
+  // Rien n'est encore parti tant que l'agent n'a pas validé : la barre ne
+  // s'affiche donc qu'à partir de l'envoi, et elle suit le transfert réel.
+  const canPublish = fichier !== null && nom.trim().length >= 3 && !envoi;
+
+  const handlePublish = () => {
+    if (!fichier || !canPublish) return;
+    setEnvoi(true);
+    setErreur(null);
+    onPublish(nom.trim(), categorie, signature, taille, fichier, {
+      onProgress: setProgress,
+      onDone: () => onClose(),
+      onError: message => { setEnvoi(false); setErreur(message); },
+    });
+  };
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -361,28 +389,41 @@ function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: 16 }}>Le document sera transmis au client, qui pourra le télécharger et le signer si nécessaire.</div>
 
         {/* Zone de dépôt */}
-        {!file ? (
+        {!fichier ? (
           <div
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f.name, f.size / 1048576); }}
+            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) selectFile(f); }}
             onClick={() => inputRef.current?.click()}
             style={{ border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--r-md)', padding: '26px 16px', textAlign: 'center', cursor: 'pointer', background: dragging ? 'var(--secondary)' : 'var(--input-background)' }}>
             <Upload size={26} style={{ color: 'var(--primary)', margin: '0 auto 8px', display: 'block' }} />
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>Glissez le fichier ici, ou cliquez</div>
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: 2 }}>PDF, JPG ou PNG · 10 Mo max</div>
-            <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) startUpload(f.name, f.size / 1048576); }} />
+            <input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); }} />
           </div>
         ) : (
           <div style={{ background: 'var(--input-background)', borderRadius: 'var(--r-sm)', padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <FileText size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file}</span>
-              {done && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
+              <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichier.name}</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', flexShrink: 0 }}>{taille}</span>
+              {!envoi && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
             </div>
-            <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${progress}%`, background: done ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
-            </div>
+            {/* La barre n'apparaît qu'à l'envoi et suit le transfert réel : tant
+                que l'agent n'a pas validé, rien ne part sur le réseau. */}
+            {envoi && (
+              <>
+                <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: progress >= 100 ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
+                </div>
+                <div style={{ marginTop: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }} role="status" aria-live="polite">
+                  {progress >= 100 ? 'Finalisation…' : `Envoi ${progress} %`}
+                </div>
+              </>
+            )}
+            {erreur && (
+              <div style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)' }} role="alert">{erreur}</div>
+            )}
           </div>
         )}
 
@@ -408,7 +449,7 @@ function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--muted-foreground)', cursor: 'pointer' }}>Annuler</button>
-          <button disabled={!canPublish} onClick={() => onPublish(nom.trim(), categorie, signature, taille)}
+          <button disabled={!canPublish} onClick={handlePublish}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 'var(--radius)', border: 'none', background: canPublish ? 'var(--primary)' : 'var(--muted)', color: canPublish ? '#fff' : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: canPublish ? 'pointer' : 'not-allowed' }}>
             <Send size={14} /> Transmettre au client
           </button>

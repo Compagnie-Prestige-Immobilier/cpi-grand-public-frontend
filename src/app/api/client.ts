@@ -75,13 +75,27 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-// 401 → session expirée ou token révoqué : on efface le token.
-// (L'app repasse à l'écran de connexion au prochain rendu.)
+/**
+ * Émis quand le serveur répond 401 alors qu'un jeton était présent : session
+ * expirée, jeton révoqué, ou compte supprimé.
+ *
+ * Effacer le jeton ne suffisait pas. `App` ne lit `getToken()` qu'à
+ * l'initialisation de son état : une fois l'application montée, plus rien ne
+ * réagissait. L'utilisateur restait devant une interface qui paraissait
+ * connectée et dont toutes les requêtes échouaient en silence — aucun message,
+ * aucun retour à la connexion, jusqu'au rechargement manuel de la page.
+ */
+export const UNAUTHENTICATED_EVENT = 'cpi:unauthenticated';
+
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401 && getToken()) {
       clearToken();
+      // Une prise en main laisse le jeton du personnel en réserve : il est
+      // devenu inutilisable lui aussi, ne pas le garder derrière.
+      localStorage.removeItem(IMPERSONATOR_KEY);
+      window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
     }
     return Promise.reject(error);
   },

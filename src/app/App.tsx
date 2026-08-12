@@ -4,7 +4,9 @@ import OnboardingPage from './components/OnboardingPage';
 import { PermissionProvider } from './auth/PermissionContext';
 import type { Permission, UserRole as ApiUserRole } from './auth/permissions';
 import { auth, type AuthPayload, type UserData } from './api/endpoints';
-import { getToken, setToken, clearToken } from './api/client';
+import { getToken, setToken, clearToken, UNAUTHENTICATED_EVENT } from './api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 // L'app authentifiée (dashboards, modules, graphiques Recharts) est chargée à la
 // demande : la landing / connexion reste ultra-légère au premier chargement.
@@ -25,7 +27,7 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
-export type AppPage = 'welcome' | 'login' | 'register' | 'dashboard';
+export type AppPage = 'welcome' | 'login' | 'register' | 'terms' | 'dashboard';
 
 /** Rôle Spatie (API) → rôle legacy attendu par les dashboards. */
 function mapApiRole(role: ApiUserRole, profileType: string | null): UserRole {
@@ -76,6 +78,7 @@ function AppLoader() {
 }
 
 export default function App() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState<AppPage>('welcome');
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [apiRole, setApiRole] = useState<ApiUserRole | null>(null);
@@ -144,15 +147,40 @@ export default function App() {
     } : prev);
   };
 
-  const handleLogout = () => {
-    auth.logout().catch(() => { /* le token local est effacé quoi qu'il arrive */ });
+  /**
+   * Remet l'application dans son état déconnecté.
+   *
+   * `queryClient.clear()` est indispensable : sans lui, le cache React Query
+   * garde en mémoire le dossier, les documents et les montants de l'utilisateur
+   * sortant, que le suivant récupère tels quels le temps d'un rafraîchissement.
+   * Sur un poste partagé, c'est une fuite de données entre clients.
+   */
+  const resetAuthState = () => {
     clearToken();
+    queryClient.clear();
     setAuthUser(null);
     setApiRole(null);
     setPermissions([]);
     setNeedsOnboarding(false);
     setPage('welcome');
   };
+
+  const handleLogout = () => {
+    auth.logout().catch(() => { /* le token local est effacé quoi qu'il arrive */ });
+    resetAuthState();
+  };
+
+  // Session invalidée côté serveur : l'intercepteur a effacé le jeton, il reste
+  // à sortir l'utilisateur de l'interface et à le lui dire.
+  useEffect(() => {
+    const onUnauthenticated = () => {
+      resetAuthState();
+      toast.error('Votre session a expiré. Merci de vous reconnecter.');
+    };
+    window.addEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (booting) return <AppLoader />;
 

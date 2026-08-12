@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Landmark, Briefcase, UserCircle, Lock } from 'lucide-react';
+import { Landmark, Briefcase, UserCircle, Lock, Check, AlertCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { auth, type UserData, type OnboardingInput } from '../api/endpoints';
 import { apiErrorMessage } from '../api/client';
@@ -31,6 +31,25 @@ const labelStyle: React.CSSProperties = {
   fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)',
 };
 
+const normalizeSenegalPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '').replace(/^221/, '').slice(0, 9);
+  return digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+};
+
+function PhoneField({ value, onChange, invalid }: { value: string; onChange: (v: string) => void; invalid: boolean }) {
+  const valid = value.replace(/\D/g, '').length === 9;
+  return <div style={{ position: 'relative' }}>
+    <div style={{ display: 'flex', alignItems: 'stretch', border: `1.5px solid ${invalid ? 'var(--destructive)' : valid ? 'var(--success)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', background: 'var(--input-background)', overflow: 'hidden', boxShadow: invalid ? '0 0 0 3px rgba(192,57,43,0.12)' : 'none' }}>
+      <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem' }}>+221</span>
+      <input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} onChange={e => onChange(normalizeSenegalPhone(e.target.value))} aria-invalid={invalid || undefined} style={{ ...inputStyle, border: 0, borderRadius: 0, background: 'transparent' }} />
+      {valid && <Check size={15} style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
+    </div>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: invalid ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
+      {invalid && <AlertCircle size={11} />} {invalid ? 'Entrez 9 chiffres.' : 'Format sénégalais : 9 chiffres'}
+    </span>
+  </div>;
+}
+
 /**
  * Formulaire de complétion de profil : affiché après une première connexion
  * Google (needs_onboarding=true), avant l'accès au tableau de bord.
@@ -47,7 +66,8 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const formValid = phone.replace(/\D/g, '').length >= 7 && employer.trim().length >= 2 && profil !== null && revenus !== '';
+  const phoneOk = phone.replace(/\D/g, '').length === 9;
+  const formValid = phoneOk && employer.trim().length >= 2 && profil !== null && revenus !== '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +78,7 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
     setError('');
     setLoading(true);
     try {
-      const input: OnboardingInput = { phone, employer, profile_type: profil, revenus };
+      const input: OnboardingInput = { phone: `+221 ${phone}`, employer, profile_type: profil, revenus };
       const user = await auth.completeOnboarding(input);
       onComplete(user);
     } catch (err) {
@@ -111,7 +131,7 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={labelStyle}>Téléphone *</label>
-            <input type="tel" placeholder="+221 7X XXX XX XX" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} />
+            <PhoneField value={phone} onChange={setPhone} invalid={!!error && !phoneOk} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>

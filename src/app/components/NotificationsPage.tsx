@@ -9,6 +9,12 @@ import { useNavigate } from '../contexts/NavigationContext';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import type { ActivityEntry } from '../data/activityLog';
+import {
+  useMesNotificationsQuery, useMarkNotificationRead,
+  notifDateLabel, sortNotifications,
+} from '../data/notifications';
+import type { NotificationData } from '../api/endpoints';
+import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,8 +45,6 @@ interface Notif {
   actionLabel?: string;
   actionPage?: string;
 }
-
-// ─── Static notification data ─────────────────────────────────────────────────
 
 const INITIAL_NOTIFS: Notif[] = [];
 
@@ -117,9 +121,38 @@ const CATEGORIES: { id: NotifCategory; label: string }[] = [
   { id: 'dossier',   label: 'Dossier'   },
 ];
 
+/** Famille renvoyée par l'API → mise en forme locale (icône, couleur). */
+const API_TYPE_TO_LOCAL: Record<string, NotifType> = {
+  validation: 'document-valide',
+  alerte: 'alerte-retard',
+  action: 'dossier-update',
+  info: 'info',
+};
+
+/** Onglet dans lequel ranger une notification de l'API. */
+const API_TYPE_TO_CATEGORY: Record<string, Notif['category']> = {
+  alerte: 'securite',
+  validation: 'dossier',
+  action: 'dossier',
+  info: 'dossier',
+};
+
+function toNotif(n: NotificationData): Notif {
+  return {
+    id: n.id,
+    type: API_TYPE_TO_LOCAL[n.type] ?? 'info',
+    titre: n.titre,
+    description: n.message,
+    date: notifDateLabel(n),
+    heure: n.heure,
+    lu: n.lu,
+    category: API_TYPE_TO_CATEGORY[n.type] ?? 'dossier',
+    actionPage: n.targetPage ?? undefined,
+  };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-// Convertit une trace d'envoi de l'agent (type 'notification') en notification client.
 function agentEntryToNotif(e: ActivityEntry): Notif {
   const m = e.action.match(/«\s*(.*?)\s*»/);
   const message = m ? m[1] : e.action;
@@ -139,12 +172,29 @@ function agentEntryToNotif(e: ActivityEntry): Notif {
 export default function NotificationsPage() {
   const { navigate } = useNavigate();
   const client = useClientData();
+
+  // La page vivait entièrement en mémoire : état local semé une seule fois,
+  // aucun appel réseau, alors que GET /client/notifications et
+  // POST /client/notifications/{id}/read existent et fonctionnent. Marquer une
+  // notification lue ne survivait donc pas à un rechargement, et la pastille
+  // « non lues » ne redescendait jamais durablement.
+  const query = useMesNotificationsQuery(true);
+  const markReadMutation = useMarkNotificationRead();
   const { history } = useDocState();
-  // Notifications réelles envoyées par l'agent (contexte partagé) + notifications de démo.
-  const [notifs, setNotifs] = useState<Notif[]>(() => {
-    const agentNotifs = history.filter(e => e.type === 'notification').map(agentEntryToNotif);
-    return [...agentNotifs, ...INITIAL_NOTIFS];
-  });
+
+  // Boîte serveur (source de vérité, persistante) + traces d'envoi de l'agent
+  // présentes dans le contexte partagé. Les secondes portent le même
+  // identifiant que l'entrée d'activité : on dédoublonne pour ne pas afficher
+  // deux fois un envoi déjà remonté par l'API.
+  const notifs = useMemo(() => {
+    const depuisApi = sortNotifications(query.data).map(toNotif);
+    const vus = new Set(depuisApi.map(n => n.id));
+    const depuisAgent = history
+      .filter(e => e.type === 'notification' && !vus.has(e.id))
+      .map(agentEntryToNotif);
+    return [...depuisApi, ...depuisAgent, ...INITIAL_NOTIFS];
+  }, [query.data, history]);
+
   const [activeCategory, setActiveCategory] = useState<NotifCategory>('toutes');
 
   const unreadCount = notifs.filter(n => !n.lu).length;
@@ -166,8 +216,17 @@ export default function NotificationsPage() {
     return Array.from(map.entries());
   }, [filtered]);
 
-  const markAllRead = () => setNotifs(prev => prev.map(n => ({ ...n, lu: true })));
-  const markRead = (id: string) => setNotifs(prev => prev.map(n => n.id === id ? { ...n, lu: true } : n));
+  const markRead = (id: string) => {
+    const cible = notifs.find(n => n.id === id);
+    if (!cible || cible.lu) return;   // pas d'appel inutile sur une entrée déjà lue
+    markReadMutation.mutate(id, {
+      onError: () => toast.error('Impossible de marquer cette notification comme lue.'),
+    });
+  };
+
+  const markAllRead = () => {
+    notifs.filter(n => !n.lu).forEach(n => markReadMutation.mutate(n.id));
+  };
 
   const catCount = (cat: NotifCategory) =>
     cat === 'toutes'

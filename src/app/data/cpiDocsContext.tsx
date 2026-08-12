@@ -53,6 +53,17 @@ export interface CpiDoc {
 
 // ─── Context interface ────────────────────────────────────────────────────────
 
+/**
+ * Retours d'un `createDoc` : avancement réel du transfert du fichier, puis
+ * issue de l'opération. Sans eux, l'appelant ne peut rien afficher d'honnête —
+ * `createDoc` est un `mutate` sans valeur de retour.
+ */
+export interface CreateDocHooks {
+  onProgress?: (pourcent: number) => void;
+  onDone?: () => void;
+  onError?: (message: string) => void;
+}
+
 interface CpiDocsCtx {
   cpiDocs: CpiDoc[];
   /**
@@ -76,6 +87,7 @@ interface CpiDocsCtx {
     publishNow: boolean,
     clientId?: string,
     file?: File | null,
+    hooks?: CreateDocHooks,
   ) => void;
   /** Chargement des documents CPI depuis l'API. */
   loading: boolean;
@@ -239,6 +251,7 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
       fields: Omit<CpiDoc, 'id' | 'dateCreation' | 'datePublication' | 'status' | 'visibleClient'>;
       publishNow: boolean;
       file?: File | null;
+      onProgress?: (pourcent: number) => void;
     }) => {
       const created = await staffApi.cpiDocs.create({
         client_id: v.clientId,
@@ -254,7 +267,7 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
       });
       // Le fichier réel part vers R2 AVANT la publication : un document publié
       // avec fichier n'est jamais visible du client sans son contenu.
-      if (v.file) await staffApi.cpiDocs.upload(created.id, v.file);
+      if (v.file) await staffApi.cpiDocs.upload(created.id, v.file, v.onProgress);
       return v.publishNow ? staffApi.cpiDocs.publish(created.id) : created;
     },
     onSuccess: invalidateCpiDocs,
@@ -298,8 +311,12 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
     publishNow: boolean,
     clientId: string = selectedClientId,
     file: File | null = null,
+    hooks?: CreateDocHooks,
   ) => {
-    createMutation.mutate({ clientId, fields, publishNow, file });
+    createMutation.mutate(
+      { clientId, fields, publishNow, file, onProgress: hooks?.onProgress },
+      { onSuccess: () => hooks?.onDone?.(), onError: e => hooks?.onError?.(apiErrorMessage(e, 'La création du document a échoué.')) },
+    );
   };
 
   // ── État de chargement / erreur ────────────────────────────────────────────

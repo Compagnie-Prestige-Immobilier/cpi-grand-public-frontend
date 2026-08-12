@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import * as Checkbox from '@radix-ui/react-checkbox';
 import {
   Eye, EyeOff, Shield, Zap, Headphones, Handshake, Lock,
   ChevronRight, ChevronDown, ArrowLeft, CheckSquare, Square,
   Landmark, Briefcase, UserCircle, ArrowRight, CheckCircle,
-  Mail, Phone, Building2, AlertCircle, Check,
+  Mail, Building2, AlertCircle, Check,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AppPage } from '../App';
@@ -11,6 +12,7 @@ import { auth, type AuthPayload } from '../api/endpoints';
 import { setToken, apiErrorMessage, apiFieldError } from '../api/client';
 import bgWelcome from '../../imports/BG.jpg';
 import cpiLogo from '../../imports/image.png';
+import ConditionsPage, { ConditionsModal } from './ConditionsPage';
 
 type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
 
@@ -133,6 +135,26 @@ function Field({ label, type = 'text', placeholder, value, onChange, error, vali
   );
 }
 
+const normalizeSenegalPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '').replace(/^221/, '').slice(0, 9);
+  return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 7), digits.slice(7, 9)].filter(Boolean).join(' ');
+};
+
+function PhoneField({ label = 'Téléphone *', value, onChange, error, valid }: {
+  label?: string; value: string; onChange: (v: string) => void; error?: string; valid?: boolean;
+}) {
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+    <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>{label}</label>
+    <div style={{ display: 'flex', alignItems: 'stretch', border: `1.5px solid ${error ? 'var(--destructive)' : valid ? 'var(--success)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', background: 'var(--input-background)', overflow: 'hidden' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', whiteSpace: 'nowrap' }}><span aria-label="Sénégal">🇸🇳</span> +221</span>
+      <input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="77 000 00 00" value={value} aria-invalid={!!error || undefined} onChange={e => onChange(normalizeSenegalPhone(e.target.value))}
+        style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: 0, outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', color: 'var(--foreground)' }} />
+      {valid && <Check size={15} style={{ alignSelf: 'center', marginRight: 12, color: 'var(--success)' }} />}
+    </div>
+    <FieldHelp error={error} hint="Format sénégalais : 9 chiffres" />
+  </div>;
+}
+
 function SelectField({ label, value, onChange, options, placeholder, error, valid, hint }: {
   label: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; placeholder?: string;
@@ -223,7 +245,7 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '20px 40px',
       }}>
-        <img src={cpiLogo} alt="CPI" style={{ height: '52px', width: 'auto' }} />
+          <img src={cpiLogo} alt="CPI — Compagnie Prestige Immobilier" style={{ height: '64px', width: '64px', objectFit: 'cover', borderRadius: '50%', clipPath: 'circle(50%)', display: 'block' }} />
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           background: 'rgba(255,255,255,0.95)',
@@ -418,6 +440,12 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
         </a>
       </main>
 
+      <footer className="welcome-footer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '0 24px 18px', color: 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', textAlign: 'center' }}>
+        <span>© 2026 CPI SARL · Tous droits réservés</span>
+        <span aria-hidden="true">·</span>
+        <button type="button" onClick={() => onNavigate('terms')} style={{ padding: 0, border: 0, background: 'none', color: 'inherit', font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}>Conditions générales d’utilisation</button>
+      </footer>
+
       <style>{`
         @media (max-width: 600px) {
           .profile-grid { grid-template-columns: 1fr !important; }
@@ -509,9 +537,9 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
   );
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }} className="auth-split">
+    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: 'minmax(360px, 0.9fr) minmax(560px, 1.1fr)' }} className="auth-split">
       {/* Left — photo */}
-      <div style={{
+      <div className="auth-visual" style={{
         position: 'relative', display: 'flex', flexDirection: 'column',
         justifyContent: 'flex-end', padding: '48px 40px',
         backgroundImage: `url(${PHOTO})`,
@@ -519,7 +547,7 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(28,8,16,0.25) 0%, rgba(28,8,16,0.82) 60%, rgba(28,8,16,0.97) 100%)' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <img src={cpiLogo} alt="CPI" style={{ height: '40px', marginBottom: '28px', display: 'block' }} />
+          <img src={cpiLogo} alt="CPI — Compagnie Prestige Immobilier" style={{ height: '72px', width: '72px', objectFit: 'cover', borderRadius: '50%', clipPath: 'circle(50%)', marginBottom: '28px', display: 'block' }} />
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.5rem, 3.5vw, 2.25rem)', fontWeight: 800, color: 'white', lineHeight: 1.2, marginBottom: '14px' }}>
             Réalisez votre projet<br />immobilier en toute<br />sérénité.
           </h1>
@@ -649,6 +677,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
     pwd: '', pwd2: '',
   });
   const [accepted, setAccepted] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState('');
@@ -660,7 +689,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
   // ── Validation en direct des champs requis ──
   const nomOk   = form.nom.trim().length >= 2;
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
-  const telOk   = form.tel.replace(/\D/g, '').length >= 7;
+  const telOk   = form.tel.replace(/\D/g, '').length === 9;
   const empOk   = form.employeur.trim().length >= 2;
   const revOk   = form.revenus !== '';
   const pwdOk   = form.pwd.length >= 8;
@@ -679,13 +708,13 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
         name: form.nom.trim(),
         email: form.email.trim(),
         password: form.pwd,
-        phone: form.tel.trim(),
+        phone: `+221 ${form.tel.trim()}`,
       });
       if (payload.token) setToken(payload.token);
       try {
         // Complète immédiatement le profil avec les informations déjà saisies.
         const user = await auth.completeOnboarding({
-          phone: form.tel.trim(),
+          phone: `+221 ${form.tel.trim()}`,
           employer: form.employeur.trim(),
           profile_type: profil,
           revenus: form.revenus,
@@ -711,9 +740,9 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }} className="auth-split">
+    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: 'minmax(360px, 0.9fr) minmax(560px, 1.1fr)' }} className="auth-split">
       {/* Left panel — dark */}
-      <div style={{
+      <div className="auth-visual" style={{
         position: 'relative', display: 'flex', flexDirection: 'column',
         justifyContent: 'space-between', padding: '48px 40px',
         background: 'var(--sidebar)', minHeight: '100vh', overflow: 'hidden',
@@ -726,7 +755,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
             <img
               src={cpiLogo}
               alt="CPI"
-              style={{ height: '56px', width: 'auto', display: 'block', filter: 'brightness(0) invert(1)' }}
+              style={{ height: '72px', width: '72px', objectFit: 'cover', borderRadius: '50%', clipPath: 'circle(50%)', display: 'block' }}
             />
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.375rem, 3vw, 2rem)', fontWeight: 800, color: 'white', lineHeight: 1.25, marginBottom: '16px' }}>
@@ -774,7 +803,11 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
       </div>
 
       {/* Right panel */}
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px', background: 'var(--card)', overflowY: 'auto' }} className="auth-form-panel">
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px', background: 'var(--card)', overflowY: 'auto' }} className="auth-form-panel register-form-panel">
+        <div className="auth-mobile-header">
+          <img src={cpiLogo} alt="CPI" style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: '50%', clipPath: 'circle(50%)' }} />
+          <div><strong>Créer votre compte</strong><span>Étape {step} sur 3</span></div>
+        </div>
 
         {step === 1 ? (
           /* ── Step 1: Profile selection ── */
@@ -883,16 +916,16 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
               </div>
             )}
 
-            <div style={{ maxWidth: '400px' }}>
+            <div style={{ maxWidth: '560px' }}>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <Field label="Nom complet *" placeholder="Prénom Nom" value={form.nom} onChange={set('nom')}
-                  icon={<UserCircle size={15} />} valid={nomOk} error={attempted && !nomOk ? 'Indiquez votre nom complet.' : undefined} />
+                  icon={<UserCircle size={15} />} valid={nomOk} hint={form.nom && !nomOk ? 'Indiquez votre prénom et votre nom.' : undefined} error={attempted && !nomOk ? 'Indiquez votre nom complet.' : undefined} />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <Field label="E-mail *" type="email" placeholder="vous@email.com" value={form.email} onChange={set('email')}
-                    icon={<Mail size={15} />} valid={emailOk} error={attempted && !emailOk ? 'Adresse e-mail invalide.' : undefined} />
-                  <Field label="Téléphone *" type="tel" placeholder="+221 7X XXX XX XX" value={form.tel} onChange={set('tel')}
-                    icon={<Phone size={15} />} valid={telOk} error={attempted && !telOk ? 'Numéro requis.' : undefined} />
+                    icon={<Mail size={15} />} valid={emailOk} hint={form.email && !emailOk ? 'Exemple : vous@email.com' : undefined} error={attempted && !emailOk ? 'Adresse e-mail invalide.' : undefined} />
+                  <PhoneField value={form.tel} onChange={set('tel')}
+                    valid={telOk} error={attempted && !telOk ? 'Entrez 9 chiffres.' : undefined} />
                 </div>
 
                 <Field
@@ -924,26 +957,38 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                     error={attempted && !pwd2Ok ? (form.pwd2 ? 'Ne correspond pas.' : 'Confirmez.') : undefined} />
                 </div>
 
+                {/* Champ OBLIGATOIRE de l'inscription. Il était rendu en
+                    `<div onClick>` : ni focusable, ni actionnable au clavier,
+                    sans rôle ARIA. Un utilisateur au clavier ou au lecteur
+                    d'écran ne pouvait tout simplement pas créer de compte.
+                    Radix fournit le rôle, l'état et la gestion Espace/Entrée. */}
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', userSelect: 'none' }}
-                    onClick={() => setAccepted(!accepted)}>
-                    {accepted
-                      ? <CheckSquare size={18} style={{ color: 'var(--primary)', marginTop: '2px', flexShrink: 0 }} />
-                      : <Square size={18} style={{ color: attempted ? 'var(--destructive)' : 'var(--border)', marginTop: '2px', flexShrink: 0 }} />
-                    }
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <Checkbox.Root
+                      id="cgu"
+                      checked={accepted}
+                      onCheckedChange={valeur => setAccepted(valeur === true)}
+                      aria-invalid={attempted && !accepted}
+                      aria-describedby={attempted && !accepted ? 'cgu-erreur' : undefined}
+                      style={{
+                        marginTop: '2px', flexShrink: 0, width: 18, height: 18, padding: 0,
+                        border: 0, background: 'none', cursor: 'pointer', lineHeight: 0,
+                      }}
+                    >
+                      {accepted
+                        ? <CheckSquare size={18} style={{ color: 'var(--primary)' }} />
+                        : <Square size={18} style={{ color: attempted ? 'var(--destructive)' : 'var(--border)' }} />
+                      }
+                    </Checkbox.Root>
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                       {"J'accepte les "}
-                      {/* Volontairement PAS un lien : la page de conditions
-                          n'existe pas encore. L'ancien <a href="#"> ne menait
-                          nulle part ET son stopPropagation empêchait de cocher
-                          la case en cliquant sur le libellé. */}
-                      <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                        conditions d'utilisation
-                      </strong>
+                      <button type="button" onClick={() => setShowTerms(true)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--primary)', font: 'inherit', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                        conditions générales d’utilisation (CGU)
+                      </button>
                     </span>
                   </div>
                   {attempted && !accepted && (
-                    <div style={{ marginTop: 6, marginLeft: 28 }}><FieldHelp error="Vous devez accepter les conditions." /></div>
+                    <div id="cgu-erreur" style={{ marginTop: 6, marginLeft: 28 }}><FieldHelp error="Vous devez accepter les conditions." /></div>
                   )}
                 </div>
 
@@ -970,14 +1015,23 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
           </div>
         )}
       </div>
+      {showTerms && <ConditionsModal onClose={() => setShowTerms(false)} />}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) {
           .auth-split { grid-template-columns: 1fr !important; }
-          .auth-split > :first-child { min-height: 200px !important; justify-content: flex-end !important; }
-          .auth-form-panel { padding: 32px 24px !important; }
+          .auth-visual { display: none !important; }
+          .auth-form-panel { min-height: 100vh !important; padding: 20px 16px 32px !important; justify-content: flex-start !important; align-items: stretch !important; }
+          .auth-form-panel > div { width: 100% !important; max-width: none !important; }
+          .auth-form-panel form > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+          .auth-mobile-header { display: flex !important; align-items: center; gap: 12px; margin-bottom: 24px; }
+          .auth-mobile-header strong, .auth-mobile-header span { display: block; font-family: var(--font-sans); }
+          .auth-mobile-header strong { color: var(--foreground); font-size: .9rem; }
+          .auth-mobile-header span { color: var(--muted-foreground); font-size: .75rem; margin-top: 3px; }
+          .register-form-panel form { gap: 16px !important; }
         }
+        .auth-mobile-header { display: none; }
       `}</style>
     </div>
   );
@@ -993,6 +1047,7 @@ export default function AuthPage({ page, onLogin, onNavigate }: Props) {
   };
 
   if (page === 'register') return <RegisterScreen onLogin={onLogin} onNavigate={onNavigate} initialProfile={regProfile} />;
+  if (page === 'terms')    return <ConditionsPage onNavigate={onNavigate} />;
   if (page === 'login')    return <LoginScreen    onLogin={onLogin} onNavigate={onNavigate} />;
   return                          <WelcomeScreen  onNavigate={onNavigate} onProfileSelect={handleProfileSelect} />;
 }

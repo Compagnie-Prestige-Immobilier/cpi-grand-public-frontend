@@ -69,7 +69,6 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const [file, setFile] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [taille, setTaille] = useState('—');
-  const [progress, setProgress] = useState(0);
   const [uploadDone, setUploadDone] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,15 +77,15 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const nameOf = (id: string) => allClientSummaries.find(c => c.id === id)?.name ?? id;
 
   const startUpload = (f: File) => {
-    setFile(f.name); setPendingFile(f); setUploadDone(false); setProgress(0);
+    // Le fichier est seulement SÉLECTIONNÉ ici : le transfert vers R2 n'a lieu
+    // qu'à la création (createDoc → upload), et pour plusieurs destinataires à
+    // la fois. Une barre de progression à ce stade ne pourrait mesurer que du
+    // vide — l'ancienne version l'animait avec `Math.random()`.
+    setFile(f.name); setPendingFile(f); setUploadDone(true);
     setTaille(`${(f.size / 1048576).toFixed(1)} Mo`);
     if (!form.titre) setForm(fo => ({ ...fo, titre: f.name.replace(/\.[^.]+$/, '') }));
-    // Le vrai envoi vers R2 a lieu à la création (createDoc → upload) ; la barre
-    // signale seulement que la pièce est prête à partir.
-    let p = 0;
-    const iv = setInterval(() => { p += Math.random() * 24 + 10; if (p >= 100) { p = 100; clearInterval(iv); setUploadDone(true); } setProgress(Math.round(p)); }, 130);
   };
-  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setPendingFile(null); setTaille('—'); setProgress(0); setUploadDone(false); setShowForm(false); };
+  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setPendingFile(null); setTaille('—'); setUploadDone(false); setShowForm(false); };
 
   const applyTemplate = (t: typeof TEMPLATES[number]) => {
     setForm(f => ({ ...f, titre: t.label, categorie: t.categorie, signature: t.signature }));
@@ -227,10 +226,10 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                   <FileText size={17} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                   <span style={{ flex: 1, fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file} · {taille}</span>
                   {uploadDone && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
-                  <button onClick={() => { setFile(null); setUploadDone(false); setProgress(0); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600 }}>Retirer</button>
+                  <button onClick={() => { setFile(null); setPendingFile(null); setUploadDone(false); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600 }}>Retirer</button>
                 </div>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progress}%`, background: uploadDone ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  Prêt à envoyer — le fichier partira à la publication.
                 </div>
               </div>
             )}
