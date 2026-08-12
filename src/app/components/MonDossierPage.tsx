@@ -115,7 +115,7 @@ const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: s
   'accepte':      { label: 'Validé',          color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
   'refuse':       { label: 'Refusé',          color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: XCircle },
   'a-remplacer':  { label: 'À corriger',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)', icon: RefreshCw },
-  'verification': { label: 'En vérification', color: 'var(--accent)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
+  'verification': { label: 'En vérification', color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
   'en-attente':   { label: 'À déposer',       color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
   'depose':       { label: 'Déposé — analyse', color: 'var(--chart-4)',         bg: 'rgba(176,80,112,0.08)', icon: Send },
 };
@@ -265,7 +265,7 @@ function DossierJourneyBanner() {
             Étape {activeStep + 1} sur {total}
           </span>
         </div>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.18)', color: 'var(--accent)', border: '1px solid rgba(200,146,26,0.25)', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.18)', color: 'var(--accent-text)', border: '1px solid rgba(200,146,26,0.25)', whiteSpace: 'nowrap' }}>
           {nextEtape}
         </span>
       </div>
@@ -341,7 +341,7 @@ function DossierJourneyBanner() {
           })}
         </div>
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 800, color: 'var(--accent)' }}>{TIMELINE_STEPS[activeStep].label}</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 800, color: 'var(--accent-text)' }}>{TIMELINE_STEPS[activeStep].label}</span>
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)' }}> — {TIMELINE_STEPS[activeStep].sub}</span>
         </div>
       </div>
@@ -383,7 +383,7 @@ function ProjectHeader({ clientName }: { clientName: string }) {
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'var(--input-background)', padding: '2px 8px', borderRadius: 'var(--r-xs)', marginTop: '6px', display: 'inline-block' }}>Réf. {client.ref}</span>
             )}
           </div>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.12)', color: 'var(--accent)', whiteSpace: 'nowrap' }}>{client.statut}</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: 'var(--r-full)', background: 'rgba(200,146,26,0.12)', color: 'var(--accent-text)', whiteSpace: 'nowrap' }}>{client.statut}</span>
         </div>
         {chips.length > 0 && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -777,7 +777,7 @@ function SignatureBanner({ docs, onSign }: { docs: CpiListDoc[]; onSign: (d: Cpi
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', padding: '14px 18px', background: 'rgba(200,146,26,0.10)', border: '1px solid rgba(200,146,26,0.28)', borderRadius: 'var(--r-md)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '13px', minWidth: 0 }}>
         <div style={{ width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'rgba(200,146,26,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <PenSquare size={19} style={{ color: 'var(--accent)' }} />
+          <PenSquare size={19} style={{ color: 'var(--accent-text)' }} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 800, color: 'var(--foreground)' }}>{n} document{n > 1 ? 's' : ''} à signer</div>
@@ -920,7 +920,7 @@ function HistoriqueSection() {
   const iconMap: Record<string, { bg: string; color: string; El: LucideIcon }> = {
     success: { bg: 'rgba(26,107,68,0.12)',  color: 'var(--success)',     El: CheckCircle2 },
     warning: { bg: 'rgba(192,57,43,0.10)',  color: 'var(--destructive)', El: AlertCircle },
-    comment: { bg: 'rgba(200,146,26,0.10)', color: 'var(--accent)',      El: MessageSquare },
+    comment: { bg: 'rgba(200,146,26,0.10)', color: 'var(--accent-text)',      El: MessageSquare },
     info:    { bg: 'var(--secondary)',      color: 'var(--primary)',     El: Info },
   };
 
@@ -934,7 +934,7 @@ function HistoriqueSection() {
 
   return (
     <Section
-      icon={History} iconBg="rgba(200,146,26,0.1)" iconColor="var(--accent)"
+      icon={History} iconBg="rgba(200,146,26,0.1)" iconColor="var(--accent-text)"
       title="Historique du dossier"
       subtitle="Suivi des actions de votre conseiller CPI"
       right={
@@ -978,7 +978,7 @@ function HistoriqueSection() {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const BANK_STATUS_UI: Record<BankStatus, { label: string; color: string; bg: string }> = {
-  'en-attente': { label: 'En cours d’étude', color: 'var(--accent)',      bg: 'rgba(200,146,26,0.10)' },
+  'en-attente': { label: 'En cours d’étude', color: 'var(--accent-text)',      bg: 'rgba(200,146,26,0.10)' },
   accord:       { label: 'Accord de principe', color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)' },
   refus:        { label: 'Non retenue',        color: 'var(--destructive)', bg: 'rgba(192,57,43,0.08)' },
 };

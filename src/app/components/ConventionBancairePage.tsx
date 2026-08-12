@@ -1,7 +1,8 @@
 import { Home, Info } from 'lucide-react';
 
 // Harmonisé au système CPI : fond clair, en-têtes bordeaux, accent or (var(--accent)).
-const GOLD = 'var(--accent)';
+// Or textuel : --accent (#C8921A) n'atteint que 2,77:1 sur fond clair.
+const GOLD = 'var(--accent-text)';
 
 interface Row {
   label: string;

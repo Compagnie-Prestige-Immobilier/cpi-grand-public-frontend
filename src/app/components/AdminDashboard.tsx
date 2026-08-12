@@ -43,7 +43,7 @@ import HistoriqueModule from './HistoriqueModule';
 
 interface Props { user: AuthUser; activeNav?: string }
 
-const A = { bordeaux: '#630210', gold: '#C8921A', green: '#1A6B44', text: '#1C0810', muted: '#6B4A52', border: 'rgba(99,2,16,0.1)', red: '#C0392B' };
+const A = { bordeaux: '#630210', gold: '#C8921A', green: '#1A6B44', text: '#1C0810', muted: '#6B4A52', border: 'rgba(99,2,16,0.1)', red: 'var(--destructive)' };
 
 const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 // Abréviations distinctes (juin ≠ juillet).

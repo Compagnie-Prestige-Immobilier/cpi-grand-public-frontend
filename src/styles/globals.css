@@ -17,8 +17,33 @@
   --secondary-foreground: #630210;
   --muted: #EDE4E6;
   --muted-foreground: #6B4A52;
+  /* Or CPI — SURFACE DÉCORATIVE UNIQUEMENT.
+   * #C8921A ne fait que 2,77:1 sur blanc et 2,60:1 sur --background : il échoue
+   * WCAG AA pour du texte (4,5:1) et même le seuil « grand texte » (3:1).
+   * Ne jamais l'employer comme couleur de texte — utiliser --accent-text. */
   --accent: #C8921A;
-  --accent-foreground: #ffffff;
+  /* Texte posé SUR une surface or : #1C0810 sur #C8921A = 6,95:1. */
+  --accent-foreground: #1C0810;
+  /* Or foncé, seule déclinaison autorisée pour du TEXTE et des icônes.
+   * #856011 : 5,71:1 sur card, 5,36:1 sur --background, 4,92:1 sur --secondary,
+   * 4,58:1 sur --muted, 5,21:1 sur le fond de badge or à 10 %. */
+  --accent-text: #856011;
+  /* Bordures / traits or : 3,85:1 sur blanc (seuil non textuel = 3:1). */
+  --accent-border: #A87A15;
+  /* Or clair, réservé au TEXTE posé sur les surfaces bordeaux sombres :
+   * 8,71:1 sur --primary, 11,34:1 sur --sidebar. Illisible sur fond clair. */
+  --accent-on-dark: #FFC65A;
+  /* Fond de statut « attention » (or à 10 % aplati, pas d'alpha empilable). */
+  --accent-surface: #FAF4E8;
+  /* Alias sémantique historique (src/styles/theme.css, jamais importé). */
+  --warning: #856011;
+  --warning-surface: #FAF4E8;
+  /* Statut « information » : prune rosé de la palette CPI, assombri pour AA.
+   * #A34462 : 5,90:1 sur card, 5,54:1 sur --background, 5,10:1 sur son fond. */
+  --info: #A34462;
+  --info-surface: #F7EEF1;
+  --success-surface: #E8F0EC;
+  --destructive-surface: #F8E8E8;
   --destructive: #B91C1C;
   --destructive-foreground: #ffffff;
   --border: rgba(99, 2, 16, 0.12);
@@ -98,6 +123,18 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--accent-text);
+  --color-accent-border: var(--accent-border);
+  --color-accent-on-dark: var(--accent-on-dark);
+  --color-accent-surface: var(--accent-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-surface: var(--success-surface);
+  --color-destructive-surface: var(--destructive-surface);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -235,6 +272,21 @@ html {
   --lh-tight: 1.15;
   --lh-snug: 1.35;
   --lh-normal: 1.55;
+
+  /* State layers (Material Design 3) — opacités appliquées à la couleur de
+   * premier plan par-dessus la surface. Un seul jeu de valeurs pour toute
+   * l'application : survol 8 %, focus 10 %, pression 12 %, sélection 12 %. */
+  --state-hover: 0.08;
+  --state-focus: 0.10;
+  --state-pressed: 0.12;
+  --state-selected: 0.12;
+  --state-dragged: 0.16;
+  /* Opacité d'un contrôle désactivé (contenu 38 %, conteneur 12 %). */
+  --state-disabled-content: 0.38;
+  --state-disabled-container: 0.12;
+
+  /* Cibles tactiles — minimum 44 px (WCAG 2.5.5 AAA / iOS HIG). */
+  --tap-min: 44px;
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

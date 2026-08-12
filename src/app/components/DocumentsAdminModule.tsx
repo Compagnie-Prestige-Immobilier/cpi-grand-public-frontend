@@ -14,10 +14,10 @@ const CPI_STATUS_CFG: Record<CpiDocStatus, { label: string; color: string; bg: s
   brouillon:  { label: 'Brouillon',   color: 'var(--muted-foreground)', bg: 'var(--muted)'             },
   publie:     { label: 'Publié',      color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
   disponible: { label: 'Disponible',  color: 'var(--primary)',          bg: 'var(--secondary)'         },
-  'a-signer': { label: 'À signer',    color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'     },
+  'a-signer': { label: 'À signer',    color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'     },
   signe:      { label: 'Signé',       color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
-  refuse:     { label: 'Refusé',      color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'     },
-  archive:    { label: 'Archivé',     color: '#C8921A',                 bg: 'rgba(200,146,26,0.10)'    },
+  refuse:     { label: 'Refusé',      color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'     },
+  archive:    { label: 'Archivé',     color: 'var(--accent-text)',                 bg: 'rgba(200,146,26,0.10)'    },
 };
 
 const CATEGORIE_LABELS: Record<CpiCategorie, string> = {
@@ -177,7 +177,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
         {[
           { l: 'Documents au total', v: kTotal, c: 'var(--primary)' },
-          { l: 'À signer', v: kASigner, c: '#C0392B' },
+          { l: 'À signer', v: kASigner, c: 'var(--destructive)' },
           { l: 'Brouillons', v: kBrouillons, c: 'var(--muted-foreground)' },
           { l: 'Signés', v: kSignes, c: 'var(--success)' },
         ].map(s => (
@@ -293,7 +293,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       {queue.length > 0 && (
         <div style={card}>
           <button onClick={() => setQueueOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'rgba(192,57,43,0.05)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-            <ListChecks size={18} style={{ color: '#C0392B', flexShrink: 0 }} />
+            <ListChecks size={18} style={{ color: 'var(--destructive)', flexShrink: 0 }} />
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', flex: 1 }}>À traiter — {queue.length} document{queue.length > 1 ? 's' : ''} (à signer / à publier)</span>
             {queueOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
           </button>
@@ -368,7 +368,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                {toSign > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#C0392B', background: 'rgba(192,57,43,0.08)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>{toSign} à signer</span>}
+                {toSign > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--destructive)', background: 'rgba(192,57,43,0.08)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>{toSign} à signer</span>}
                 <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'var(--muted)', padding: '2px 8px', borderRadius: 'var(--r-full)' }}>{docs.length} doc{docs.length > 1 ? 's' : ''}</span>
                 {isOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
               </div>

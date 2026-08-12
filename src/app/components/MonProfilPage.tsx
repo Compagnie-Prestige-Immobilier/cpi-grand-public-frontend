@@ -232,7 +232,7 @@ function ProgressRing({ value, size = 56, stroke = 4 }: { value: number; size?: 
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#C8921A" strokeWidth={stroke}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent-border)" strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" />
     </svg>
   );
@@ -499,7 +499,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
               <span style={{
-                background: 'rgba(200,146,26,0.22)', color: '#FFC65A',
+                background: 'rgba(200,146,26,0.22)', color: 'var(--accent-on-dark)',
                 fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
                 fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
                 padding: '3px 10px', borderRadius: 'var(--r-full)',
@@ -553,7 +553,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
                 }}>Dossier</div>
                 <div style={{
                   fontFamily: 'var(--font-display)', fontSize: '1.375rem',
-                  fontWeight: 800, color: '#FFC65A', lineHeight: 1,
+                  fontWeight: 800, color: 'var(--accent-on-dark)', lineHeight: 1,
                 }}>{PROFILE.progression}%</div>
               </div>
               <ProgressRing value={PROFILE.progression} size={52} stroke={4} />
@@ -715,10 +715,10 @@ function ClientProfile({ user }: { user: AuthUser }) {
               borderRadius: 'var(--r-sm)',
               display: 'flex', alignItems: 'center', gap: '8px',
             }}>
-              <AlertCircle size={14} style={{ color: '#C8921A', flexShrink: 0 }} />
+              <AlertCircle size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
               <span style={{
                 fontFamily: 'var(--font-sans)', fontSize: '0.8125rem',
-                color: '#C8921A', fontWeight: 500,
+                color: 'var(--accent-text)', fontWeight: 500,
               }}>
                 Les pièces d'identité (CNI, date et lieu de naissance) sont renseignées par votre conseiller CPI à partir des documents déposés.
               </span>
@@ -937,9 +937,9 @@ function ClientProfile({ user }: { user: AuthUser }) {
               label: 'Charges mensuelles',
               value: montant(PROFILE.charges),
               icon: TrendingDown,
-              color: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
+              color: hasFinance ? 'var(--accent-text)' : 'var(--muted-foreground)',
               bg: hasFinance ? 'rgba(200,146,26,0.08)' : 'var(--muted)',
-              iconColor: hasFinance ? '#C8921A' : 'var(--muted-foreground)',
+              iconColor: hasFinance ? 'var(--accent-text)' : 'var(--muted-foreground)',
             },
             {
               label: 'Capacité de remboursement',
@@ -954,9 +954,9 @@ function ClientProfile({ user }: { user: AuthUser }) {
               // Pas de revenus connus ⇒ pas de taux, et surtout pas de vert.
               value: hasFinance ? `${tauxEndettement} %` : '—',
               icon: TrendingUp,
-              color: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              color: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? 'var(--destructive)' : '#1A6B44',
               bg: !hasFinance ? 'var(--muted)' : tauxEndettement > 33 ? 'rgba(192,57,43,0.07)' : 'rgba(26,107,68,0.08)',
-              iconColor: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? '#C0392B' : '#1A6B44',
+              iconColor: !hasFinance ? 'var(--muted-foreground)' : tauxEndettement > 33 ? 'var(--destructive)' : '#1A6B44',
             },
           ].map(card => (
             <div key={card.label} style={{
@@ -1161,7 +1161,7 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
           <div style={{ flex: 1, minWidth: '200px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.2 }}>{user.name}</h1>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(200,146,26,0.22)', color: '#FFC65A', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 'var(--r-full)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(200,146,26,0.22)', color: 'var(--accent-on-dark)', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 'var(--r-full)' }}>
                 <Shield size={11} /> {roleLabel}
               </span>
             </div>
@@ -1213,8 +1213,8 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
             <div style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Shield size={14} style={{ color: 'var(--primary)' }} /></div>
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '3px' }}>Connexion sécurisée</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 600, color: httpsOk ? '#1A6B44' : '#C0392B' }}>
-                <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: httpsOk ? '#1A6B44' : '#C0392B' }} /> {httpsOk ? 'HTTPS actif' : 'Non sécurisé'}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '0.9375rem', fontWeight: 600, color: httpsOk ? '#1A6B44' : 'var(--destructive)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: httpsOk ? '#1A6B44' : 'var(--destructive)' }} /> {httpsOk ? 'HTTPS actif' : 'Non sécurisé'}
               </div>
             </div>
           </div>
@@ -1241,7 +1241,7 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
         <div style={{ padding: '4px 24px 22px' }}>
           <button
             onClick={() => onLogout?.()}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: 'var(--r-sm)', border: '1px solid rgba(192,57,43,0.3)', background: 'rgba(192,57,43,0.06)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: '#C0392B', cursor: 'pointer' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: 'var(--r-sm)', border: '1px solid rgba(192,57,43,0.3)', background: 'rgba(192,57,43,0.06)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--destructive)', cursor: 'pointer' }}>
             <LogOut size={15} /> Se déconnecter
           </button>
         </div>

@@ -46,7 +46,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 const ROLE_COLORS: Record<UserRole, { bg: string; text: string }> = {
-  'client-fonctionnaire': { bg: 'rgba(200,146,26,0.15)', text: '#C8921A' },
+  // Sur le bandeau latéral sombre (#3A010A) l'or vif atteint 5,19:1 : conforme.
+  'client-fonctionnaire': { bg: 'rgba(200,146,26,0.15)', text: 'var(--accent)' },
   'client-public': { bg: 'var(--secondary)', text: 'var(--primary)' },
   'agent-cpi': { bg: 'var(--secondary)', text: 'var(--primary)' },
   'admin': { bg: 'rgba(139,92,246,0.12)', text: '#7C3AED' },
@@ -415,7 +416,7 @@ function SupportPage() {
       {/* Horaires */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '16px 20px', display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted-foreground)' }}>
-          <Bell size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <Bell size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>Horaires d'ouverture</span>
         </div>
         {[
@@ -605,7 +606,7 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--muted-foreground)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
               <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#C8921A] rounded-full" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent)' }} />
             </button>
             <div
               onClick={() => navigate('mon-profil')}

@@ -26,8 +26,8 @@ interface ChantierProject {
 const TRANCHE_STATUS_CFG: Record<TrancheStatus, { label: string; color: string; bg: string }> = {
   'valide':    { label: 'Validée',    color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)'  },
   'en-cours':  { label: 'En cours',   color: 'var(--primary)',    bg: 'var(--secondary)'      },
-  'en-attente':{ label: 'En attente', color: '#C8921A',           bg: 'rgba(200,146,26,0.10)' },
-  'bloque':    { label: 'Bloquée',    color: '#C0392B',           bg: 'rgba(192,57,43,0.08)'  },
+  'en-attente':{ label: 'En attente', color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)' },
+  'bloque':    { label: 'Bloquée',    color: 'var(--destructive)',           bg: 'rgba(192,57,43,0.08)'  },
 };
 
 const ETAPES: ChantierEtape[] = ['Préparation', 'Fondations', 'Gros œuvre', 'Second œuvre', 'Finitions', 'Livraison'];
@@ -262,7 +262,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {header}
         <div role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px', background: 'var(--card)', border: '1px solid var(--border)', textAlign: 'center' }}>
-          <AlertCircle size={20} style={{ color: '#C0392B' }} />
+          <AlertCircle size={20} style={{ color: 'var(--destructive)' }} />
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0, maxWidth: 420, lineHeight: 1.6 }}>{error}</p>
           <button onClick={retry} style={btnPrimary}>Réessayer</button>
         </div>

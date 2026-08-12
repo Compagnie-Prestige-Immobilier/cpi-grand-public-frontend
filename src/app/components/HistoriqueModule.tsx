@@ -24,11 +24,11 @@ const TYPE_CFG: Record<ActionType, { icon: LucideIcon; color: string; bg: string
   validation:    { icon: CheckCircle2,  color: 'var(--success)',           bg: 'rgba(26,107,68,0.10)'    },
   document:      { icon: FileText,      color: 'var(--primary)',           bg: 'var(--secondary)'        },
   notification:  { icon: Bell,          color: '#8B5CF6',                  bg: 'rgba(139,92,246,0.10)'   },
-  photo:         { icon: Camera,        color: '#C8921A',                  bg: 'rgba(200,146,26,0.10)'   },
+  photo:         { icon: Camera,        color: 'var(--accent-text)',                  bg: 'rgba(200,146,26,0.10)'   },
   decaissement:  { icon: Banknote,      color: 'var(--success)',           bg: 'rgba(26,107,68,0.10)'    },
   commentaire:   { icon: MessageSquare, color: 'var(--muted-foreground)',  bg: 'var(--muted)'            },
   depot:         { icon: Upload,        color: 'var(--primary)',           bg: 'var(--secondary)'        },
-  refus:         { icon: AlertCircle,   color: '#C0392B',                  bg: 'rgba(192,57,43,0.08)'    },
+  refus:         { icon: AlertCircle,   color: 'var(--destructive)',                  bg: 'rgba(192,57,43,0.08)'    },
   compte:        { icon: UserPlus,      color: '#0E7490',                  bg: 'rgba(14,116,144,0.10)'   },
   banque:        { icon: Landmark,      color: '#B45309',                  bg: 'rgba(180,83,9,0.10)'     },
 };

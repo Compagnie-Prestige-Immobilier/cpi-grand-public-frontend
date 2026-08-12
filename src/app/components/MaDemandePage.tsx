@@ -57,7 +57,7 @@ function fmtMontant(valeur: string): string {
 const DOC_STATUS_CFG: Record<SharedDoc['status'], { label: string; color: string; bg: string }> = {
   'en-attente':  { label: 'À envoyer',              color: 'var(--muted-foreground)', bg: 'var(--muted)'           },
   depose:        { label: 'En attente de validation', color: 'var(--chart-4)',        bg: 'rgba(176,80,112,0.08)' },
-  verification:  { label: 'En vérification',        color: 'var(--accent)',           bg: 'rgba(200,146,26,0.09)' },
+  verification:  { label: 'En vérification',        color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.09)' },
   accepte:       { label: 'Validé',                 color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)'   },
   refuse:        { label: 'Refusé',                 color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
   'a-remplacer': { label: 'À remplacer',             color: 'var(--destructive)',       bg: 'rgba(192,57,43,0.08)' },
@@ -79,16 +79,16 @@ const HISTO_ICON: Record<ActivityType, LucideIcon> = {
   compte: User2, banque: Building2,
 };
 const HISTO_COLOR: Record<ActivityType, string> = {
-  validation: 'var(--success)', document: 'var(--primary)', notification: 'var(--accent)',
+  validation: 'var(--success)', document: 'var(--primary)', notification: 'var(--accent-text)',
   photo: 'var(--primary)', decaissement: 'var(--success)', commentaire: 'var(--muted-foreground)',
   depot: 'var(--primary)', refus: 'var(--destructive)',
-  compte: 'var(--primary)', banque: 'var(--accent)',
+  compte: 'var(--primary)', banque: 'var(--accent-text)',
 };
 
 // ── Constants ──────────────────────────────────────────────────────
 const STATUT_CONFIG: Record<DemandStatut, { label: string; color: string; bg: string; dot: string }> = {
   validee:    { label: 'Validée',                color: 'var(--success)',          bg: 'rgba(26,107,68,0.1)',   dot: 'var(--success)'          },
-  'en-cours': { label: "En cours d'étude",       color: 'var(--accent)',           bg: 'rgba(200,146,26,0.1)', dot: 'var(--accent)'           },
+  'en-cours': { label: "En cours d'étude",       color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.1)', dot: 'var(--accent)'           },
   incomplete: { label: 'Document à corriger',    color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.09)', dot: 'var(--destructive)'      },
   brouillon:  { label: 'Brouillon',              color: 'var(--muted-foreground)', bg: 'var(--muted)',         dot: 'var(--muted-foreground)' },
 };
@@ -725,7 +725,7 @@ export default function MaDemandePage({ user: _user }: Props) {
             <div style={{ flex: 1, minWidth: 240 }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)' }}>Prêt à envoyer votre demande ?</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
-                {!canSubmit && <AlertCircle size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                {!canSubmit && <AlertCircle size={13} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />}
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
                   {canSubmit
                     ? 'Votre conseiller CPI étudiera votre projet dès réception.'
@@ -858,7 +858,7 @@ export default function MaDemandePage({ user: _user }: Props) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', margin: '16px 0' }}>
                 {[
                   { label: 'Montant demandé', value: form.montant ? fmtMontant(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
-                  { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent)' },
+                  { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent-text)' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'var(--card)', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -899,7 +899,7 @@ export default function MaDemandePage({ user: _user }: Props) {
           {/* Historique (réel — actions de votre conseiller CPI) */}
           <div style={{ background: 'var(--card)', border: CARD_BORDER, borderRadius: CARD_RADIUS, overflow: 'hidden', boxShadow: CARD_SHADOW }}>
             <div style={{ padding: SECTION_PAD, borderBottom: '1px solid rgba(99,2,16,0.06)', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 'var(--r-md)', background: 'rgba(200,146,26,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 'var(--r-md)', background: 'rgba(200,146,26,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-text)' }}>
                 <Clock size={17} />
               </div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Historique de traitement</h3>
@@ -982,7 +982,7 @@ export default function MaDemandePage({ user: _user }: Props) {
 
             <button onClick={() => navigate('mon-dossier')} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '13px 28px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(99,2,16,0.06)', cursor: 'pointer', textAlign: 'left' }}>
               <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(200,146,26,0.12)', border: '1px solid rgba(200,146,26,0.2)' }}>
-                <FolderOpen size={16} style={{ color: 'var(--accent)' }} />
+                <FolderOpen size={16} style={{ color: 'var(--accent-text)' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: 1 }}>Suivre mon dossier</div>
@@ -1041,7 +1041,7 @@ export default function MaDemandePage({ user: _user }: Props) {
               </div>
             ) : (
               <div style={{ margin: '0 20px 20px', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(200,146,26,0.07)', border: '1px solid rgba(200,146,26,0.2)', borderRadius: 'var(--r-md)' }}>
-                <AlertCircle size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                <AlertCircle size={15} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: 1.6 }}>
                   Votre demande est en cours d'étude par votre conseiller CPI.
                 </p>

@@ -56,7 +56,7 @@ function Badge({ children, variant = 'default' }: {
   const styles = {
     default:  { background: 'var(--secondary)',           color: 'var(--primary)'          },
     success:  { background: 'rgba(26,107,68,0.10)',       color: 'var(--success)'          },
-    warning:  { background: 'rgba(200,146,26,0.12)',      color: 'var(--accent)'           },
+    warning:  { background: 'rgba(200,146,26,0.12)',      color: 'var(--accent-text)'           },
     muted:    { background: 'var(--input-background)',    color: 'var(--muted-foreground)' },
     primary:  { background: 'var(--primary)',              color: '#fff'                    },
   };
@@ -219,7 +219,7 @@ function TrancheCard({ t }: { t: Tranche }) {
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
               marginBottom: t.photos > 0 ? '12px' : '0',
             }}>
-              <AlertCircle size={14} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: '2px' }} />
+              <AlertCircle size={14} style={{ color: 'var(--accent-text)', flexShrink: 0, marginTop: '2px' }} />
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--foreground)', lineHeight: 1.6 }}>
                 {t.commentaire}
               </span>
@@ -351,7 +351,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
     return clientEvents.length > 0 ? clientEvents.map(e => ({
       id: e.id, titre: e.titre, type: e.type, date: e.date,
       statut: e.statut,
-      color: e.type === 'inspection' ? 'var(--primary)' : e.type === 'rdv-client' ? '#630210' : e.type === 'livraison-materiaux' ? 'var(--accent)' : 'var(--success)',
+      color: e.type === 'inspection' ? 'var(--primary)' : e.type === 'rdv-client' ? '#630210' : e.type === 'livraison-materiaux' ? 'var(--accent-text)' : 'var(--success)',
     })) : CALENDAR_EVENTS;
   }, [events]);
 
@@ -387,7 +387,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
   if (error) {
     return (
       <div role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, minHeight: '50vh', padding: 24, textAlign: 'center', fontFamily: 'var(--font-sans)' }}>
-        <AlertCircle size={22} style={{ color: '#C0392B' }} />
+        <AlertCircle size={22} style={{ color: 'var(--destructive)' }} />
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--foreground)' }}>
           Impossible d'afficher votre chantier
         </div>
@@ -448,7 +448,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     Avancement global
                   </span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: '#FFC65A' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-on-dark)' }}>
                     {heroProgress}%
                   </span>
                 </div>
@@ -522,7 +522,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
           { icon: TrendingUp,   label: 'Progression',          value: `${heroProgress}%`,        color: 'var(--primary)',   bg: 'var(--secondary)'              },
           { icon: Camera,       label: 'Photos publiées',       value: `${photoCount}`,            color: '#630210',         bg: 'rgba(99,2,16,0.08)'          },
           { icon: CheckCircle2, label: 'Étapes terminées',      value: `${tranchesDone}`,          color: 'var(--success)',  bg: 'rgba(26,107,68,0.08)'          },
-          { icon: Clock,        label: 'Étapes restantes',      value: `${4 - tranchesDone}`,      color: 'var(--accent)',   bg: 'rgba(200,146,26,0.08)'         },
+          { icon: Clock,        label: 'Étapes restantes',      value: `${4 - tranchesDone}`,      color: 'var(--accent-text)',   bg: 'rgba(200,146,26,0.08)'         },
           { icon: Banknote,     label: 'Décaissements réalisés',value: `${totalDec}`,              color: 'var(--success)',  bg: 'rgba(26,107,68,0.08)'          },
           { icon: CalendarDays, label: 'Livraison estimée',     value: chantierInfo.dateLivraison, color: 'var(--primary)',   bg: 'var(--secondary)'              },
         ].map(kpi => (
@@ -788,7 +788,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
                       {done
                         ? <CheckCircle2 size={17} style={{ color: 'var(--success)' }} />
                         : waiting
-                        ? <Clock size={16} style={{ color: 'var(--accent)' }} />
+                        ? <Clock size={16} style={{ color: 'var(--accent-text)' }} />
                         : <Clock size={16} style={{ color: 'var(--muted-foreground)' }} />
                       }
                     </div>

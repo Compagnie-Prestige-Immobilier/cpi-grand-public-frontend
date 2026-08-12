@@ -99,7 +99,7 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
         </p>
 
         {error && (
-          <div style={{ marginBottom: 14, padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#C0392B' }}>
+          <div style={{ marginBottom: 14, padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)' }}>
             {error}
           </div>
         )}

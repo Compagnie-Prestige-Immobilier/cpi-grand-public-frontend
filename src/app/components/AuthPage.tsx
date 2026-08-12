@@ -57,7 +57,7 @@ const PROFIL_OPTIONS: {
     label: 'Autre profil',
     sub: 'Profession libérale, indépendant, diaspora',
     icon: UserCircle,
-    color: 'var(--accent)',
+    color: 'var(--accent-text)',
     bg: 'rgba(200,146,26,0.08)',
     cardBg: 'var(--card)',
     textColor: 'var(--foreground)',
@@ -397,7 +397,7 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
             { icon: Zap,        label: 'Processus simple',         sub: 'Des étapes claires à chaque stade',       color: '#630210', bg: 'var(--secondary)' },
             { icon: Shield,     label: 'Données sécurisées',       sub: 'Chiffrement SSL — confidentialité totale', color: '#1E4D8C', bg: 'rgba(30,77,140,0.08)' },
             { icon: Headphones, label: 'Support dédié',            sub: "Une équipe disponible à chaque étape",    color: 'var(--success)', bg: 'rgba(26,107,68,0.08)' },
-            { icon: Handshake,  label: 'Partenaires officiels',    sub: 'CPI · Banques partenaires',    color: 'var(--accent)', bg: 'rgba(200,146,26,0.10)' },
+            { icon: Handshake,  label: 'Partenaires officiels',    sub: 'CPI · Banques partenaires',    color: 'var(--accent-text)', bg: 'rgba(200,146,26,0.10)' },
           ] as const).map((b, i) => {
             const Icon = b.icon;
             return (
@@ -583,7 +583,7 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: (p: AuthPayload) => voi
           </div>
 
           {error && (
-            <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#C0392B' }}>
+            <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)' }}>
               {error}
             </div>
           )}
@@ -911,7 +911,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
             </p>
 
             {error && (
-              <div style={{ maxWidth: '400px', marginBottom: '14px', padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: '#C0392B' }}>
+              <div style={{ maxWidth: '400px', marginBottom: '14px', padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)' }}>
                 {error}
               </div>
             )}

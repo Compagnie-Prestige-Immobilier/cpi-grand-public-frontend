@@ -21,7 +21,7 @@ type DocStatus = SharedDoc['status'];
 const PIECE_CFG: Record<DocStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
   'en-attente':  { label: 'À déposer',        color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
   depose:        { label: 'Déposé — à vérifier', color: 'var(--chart-4)',       bg: 'rgba(176,80,112,0.08)', icon: Upload },
-  verification:  { label: 'En vérification',  color: 'var(--accent)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
+  verification:  { label: 'En vérification',  color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
   accepte:       { label: 'Validé',           color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
   refuse:        { label: 'Refusé',           color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)',  icon: XCircle },
   'a-remplacer': { label: 'À remplacer',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)',  icon: RefreshCw },
@@ -130,7 +130,7 @@ function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: 
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)' }}>Le client n'a pas encore envoyé sa demande.</div>
       ) : !allValid ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.75)' }}>
-          <AlertCircle size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} /> Validez d'abord toutes les pièces pour faire avancer le dossier.
+          <AlertCircle size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} /> Validez d'abord toutes les pièces pour faire avancer le dossier.
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -154,7 +154,7 @@ function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: 
         </div>
       )}
       {activeStep >= SIGNATURE_INDEX && (
-        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)' }}>
+        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-text)' }}>
           <CheckCircle2 size={13} /> Dossier finalisé — prêt pour signature
         </div>
       )}
@@ -492,8 +492,8 @@ export default function AgentDossiersReels({ agentName, mode = 'actifs' }: { age
       const nDepose = r.st.docs.filter(d => d.status === 'depose').length;
       if (nDepose > 0) reasons.push({ txt: `${nDepose} pièce${nDepose > 1 ? 's' : ''} à vérifier`, color: 'var(--chart-4)' });
       if (r.st.hasIssue) reasons.push({ txt: 'pièce à corriger (client)', color: 'var(--destructive)' });
-      if (r.st.allValid && r.st.activeStep === DOCS_VALIDES_INDEX) reasons.push({ txt: 'dossier à faire avancer', color: 'var(--accent)' });
-      if (r.st.toSign > 0) reasons.push({ txt: `${r.st.toSign} document${r.st.toSign > 1 ? 's' : ''} à signer (client)`, color: 'var(--accent)' });
+      if (r.st.allValid && r.st.activeStep === DOCS_VALIDES_INDEX) reasons.push({ txt: 'dossier à faire avancer', color: 'var(--accent-text)' });
+      if (r.st.toSign > 0) reasons.push({ txt: `${r.st.toSign} document${r.st.toSign > 1 ? 's' : ''} à signer (client)`, color: 'var(--accent-text)' });
       return { summary: r.summary, st: r.st, reasons };
     }).filter(a => a.reasons.length > 0);
 
@@ -625,7 +625,7 @@ export default function AgentDossiersReels({ agentName, mode = 'actifs' }: { age
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--success)' }}>{st.validated}/{st.total} pièces</span>
                     {st.docs.some(d => d.status === 'depose') && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--chart-4)' }}>· à vérifier</span>}
                     {st.hasIssue && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--destructive)' }}>· à corriger</span>}
-                    {st.toSign > 0 && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent)' }}>· {st.toSign} à signer</span>}
+                    {st.toSign > 0 && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent-text)' }}>· {st.toSign} à signer</span>}
                   </div>
                 </div>
                 <ChevronRight size={16} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />

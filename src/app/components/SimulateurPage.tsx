@@ -240,7 +240,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                 borderRadius: 'var(--r-md)', padding: '12px 18px', textAlign: 'center', minWidth: '100px',
               }}>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>{label}</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 800, color: '#FFC65A' }}>{value}</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 800, color: 'var(--accent-on-dark)' }}>{value}</div>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{sub}</div>
               </div>
             ))}
@@ -447,7 +447,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   Mensualité calculée
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem,4vw,2.875rem)', fontWeight: 900, color: '#FFC65A', lineHeight: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem,4vw,2.875rem)', fontWeight: 900, color: 'var(--accent-on-dark)', lineHeight: 1 }}>
                     {fmt(mensualite)}
                   </span>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>FCFA</span>
@@ -476,7 +476,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
               {[
                 { label: 'Capital emprunté', value: fmt(montant), color: 'var(--primary)', bg: 'var(--secondary)' },
-                { label: 'Total intérêts', value: fmt(totalInterets), color: 'var(--accent)', bg: 'rgba(200,146,26,0.08)' },
+                { label: 'Total intérêts', value: fmt(totalInterets), color: 'var(--accent-text)', bg: 'rgba(200,146,26,0.08)' },
                 { label: 'Coût total crédit', value: fmt(totalPaye), color: 'var(--success)', bg: 'rgba(26,107,68,0.07)' },
               ].map(k => (
                 <div key={k.label} style={{ background: k.bg, border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '14px 16px' }}>
@@ -584,7 +584,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                       <Legend wrapperStyle={{ fontFamily: 'var(--font-sans)', fontSize: '11px' }} formatter={v => v === 'capitalRestant' ? 'Capital restant' : v === 'cumulInterets' ? 'Cumul intérêts' : 'Cumul capital remboursé'} />
                       <Tooltip content={<ChartTooltip />} />
                       <Area type="monotone" dataKey="capitalRestant" stroke="var(--primary)" strokeWidth={2.5} fill="url(#gCap)" dot={false} activeDot={{ r: 4, fill: 'var(--primary)' }} />
-                      <Area type="monotone" dataKey="cumulInterets" stroke="var(--accent)" strokeWidth={2.5} fill="url(#gInt)" dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} />
+                      <Area type="monotone" dataKey="cumulInterets" stroke="var(--accent-border)" strokeWidth={2.5} fill="url(#gInt)" dot={false} activeDot={{ r: 4, fill: 'var(--accent-border)' }} />
                       <Area type="monotone" dataKey="cumulCapital" stroke="var(--success)" strokeWidth={2} fill="url(#gCapR)" dot={false} activeDot={{ r: 4, fill: 'var(--success)' }} strokeDasharray="5 4" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -675,7 +675,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--foreground)', borderRight: '1px solid var(--border)' }}>
                                 {fmt(row.balanceStart)}
                               </td>
-                              <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)', borderRight: '1px solid var(--border)' }}>
+                              <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent-text)', borderRight: '1px solid var(--border)' }}>
                                 {fmt(row.interest)}
                               </td>
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--success)', borderRight: '1px solid var(--border)' }}>
@@ -697,7 +697,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                             Sous-total · Année {page + 1}
                           </td>
                           <td style={{ padding: '9px 14px', borderRight: '1px solid var(--border)' }} />
-                          <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent)', borderRight: '1px solid var(--border)' }}>
+                          <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent-text)', borderRight: '1px solid var(--border)' }}>
                             {fmt(pageRows.reduce((s, r) => s + r.interest, 0))}
                           </td>
                           <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--success)', borderRight: '1px solid var(--border)' }}>
@@ -761,8 +761,8 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   { label: 'Durée', value: `${dureeAns} ans (${dureeMonths} mois)`, color: 'var(--foreground)' },
                   { label: 'Nb paiements/an', value: '12', color: 'var(--foreground)' },
                   { label: 'Paiement calculé', value: fmt(mensualite) + ' FCFA', color: 'var(--primary)', bold: true },
-                  { label: 'Montant total échéance', value: fmt(mensualite) + ' FCFA', color: 'var(--accent)' },
-                  { label: 'Total intérêts versés', value: fmt(totalInterets) + ' FCFA', color: 'var(--accent)' },
+                  { label: 'Montant total échéance', value: fmt(mensualite) + ' FCFA', color: 'var(--accent-text)' },
+                  { label: 'Total intérêts versés', value: fmt(totalInterets) + ' FCFA', color: 'var(--accent-text)' },
                   { label: 'Coût total du crédit', value: fmt(totalPaye) + ' FCFA', color: 'var(--success)' },
                   { label: 'Date dernier paiement', value: schedule[schedule.length - 1]?.date ?? '—', color: 'var(--foreground)' },
                 ].map(({ label, value, color, bold }) => (

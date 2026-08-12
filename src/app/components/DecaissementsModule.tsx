@@ -194,7 +194,7 @@ export default function DecaissementsModule() {
         {[
           { l: 'Dossiers suivis', v: String(nbDossiers), c: 'var(--primary)' },
           { l: 'Parcelles financées', v: String(parcellesDecaissees), c: 'var(--success)' },
-          { l: 'En construction', v: String(enConstruction), c: '#C8921A' },
+          { l: 'En construction', v: String(enConstruction), c: 'var(--accent-text)' },
           { l: 'Total décaissé', v: fmtFCFA(totalDecaisse), c: 'var(--foreground)' },
         ].map(s => (
           <div key={s.l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '14px 16px' }}>
@@ -284,7 +284,7 @@ export default function DecaissementsModule() {
                 {/* ── Phase 2 — Construction ── */}
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                    <Hammer size={16} style={{ color: '#C8921A' }} />
+                    <Hammer size={16} style={{ color: 'var(--accent-text)' }} />
                     <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.9375rem', color: 'var(--foreground)' }}>Phase 2 · Construction de la villa</span>
                     <span style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)' }}>— décaissement par tranches</span>
                   </div>
@@ -297,7 +297,7 @@ export default function DecaissementsModule() {
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 'var(--r-sm)', border: 'none', background: constructionOf(c.id) > 0 && s.terrainDecaisse ? '#C8921A' : 'var(--muted)', color: '#fff', fontSize: '0.8125rem', fontWeight: 700, cursor: constructionOf(c.id) > 0 && s.terrainDecaisse ? 'pointer' : 'not-allowed' }}>
                         <Hammer size={13} /> Lancer la construction
                       </button>
-                      {!s.terrainDecaisse && <span style={{ fontSize: '0.6875rem', color: '#C8921A', fontStyle: 'italic' }}>Le terrain doit d'abord être financé.</span>}
+                      {!s.terrainDecaisse && <span style={{ fontSize: '0.6875rem', color: 'var(--accent-text)', fontStyle: 'italic' }}>Le terrain doit d'abord être financé.</span>}
                     </div>
                   ) : (
                     <>
@@ -326,7 +326,7 @@ export default function DecaissementsModule() {
                                 ) : prevDone ? (
                                   <button onClick={() => validateTranche(c.id, i, c.name)} disabled={trancheMutation.isPending} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={11} /> Décaisser</button>
                                 ) : (
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', fontWeight: 700, color: '#C8921A', background: 'rgba(200,146,26,0.1)', padding: '3px 9px', borderRadius: 'var(--r-full)' }}><Clock size={11} /> En attente</span>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', fontWeight: 700, color: 'var(--accent-text)', background: 'rgba(200,146,26,0.1)', padding: '3px 9px', borderRadius: 'var(--r-full)' }}><Clock size={11} /> En attente</span>
                                 )}
                                 <button onClick={() => { setCommentFor({ id: c.id, tr: i }); setCommentText(t.comment || ''); }} style={btnSm('var(--primary)', 'var(--secondary)')}><MessageSquare size={11} /> Commenter</button>
                               </div>

@@ -33,9 +33,9 @@ interface Props { agentName?: string; }
 
 const DOC_STATUS_CFG: Record<DocStatus, { label: string; color: string; bg: string }> = {
   'accepte':    { label: 'Accepté',         color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'  },
-  'en-analyse': { label: 'À vérifier',      color: '#C8921A',                 bg: 'rgba(200,146,26,0.10)' },
-  'a-remplacer':{ label: 'À remplacer',     color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'  },
-  'refuse':     { label: 'Refusé',          color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'  },
+  'en-analyse': { label: 'À vérifier',      color: 'var(--accent-text)',                 bg: 'rgba(200,146,26,0.10)' },
+  'a-remplacer':{ label: 'À remplacer',     color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'  },
+  'refuse':     { label: 'Refusé',          color: 'var(--destructive)',                 bg: 'rgba(192,57,43,0.08)'  },
   'manquant':   { label: 'Non déposé',      color: 'var(--muted-foreground)', bg: 'var(--muted)'          },
 };
 
@@ -221,8 +221,8 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
         {[
           { l: 'Pièces au total', v: kTotal, c: 'var(--primary)' },
           { l: 'Validées', v: kValides, c: 'var(--success)' },
-          { l: 'À vérifier', v: kAVerifier, c: '#C8921A' },
-          { l: 'À corriger', v: kACorriger, c: '#C0392B' },
+          { l: 'À vérifier', v: kAVerifier, c: 'var(--accent-text)' },
+          { l: 'À corriger', v: kACorriger, c: 'var(--destructive)' },
         ].map(s => (
           <div key={s.l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '14px 16px' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: s.c }}>{s.v}</div>
@@ -259,7 +259,7 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
       {queue.length > 0 && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', marginBottom: 16, overflow: 'hidden' }}>
           <button onClick={() => setQueueOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'rgba(200,146,26,0.06)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-            <ListChecks size={18} style={{ color: '#C8921A', flexShrink: 0 }} />
+            <ListChecks size={18} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', flex: 1 }}>File d'attente — {queue.length} pièce{queue.length > 1 ? 's' : ''} à traiter</span>
             {queueOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
           </button>
@@ -270,12 +270,12 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{doc.label}</div>
                     <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)', marginTop: 1 }}>{clientName} · {ref}</div>
-                    {doc.date !== '—' && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: '#C8921A', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>}
+                    {doc.date !== '—' && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => setPreview({ clientId, clientName, ref, doc })} style={btnSm('var(--primary)', 'var(--secondary)')}><Eye size={12} /> Aperçu</button>
                     <button onClick={() => accept(clientId, doc.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><CheckCircle2 size={12} /> Accepter</button>
-                    <button onClick={() => openComment(clientId, doc.id, doc.label, 'refus')} style={btnSm('#C0392B', 'rgba(192,57,43,0.08)')}><XCircle size={12} /> Refuser</button>
+                    <button onClick={() => openComment(clientId, doc.id, doc.label, 'refus')} style={btnSm('var(--destructive)', 'rgba(192,57,43,0.08)')}><XCircle size={12} /> Refuser</button>
                     <button onClick={() => openComment(clientId, doc.id, doc.label, 'complement')} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><AlertCircle size={12} /> Remplacement</button>
                   </div>
                 </div>
@@ -314,8 +314,8 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={{ fontSize: '0.75rem', color: total > 0 && accepted === total ? 'var(--success)' : 'var(--muted-foreground)', fontWeight: 700 }}>{accepted}/{total} validés</span>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    {pending > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#C8921A' }}>{pending} à vérifier</span>}
-                    {issues > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#C0392B' }}>{issues} à corriger</span>}
+                    {pending > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent-text)' }}>{pending} à vérifier</span>}
+                    {issues > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--destructive)' }}>{issues} à corriger</span>}
                   </div>
                 </div>
                 {isOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
@@ -346,13 +346,13 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                             {doc.file === '—' ? 'Non déposé' : `${doc.file} · ${doc.date} · ${doc.size}`}
                           </div>
                           {doc.status === 'en-analyse' && doc.date !== '—' && (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: '#C8921A', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>
                           )}
                         </div>
                         <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', background: cfg.bg, color: cfg.color, fontSize: '0.6875rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{cfg.label}</span>
                       </div>
                       {doc.comment && (
-                        <div style={{ marginTop: 8, borderLeft: '3px solid #C0392B', paddingLeft: 10, fontSize: '0.75rem', color: '#C0392B', fontStyle: 'italic' }}>"{doc.comment}"</div>
+                        <div style={{ marginTop: 8, borderLeft: '3px solid var(--destructive)', paddingLeft: 10, fontSize: '0.75rem', color: 'var(--destructive)', fontStyle: 'italic' }}>"{doc.comment}"</div>
                       )}
                       {doc.status !== 'manquant' && (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -364,7 +364,7 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                             <button onClick={() => backToVerif(client.id, doc.id)} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><RefreshCw size={12} /> Vérification</button>
                           )}
                           {doc.status !== 'refuse' && (
-                            <button onClick={() => openComment(client.id, doc.id, doc.label, 'refus')} style={btnSm('#C0392B', 'rgba(192,57,43,0.08)')}><XCircle size={12} /> Refuser</button>
+                            <button onClick={() => openComment(client.id, doc.id, doc.label, 'refus')} style={btnSm('var(--destructive)', 'rgba(192,57,43,0.08)')}><XCircle size={12} /> Refuser</button>
                           )}
                           <button onClick={() => openComment(client.id, doc.id, doc.label, 'complement')} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><AlertCircle size={12} /> Remplacement</button>
                         </div>

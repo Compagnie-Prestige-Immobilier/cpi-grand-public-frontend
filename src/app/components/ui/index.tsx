@@ -40,13 +40,21 @@ export const DS = {
     slow:   'all var(--dur-3) var(--ease-out)',
     spring: 'all var(--dur-2) var(--ease-spring)',
   },
+  /**
+   * Couples texte / fond des statuts. Chaque paire est vérifiée ≥ 4,5:1
+   * (WCAG AA texte) — voir docs/design.md § Rôles de couleur.
+   *
+   * Les fonds sont des couleurs opaques, PAS des `rgba()` : un badge posé sur
+   * un fond autre que blanc composait sinon une teinte imprévisible, et le
+   * ratio annoncé ne valait plus rien.
+   */
   status: {
-    success: { color: 'var(--success)',           bg: 'rgba(26,107,68,0.10)'     },
-    warning: { color: 'var(--accent)',             bg: 'rgba(200,146,26,0.10)'   },
-    danger:  { color: 'var(--destructive)',        bg: 'rgba(192,57,43,0.10)'    },
-    info:    { color: 'var(--chart-4)',            bg: 'rgba(46,110,196,0.10)'   },
-    muted:   { color: 'var(--muted-foreground)',   bg: 'var(--muted)'            },
-    primary: { color: 'var(--primary)',            bg: 'var(--secondary)'        },
+    success: { color: 'var(--success)',          bg: 'var(--success-surface)'     }, // 5,60:1
+    warning: { color: 'var(--accent-text)',      bg: 'var(--warning-surface)'     }, // 5,21:1
+    danger:  { color: 'var(--destructive)',      bg: 'var(--destructive-surface)' }, // 5,45:1
+    info:    { color: 'var(--info)',             bg: 'var(--info-surface)'        }, // 5,18:1
+    muted:   { color: 'var(--muted-foreground)', bg: 'var(--muted)'               }, // 6,18:1
+    primary: { color: 'var(--primary)',          bg: 'var(--secondary)'           }, // 11,71:1
   } as Record<string, { color: string; bg: string }>,
 };
 
@@ -550,7 +558,7 @@ export function HeroCard({
                     </span>
                   )}
                   {progressValue && (
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent)' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent-text)' }}>
                       {progressValue}
                     </span>
                   )}
@@ -994,7 +1002,7 @@ export function InlineAlert({
   const cfgs = {
     info:    { color: 'var(--chart-4)',   bg: 'rgba(46,110,196,0.08)',  border: 'rgba(46,110,196,0.2)',  icon: Info          },
     success: { color: 'var(--success)',   bg: 'rgba(26,107,68,0.07)',   border: 'rgba(26,107,68,0.2)',   icon: CheckCircle2  },
-    warning: { color: 'var(--accent)',    bg: 'rgba(200,146,26,0.07)',  border: 'rgba(200,146,26,0.2)',  icon: AlertTriangle },
+    warning: { color: 'var(--accent-text)',    bg: 'rgba(200,146,26,0.07)',  border: 'rgba(200,146,26,0.2)',  icon: AlertTriangle },
     danger:  { color: 'var(--destructive)', bg: 'rgba(192,57,43,0.07)', border: 'rgba(192,57,43,0.2)',  icon: AlertCircle   },
   };
   const { color, bg, border, icon: Icon } = cfgs[type];

@@ -45,7 +45,7 @@ const HISTO_TONE: Record<ActivityType, string> = {
 
 const TONE: Record<string, string> = {
   success: 'var(--success)', primary: 'var(--primary)',
-  accent: 'var(--accent)', muted: 'var(--muted-foreground)',
+  accent: 'var(--accent-text)', muted: 'var(--muted-foreground)',
   danger: 'var(--destructive)',
 };
 const TONE_BG: Record<string, string> = {
@@ -108,7 +108,7 @@ export default function ClientDashboardHome({ user }: Props) {
   const endDate = new Date(Date.now() + moisRestants * 30 * 86400000)
     .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-  const alertColor = alerteBadge === 'warning' ? 'var(--accent)' : 'var(--success)';
+  const alertColor = alerteBadge === 'warning' ? 'var(--accent-text)' : 'var(--success)';
   const alertBg    = alerteBadge === 'warning' ? 'rgba(200,146,26,0.1)' : 'rgba(26,107,68,0.1)';
 
   return (
@@ -221,7 +221,7 @@ export default function ClientDashboardHome({ user }: Props) {
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(255,255,255,0.45)' }}>
                     {hasFinancement ? 'Remboursement prêt' : 'Avancement du dossier'}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 800, color: 'var(--accent)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 800, color: 'var(--accent-text)' }}>
                     {hasFinancement ? progression : dossierPct}%{' '}
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 400, color: 'rgba(255,255,255,0.45)' }}>
                       {hasFinancement ? `· fin ${endDate}` : `· ${steps[activeStep].label}`}
@@ -255,7 +255,7 @@ export default function ClientDashboardHome({ user }: Props) {
                         {step.active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: step.active ? 700 : 500, color: step.done ? 'rgba(255,255,255,0.7)' : step.active ? '#FFC65A' : 'rgba(255,255,255,0.35)' }}>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: step.active ? 700 : 500, color: step.done ? 'rgba(255,255,255,0.7)' : step.active ? 'var(--accent-on-dark)' : 'rgba(255,255,255,0.35)' }}>
                           {step.label}
                         </div>
                         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>{step.sub}</div>
@@ -301,7 +301,7 @@ export default function ClientDashboardHome({ user }: Props) {
               onClick={() => navigate('ma-demande')} />
             <KPICard icon={<Calendar size={19} />} label="Échéance mensuelle"
               value={fmt(animEcheance)} sub="Prélèvement automatique"
-              accentColor="var(--accent)" accentBg="rgba(200,146,26,0.10)"
+              accentColor="var(--accent-text)" accentBg="rgba(200,146,26,0.10)"
               trend="neutral" trendLabel="À jour" delay={80} />
             <KPICard icon={<CheckCircle2 size={19} />} label="Mois payés"
               value={`${fmtN(animPaye)} / ${dureeTotal}`} sub={`Soit ${progression}% du prêt`}
@@ -331,7 +331,7 @@ export default function ClientDashboardHome({ user }: Props) {
               onClick={() => navigate('mon-dossier')} />
             <KPICard icon={<Clock size={19} />} label="Prochaine étape"
               value={nextEtape} sub="Suivi par votre conseiller"
-              accentColor="var(--accent)" accentBg="rgba(200,146,26,0.10)" delay={160} />
+              accentColor="var(--accent-text)" accentBg="rgba(200,146,26,0.10)" delay={160} />
             <KPICard icon={<AlertTriangle size={19} />} label="Alertes"
               value={alerteBadge === 'none' ? 'Aucune alerte' : '1 alerte'}
               sub={alerteBadge === 'none' ? 'Statut en temps réel' : 'Action requise'}
@@ -396,7 +396,7 @@ export default function ClientDashboardHome({ user }: Props) {
         {/* Activity feed */}
         <SmartCard padding="0">
           <div style={{ padding: '18px 22px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <CardHeader icon={<TrendingUp size={16} />} iconBg="rgba(200,146,26,0.10)" iconColor="var(--accent)" title="Dernières activités" />
+            <CardHeader icon={<TrendingUp size={16} />} iconBg="rgba(200,146,26,0.10)" iconColor="var(--accent-text)" title="Dernières activités" />
             <StatusBadge variant="muted" size="sm">{recentActivities.length} récente{recentActivities.length > 1 ? 's' : ''}</StatusBadge>
           </div>
           <CardDivider />
@@ -470,7 +470,7 @@ export default function ClientDashboardHome({ user }: Props) {
                   {step.active && (
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, padding: '3px 8px', borderRadius: 'var(--r-xs)', background: 'rgba(200,146,26,0.1)', border: '1px solid rgba(200,146,26,0.2)' }}>
                       <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />
-                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--accent)' }}>Étape en cours</span>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--accent-text)' }}>Étape en cours</span>
                     </div>
                   )}
                 </div>

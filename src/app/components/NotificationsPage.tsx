@@ -73,7 +73,7 @@ const TYPE_CONFIG: Record<NotifType, {
     label: 'Alerte retard',
   },
   'echeance-proche': {
-    icon: Clock, color: 'var(--accent)',
+    icon: Clock, color: 'var(--accent-text)',
     bg: 'rgba(200,146,26,0.09)', border: 'rgba(200,146,26,0.18)',
     label: 'Rappel',
   },
@@ -98,7 +98,7 @@ const TYPE_CONFIG: Record<NotifType, {
     label: 'Sécurité',
   },
   'securite-inactivite': {
-    icon: BellOff, color: 'var(--accent)',
+    icon: BellOff, color: 'var(--accent-text)',
     bg: 'rgba(200,146,26,0.09)', border: 'rgba(200,146,26,0.18)',
     label: 'Inactivité',
   },

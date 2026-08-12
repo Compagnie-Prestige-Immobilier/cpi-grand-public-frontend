@@ -9,7 +9,7 @@ type NotifCible = 'client' | 'tous';
 
 const TYPE_CFG: Record<NotifType, { label: string; color: string; bg: string }> = {
   notification: { label: 'Notification', color: 'var(--primary)', bg: 'var(--secondary)'      },
-  email:        { label: 'Email',        color: '#C8921A',        bg: 'rgba(200,146,26,0.10)' },
+  email:        { label: 'Email',        color: 'var(--accent-text)',        bg: 'rgba(200,146,26,0.10)' },
   sms:          { label: 'SMS',          color: 'var(--success)', bg: 'rgba(26,107,68,0.10)'  },
   whatsapp:     { label: 'WhatsApp',     color: '#25D366',        bg: 'rgba(37,211,102,0.10)' },
 };

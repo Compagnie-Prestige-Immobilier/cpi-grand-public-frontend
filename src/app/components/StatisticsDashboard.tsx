@@ -21,7 +21,10 @@ const C = {
   bordeaux: '#630210',
   bordeauxLight: '#F5ECEE',
   bordeauxMid: '#B05070',
-  gold: '#C8921A',
+  // Or vif : séries de graphiques uniquement (objet non textuel, seuil 3:1).
+  gold: '#A87A15',
+  // Or foncé : toute valeur textuelle (WCAG AA 4,5:1 sur fond clair).
+  goldText: '#856011',
   goldLight: '#F0B840',
   green: '#1A6B44',
   greenLight: 'rgba(26,107,68,0.1)',
@@ -51,7 +54,7 @@ function KpiCard({ label, value, sub, delta, positive, icon: Icon, color }: {
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
         {delta && (
-          <div className={`flex items-center gap-1 px-2 py-0.5 ${positive ? 'text-[#1A6B44]' : 'text-[#C0392B]'}`}
+          <div className={`flex items-center gap-1 px-2 py-0.5 ${positive ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}
             style={{ fontSize: '0.6875rem', fontWeight: 700, background: positive ? C.greenLight : 'rgba(192,57,43,0.08)' }}>
             {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {delta}
@@ -282,7 +285,7 @@ export default function StatisticsDashboard({ user }: Props) {
       <div className="bg-white p-5" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, marginBottom: '4px' }}>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.goldText, marginBottom: '4px' }}>
               Rapports & Analyses
             </div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.375rem', fontWeight: 800, color: C.text }}>
@@ -316,9 +319,9 @@ export default function StatisticsDashboard({ user }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 cpi-stagger">
         <KpiCard label="Dossiers suivis" value={String(rTotal)} sub="Portefeuille actuel" icon={FileText} color={C.bordeaux} />
         <KpiCard label="Dossiers finalisés" value={String(rFinalises)} sub={`${rTaux}% du portefeuille`} icon={CheckCircle2} color={C.green} />
-        <KpiCard label="En cours" value={String(rEnCours)} sub="Dossiers à traiter" icon={Clock} color={C.gold} />
+        <KpiCard label="En cours" value={String(rEnCours)} sub="Dossiers à traiter" icon={Clock} color={C.goldText} />
         <KpiCard label="Pièces à vérifier" value={String(rAVerifier)} sub="En attente de validation" icon={Banknote} color={C.bordeauxMid} />
-        <KpiCard label="Documents à signer" value={String(rASigner)} sub="En attente du client" icon={XCircle} color="#C0392B" />
+        <KpiCard label="Documents à signer" value={String(rASigner)} sub="En attente du client" icon={XCircle} color="var(--destructive)" />
       </div>
 
       {/* Tab navigation */}
@@ -453,8 +456,8 @@ export default function StatisticsDashboard({ user }: Props) {
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: 'Montant total accordé', value: `${totalMontant} M FCFA`, color: C.bordeaux },
-                  { label: 'Montant moyen / dossier', value: `${(totalMontant * 1_000_000 / Math.max(1, rFinalises)).toLocaleString('fr-FR')} FCFA`, color: C.gold },
-                  { label: 'Dossiers financés', value: String(rFinalises), color: C.gold },
+                  { label: 'Montant moyen / dossier', value: `${(totalMontant * 1_000_000 / Math.max(1, rFinalises)).toLocaleString('fr-FR')} FCFA`, color: C.goldText },
+                  { label: 'Dossiers financés', value: String(rFinalises), color: C.goldText },
                   { label: 'Reste à financer', value: `${rEnCours} dossier${rEnCours > 1 ? 's' : ''}`, color: C.bordeaux },
                 ].map(k => (
                   <div key={k.label} className="p-5 bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
@@ -492,7 +495,7 @@ export default function StatisticsDashboard({ user }: Props) {
                 {[
                   { label: 'Agents actifs', value: String(realAgentCount), sub: 'Comptes professionnels CPI', color: C.bordeaux },
                   { label: 'Dossiers suivis', value: String(rTotal), sub: 'Portefeuille en cours', color: C.green },
-                  { label: 'Dossiers finalisés', value: String(rFinalises), sub: `${rTaux}% du portefeuille`, color: C.gold },
+                  { label: 'Dossiers finalisés', value: String(rFinalises), sub: `${rTaux}% du portefeuille`, color: C.goldText },
                 ].map(k => (
                   <div key={k.label} className="p-5 bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: k.color }}>{k.value}</div>
