@@ -6,6 +6,7 @@ import { useCpiDocs } from '../data/cpiDocsContext';
 import { useClientContext } from '../contexts/ClientContext';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
 import { usePermission } from '../auth/PermissionContext';
+import { frDateSortKey } from '../lib/format';
 
 type ActionType = 'validation' | 'document' | 'notification' | 'photo' | 'decaissement' | 'commentaire' | 'depot' | 'refus' | 'compte' | 'banque';
 
@@ -33,16 +34,6 @@ const TYPE_CFG: Record<ActionType, { icon: LucideIcon; color: string; bg: string
   banque:        { icon: Landmark,      color: '#B45309',                  bg: 'rgba(180,83,9,0.10)'     },
 };
 
-// Convertit une date FR (« 18 juin 2026 ») + heure en clé triable.
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function sortKey(date: string, heure: string): string {
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return date + ' ' + heure;
-  const day = m[1].padStart(2, '0');
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  const month = String((monthIdx < 0 ? 0 : monthIdx) + 1).padStart(2, '0');
-  return `${m[3]}-${month}-${day} ${heure || '00:00'}`;
-}
 
 const ALL_TYPES: (ActionType | 'all')[] = ['all', 'validation', 'document', 'depot', 'refus', 'decaissement', 'banque', 'notification', 'photo', 'commentaire', 'compte'];
 const TYPE_LABELS: Record<ActionType | 'all', string> = {
@@ -98,7 +89,7 @@ export default function HistoriqueModule() {
     const live = [...docEntries, ...cpiEntries, ...actEntries];
     const seen = new Set<string>();
     const unique = live.filter(e => (e.id && seen.has(e.id) ? false : (seen.add(e.id), true)));
-    return unique.sort((a, b) => sortKey(b.date, b.heure).localeCompare(sortKey(a.date, a.heure)));
+    return unique.sort((a, b) => frDateSortKey(b.date, b.heure).localeCompare(frDateSortKey(a.date, a.heure)));
   }, [allHistoryByClient, allCpiHistoryByClient, historiqueQuery.data, allClients]);
 
   // Liste des dossiers présents dans le journal (pour le filtre).
@@ -123,7 +114,7 @@ export default function HistoriqueModule() {
     if (filterType !== 'all' && e.type !== filterType) return false;
     if (filterRole !== 'all' && e.role !== filterRole) return false;
     if (filterClient !== 'all' && e.cible !== filterClient) return false;
-    if (periodeThreshold && sortKey(e.date, e.heure) < periodeThreshold) return false;
+    if (periodeThreshold && frDateSortKey(e.date, e.heure) < periodeThreshold) return false;
     if (q && !(`${e.action} ${e.utilisateur} ${e.role} ${e.cible ?? ''}`.toLowerCase().includes(q))) return false;
     return true;
   });

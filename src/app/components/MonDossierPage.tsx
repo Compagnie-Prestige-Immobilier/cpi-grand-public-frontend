@@ -19,6 +19,7 @@ import { useMesBanquesQuery, toBankAssignment, type BankStatus } from '../data/b
 import { apiErrorMessage } from '../api/client';
 import { useDossierJourney, TIMELINE_STEPS } from '../data/dossierJourney';
 import { useNavigate } from '../contexts/NavigationContext';
+import { formatFCFA } from '../lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -493,7 +494,7 @@ function buildDocPreview(doc: SignDocTarget, client: ReturnType<typeof useClient
   const projet  = client.projectNom;
   const adresse = client.adresse;
   const banque  = client.banque && client.banque !== '—' ? client.banque : 'la banque partenaire';
-  const montant = client.finance?.montantFinance ? client.finance.montantFinance.toLocaleString('fr-FR') + ' FCFA' : 'le montant convenu';
+  const montant = client.finance?.montantFinance ? formatFCFA(client.finance.montantFinance) : 'le montant convenu';
 
   switch (doc.categorie) {
     case 'conventions':

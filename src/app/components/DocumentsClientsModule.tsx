@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
+import { ageDepotLabel, parseFrDate } from '../lib/format';
 
 type DocStatus = 'accepte' | 'en-analyse' | 'a-remplacer' | 'refuse' | 'manquant';
 
@@ -62,24 +63,6 @@ function toClientDoc(d: SharedDoc): ClientDoc {
   };
 }
 
-// ── Ancienneté ────────────────────────────────────────────────────────────────
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function parseFrDate(date: string): Date | null {
-  if (!date || date === '—') return null;
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const idx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (idx < 0) return null;
-  return new Date(Number(m[3]), idx, Number(m[1]));
-}
-function ageLabel(date: string): string {
-  const d = parseFrDate(date);
-  if (!d) return '';
-  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
-  if (days <= 0) return "déposé aujourd'hui";
-  if (days === 1) return 'déposé hier';
-  return `déposé il y a ${days} jours`;
-}
 
 export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Props) {
   const {
@@ -270,7 +253,7 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{doc.label}</div>
                     <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)', marginTop: 1 }}>{clientName} · {ref}</div>
-                    {doc.date !== '—' && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>}
+                    {doc.date !== '—' && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageDepotLabel(doc.date)}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => setPreview({ clientId, clientName, ref, doc })} style={btnSm('var(--primary)', 'var(--secondary)')}><Eye size={12} /> Aperçu</button>
@@ -346,7 +329,7 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
                             {doc.file === '—' ? 'Non déposé' : `${doc.file} · ${doc.date} · ${doc.size}`}
                           </div>
                           {doc.status === 'en-analyse' && doc.date !== '—' && (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageLabel(doc.date)}</div>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color: 'var(--accent-text)', fontWeight: 600, marginTop: 3 }}><Clock size={11} /> {ageDepotLabel(doc.date)}</div>
                           )}
                         </div>
                         <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', background: cfg.bg, color: cfg.color, fontSize: '0.6875rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{cfg.label}</span>

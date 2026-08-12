@@ -15,14 +15,13 @@ import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
 import { toActivityEntries, useHistoriqueQuery } from '../data/activityLog';
+import { formatFCFA } from '../lib/format';
 
 interface MonProfilPageProps {
   user: AuthUser;
   onLogout?: () => void;
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -412,7 +411,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
   // d'endettement « 0 % » en vert : une absence de donnée se lisait comme une
   // évaluation financière favorable. Un tiret dit la vérité — la donnée manque.
   const hasFinance = revenuTotal > 0;
-  const montant = (v: number) => (hasFinance ? fmt(v) : '—');
+  const montant = (v: number) => (hasFinance ? formatFCFA(v) : '—');
 
   return (
     <div style={{
@@ -1004,7 +1003,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
             <span style={{
               fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
               fontWeight: 600, color: 'var(--foreground)',
-            }}>{fmt(revenuTotal)}</span>
+            }}>{formatFCFA(revenuTotal)}</span>
           </div>
           <div style={{ height: '8px', borderRadius: 'var(--r-full)', background: 'var(--muted)', overflow: 'hidden' }}>
             <div style={{

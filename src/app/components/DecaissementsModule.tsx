@@ -7,14 +7,13 @@ import { useClientContext } from '../contexts/ClientContext';
 import { useDocState } from '../data/docStateContext';
 import { resolveClientBank } from '../data/bankRegistry';
 import { apiErrorMessage } from '../api/client';
+import { formatAmount, formatFCFA, parseAmount } from '../lib/format';
 import {
   useDecaissementsQuery, useUpdateDecaissement, useValidateFoncierStep,
   useValidateTerrain, useValidateTranche, defaultDecaissement, toTranchesInput,
   FONCIER_STEPS, CONSTRUCTION_TRANCHES, type DecaissementState,
 } from '../data/decaissementStore';
 
-const fmtFCFA = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
-const parseAmount = (s: string) => parseInt(s.replace(/\D/g, ''), 10) || 0;
 
 export default function DecaissementsModule() {
   const { allClients } = useClientContext();
@@ -84,7 +83,7 @@ export default function DecaissementsModule() {
       onError: failWith('Impossible d\'enregistrer le prix du terrain.'),
       onSuccess: () => {
         terrainMutation.mutate(id, journaliseSiOk(() => {
-          pushNotification(id, `Décaissement du prix du terrain effectué (${fmtFCFA(montant)}).`, 'Notification', 'CPI');
+          pushNotification(id, `Décaissement du prix du terrain effectué (${formatFCFA(montant)}).`, 'Notification', 'CPI');
           showToast(`Prix du terrain décaissé pour ${name} · client notifié.`);
         }, 'Le décaissement du terrain a échoué.'));
       },
@@ -110,7 +109,7 @@ export default function DecaissementsModule() {
   const validateTranche = (id: string, tr: number, name: string) => {
     const montant = Math.round(st(id).constructionMontant * CONSTRUCTION_TRANCHES[tr].pct / 100);
     trancheMutation.mutate({ clientId: id, num: tr }, journaliseSiOk(() => {
-      pushNotification(id, `Tranche ${tr + 1} décaissée (${CONSTRUCTION_TRANCHES[tr].label}) — ${fmtFCFA(montant)}.`, 'Notification', 'CPI');
+      pushNotification(id, `Tranche ${tr + 1} décaissée (${CONSTRUCTION_TRANCHES[tr].label}) — ${formatFCFA(montant)}.`, 'Notification', 'CPI');
       showToast(`Tranche ${tr + 1} décaissée pour ${name} · client notifié.`);
     }, 'Le décaissement de la tranche a échoué.'));
   };
@@ -142,7 +141,7 @@ export default function DecaissementsModule() {
   const card: React.CSSProperties = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden' };
   const amountInput = (value: number, onChange: (n: number) => void, onCommit?: () => void, disabled?: boolean) => (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '6px 10px', background: disabled ? 'var(--muted)' : 'var(--input-background)' }}>
-      <input value={value ? value.toLocaleString('fr-FR') : ''} disabled={disabled} onChange={e => onChange(parseAmount(e.target.value))} onBlur={() => onCommit?.()} placeholder="0"
+      <input value={value ? formatAmount(value) : ''} disabled={disabled} onChange={e => onChange(parseAmount(e.target.value))} onBlur={() => onCommit?.()} placeholder="0"
         style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '0.875rem', fontWeight: 700, color: 'var(--foreground)', width: 120, textAlign: 'right' }} />
       <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>FCFA</span>
     </div>
@@ -195,7 +194,7 @@ export default function DecaissementsModule() {
           { l: 'Dossiers suivis', v: String(nbDossiers), c: 'var(--primary)' },
           { l: 'Parcelles financées', v: String(parcellesDecaissees), c: 'var(--success)' },
           { l: 'En construction', v: String(enConstruction), c: 'var(--accent-text)' },
-          { l: 'Total décaissé', v: fmtFCFA(totalDecaisse), c: 'var(--foreground)' },
+          { l: 'Total décaissé', v: formatFCFA(totalDecaisse), c: 'var(--foreground)' },
         ].map(s => (
           <div key={s.l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '14px 16px' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: s.l === 'Total décaissé' ? '1.0625rem' : '1.5rem', fontWeight: 800, color: s.c }}>{s.v}</div>
@@ -315,7 +314,7 @@ export default function DecaissementsModule() {
                               <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.8125rem', color: t.validated ? 'var(--success)' : 'var(--primary)', background: t.validated ? 'rgba(26,107,68,0.1)' : 'var(--secondary)' }}>T{i + 1}</div>
                               <div style={{ flex: 1, minWidth: 200 }}>
                                 <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--foreground)' }}>Tranche {i + 1} — {tr.label}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{tr.pct}% · <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{fmtFCFA(montant)}</span></div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{tr.pct}% · <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{formatFCFA(montant)}</span></div>
                                 <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)', marginTop: 2 }}>{tr.detail}</div>
                                 {t.comment && <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontStyle: 'italic', marginTop: 3 }}>"{t.comment}"</div>}
                                 {t.validated && t.date && <div style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600, marginTop: 3 }}>Décaissé le {t.date}</div>}

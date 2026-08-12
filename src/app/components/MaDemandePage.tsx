@@ -20,6 +20,7 @@ import { apiErrorMessage } from '../api/client';
 import { usePermission } from '../auth/PermissionContext';
 import { JOURNEY_QUERY_KEY, useDossierJourney } from '../data/dossierJourney';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
+import { formatMontantSaisi } from '../lib/format';
 
 interface Props { user: AuthUser }
 
@@ -45,10 +46,6 @@ interface DemandeForm {
  * La saisie est libre : si elle n'est pas numérique, on la réaffiche telle
  * quelle plutôt que d'écrire « NaN » à l'écran.
  */
-function fmtMontant(valeur: string): string {
-  const n = Number(valeur);
-  return valeur.trim() !== '' && Number.isFinite(n) ? n.toLocaleString('fr-FR') : valeur;
-}
 
 // ── Doc status config (statuts réels, gérés par l'Agent CPI dans "Mon dossier") ──
 //
@@ -857,7 +854,7 @@ export default function MaDemandePage({ user: _user }: Props) {
             <div style={{ padding: '8px 28px 24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', margin: '16px 0' }}>
                 {[
-                  { label: 'Montant demandé', value: form.montant ? fmtMontant(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
+                  { label: 'Montant demandé', value: form.montant ? formatMontantSaisi(form.montant) : '—', sub: 'FCFA', icon: <Banknote size={14} />, color: 'var(--primary)' },
                   { label: 'Durée', value: form.duree, sub: 'ans', icon: <Timer size={14} />, color: 'var(--accent-text)' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'var(--card)', padding: '14px 16px' }}>

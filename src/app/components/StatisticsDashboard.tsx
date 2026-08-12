@@ -13,6 +13,7 @@ import { useClientContext } from '../contexts/ClientContext';
 import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
 import { computeJourneyStep, SIGNATURE_INDEX, DOCS_VALIDES_INDEX, TIMELINE_STEPS } from '../data/dossierJourney';
+import { formatFCFA, parseFrDate } from '../lib/format';
 
 interface Props { user: AuthUser }
 
@@ -112,16 +113,6 @@ function MetricTile({ label, value, hint, source, icon: Icon }: {
   );
 }
 
-// Parse une date FR (« 25 juillet 2026 ») pour compter les nouvelles inscriptions.
-const _MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function parseFrDate(s?: string): Date | null {
-  if (!s) return null;
-  const m = s.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = _MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(parseInt(m[3]), monthIdx, parseInt(m[1]));
-}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -456,7 +447,7 @@ export default function StatisticsDashboard({ user }: Props) {
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: 'Montant total accordé', value: `${totalMontant} M FCFA`, color: C.bordeaux },
-                  { label: 'Montant moyen / dossier', value: `${(totalMontant * 1_000_000 / Math.max(1, rFinalises)).toLocaleString('fr-FR')} FCFA`, color: C.goldText },
+                  { label: 'Montant moyen / dossier', value: formatFCFA(totalMontant * 1_000_000 / Math.max(1, rFinalises)), color: C.goldText },
                   { label: 'Dossiers financés', value: String(rFinalises), color: C.goldText },
                   { label: 'Reste à financer', value: `${rEnCours} dossier${rEnCours > 1 ? 's' : ''}`, color: C.bordeaux },
                 ].map(k => (

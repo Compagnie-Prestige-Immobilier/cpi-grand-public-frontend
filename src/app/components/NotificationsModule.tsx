@@ -3,6 +3,7 @@ import { Bell, Send, Users, User } from 'lucide-react';
 import { useDocState } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
 import type { HistoEntry } from '../data/demoStore';
+import { frDateSortKey } from '../lib/format';
 
 type NotifType = 'notification' | 'email' | 'sms' | 'whatsapp';
 type NotifCible = 'client' | 'tous';
@@ -22,16 +23,6 @@ const TEMPLATES = [
   'Un décaissement a été effectué. Consultez le suivi de votre dossier.',
 ];
 
-// Tri des dates FR.
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function sortKey(date: string, heure: string): string {
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return date + ' ' + heure;
-  const day = m[1].padStart(2, '0');
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  const month = String((monthIdx < 0 ? 0 : monthIdx) + 1).padStart(2, '0');
-  return `${m[3]}-${month}-${day} ${heure || '00:00'}`;
-}
 
 interface Props { agentName?: string; }
 
@@ -65,7 +56,7 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
     const all = Object.values(allHistoryByClient).flat().filter(e => e.type === 'notification') as HistoEntry[];
     const seen = new Set<string>();
     const unique = all.filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)));
-    return unique.sort((a, b) => sortKey(b.date, b.heure).localeCompare(sortKey(a.date, a.heure)));
+    return unique.sort((a, b) => frDateSortKey(b.date, b.heure).localeCompare(frDateSortKey(a.date, a.heure)));
   }, [allHistoryByClient]);
 
   const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 'var(--r-sm)', background: 'var(--input-background)', border: '1px solid var(--border)', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)' };

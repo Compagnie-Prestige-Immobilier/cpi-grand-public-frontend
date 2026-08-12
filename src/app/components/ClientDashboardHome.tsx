@@ -12,6 +12,7 @@ import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { useDossierJourney } from '../data/dossierJourney';
 import { useNavigate } from '../contexts/NavigationContext';
+import { formatAmount, formatFCFA } from '../lib/format';
 import {
   KPICard, SmartCard, CardHeader, CardDivider,
   ActionRow, TimelineItem, SectionHeader, StatusBadge,
@@ -54,8 +55,6 @@ const TONE_BG: Record<string, string> = {
   danger: 'rgba(192,57,43,0.1)',
 };
 
-const fmt  = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' FCFA';
-const fmtN = (n: number) => Math.round(n).toLocaleString('fr-FR');
 
 export default function ClientDashboardHome({ user }: Props) {
   const client = useClientData();
@@ -296,22 +295,22 @@ export default function ClientDashboardHome({ user }: Props) {
         {hasFinancement ? (
           <>
             <KPICard icon={<Banknote size={19} />} label="Montant financé"
-              value={fmt(animFinance)} sub="Financement accordé"
+              value={formatFCFA(animFinance)} sub="Financement accordé"
               accentColor="var(--primary)" accentBg="rgba(99,2,16,0.08)" delay={0}
               onClick={() => navigate('ma-demande')} />
             <KPICard icon={<Calendar size={19} />} label="Échéance mensuelle"
-              value={fmt(animEcheance)} sub="Prélèvement automatique"
+              value={formatFCFA(animEcheance)} sub="Prélèvement automatique"
               accentColor="var(--accent-text)" accentBg="rgba(200,146,26,0.10)"
               trend="neutral" trendLabel="À jour" delay={80} />
             <KPICard icon={<CheckCircle2 size={19} />} label="Mois payés"
-              value={`${fmtN(animPaye)} / ${dureeTotal}`} sub={`Soit ${progression}% du prêt`}
+              value={`${formatAmount(animPaye)} / ${dureeTotal}`} sub={`Soit ${progression}% du prêt`}
               accentColor="var(--success)" accentBg="rgba(26,107,68,0.10)"
-              trend="up" trendLabel={`+${fmtN(animPaye)}`} delay={160} />
+              trend="up" trendLabel={`+${formatAmount(animPaye)}`} delay={160} />
             <KPICard icon={<CreditCard size={19} />} label="Montant remboursé"
-              value={fmt(animMontPaye)} sub="Depuis le début du prêt"
+              value={formatFCFA(animMontPaye)} sub="Depuis le début du prêt"
               accentColor="var(--primary)" accentBg="rgba(99,2,16,0.08)" delay={240} />
             <KPICard icon={<Clock size={19} />} label="Mois restants"
-              value={`${fmtN(animRestants)} mois`} sub={`Fin : ${endDate}`}
+              value={`${formatAmount(animRestants)} mois`} sub={`Fin : ${endDate}`}
               accentColor="var(--muted-foreground)" accentBg="var(--muted)" delay={320} />
             <KPICard icon={<AlertTriangle size={19} />} label="Alertes"
               value={alerteBadge === 'none' ? 'Aucune alerte' : '1 alerte'}

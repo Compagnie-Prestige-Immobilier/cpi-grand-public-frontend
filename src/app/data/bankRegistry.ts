@@ -14,6 +14,7 @@
 
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { parseFrDate } from '../lib/format';
 import {
   clientApi, staffApi,
   type BankAssignmentData, type BankAssignmentStatus, type BankCreateInput, type BankData,
@@ -235,14 +236,3 @@ export function resolveClientBank(clientId: string): string {
   return list[0]?.bankName ?? '—';
 }
 
-// ─── util interne ─────────────────────────────────────────────────────────────
-
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function parseFrDate(date: string, now: Date): Date | null {
-  if (!date || /aujourd/i.test(date)) return now;
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(Number(m[3]), monthIdx, Number(m[1]));
-}

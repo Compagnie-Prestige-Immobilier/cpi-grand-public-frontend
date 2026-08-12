@@ -40,30 +40,12 @@ import ChantierModule from './ChantierModule';
 import DecaissementsModule from './DecaissementsModule';
 import NotificationsModule from './NotificationsModule';
 import HistoriqueModule from './HistoriqueModule';
+import { MONTHS_ABBR, frDateSortKey, parseFrDate } from '../lib/format';
 
 interface Props { user: AuthUser; activeNav?: string }
 
 const A = { bordeaux: '#630210', gold: '#C8921A', green: '#1A6B44', text: '#1C0810', muted: '#6B4A52', border: 'rgba(99,2,16,0.1)', red: 'var(--destructive)' };
 
-const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-// Abréviations distinctes (juin ≠ juillet).
-const MONTHS_ABBR = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-function sortKey(date: string, heure: string): string {
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return date + ' ' + heure;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  return `${m[3]}-${String((monthIdx < 0 ? 0 : monthIdx) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')} ${heure || '00:00'}`;
-}
-
-// Parse une date FR (« 18 juin 2026 ») en Date réelle ; « Aujourd'hui » → maintenant.
-function parseFrDate(date: string, now: Date): Date | null {
-  if (/aujourd/i.test(date)) return now;
-  const m = date.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(Number(m[3]), monthIdx, Number(m[1]));
-}
 
 const ACT_ICON: Record<string, { El: LucideIcon; color: string }> = {
   validation:   { El: CheckCircle2, color: A.green },
@@ -123,7 +105,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
     const all = [...Object.values(allHistoryByClient).flat(), ...Object.values(allCpiHistoryByClient).flat()];
     const seen = new Set<string>();
     const uniq = all.filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)));
-    return uniq.sort((a, b) => sortKey(b.date, b.heure).localeCompare(sortKey(a.date, a.heure)));
+    return uniq.sort((a, b) => frDateSortKey(b.date, b.heure).localeCompare(frDateSortKey(a.date, a.heure)));
   }, [allHistoryByClient, allCpiHistoryByClient]);
 
   const now = new Date();
