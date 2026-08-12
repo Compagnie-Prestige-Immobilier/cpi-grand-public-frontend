@@ -14,6 +14,8 @@ import { useChantierState } from '../data/chantierStateContext';
 import { useClientData } from '../data/useClientData';
 import { useNavigate } from '../contexts/NavigationContext';
 import { Modal } from './ui/overlays';
+import { DS, type StatusVariant } from './ui/index';
+import { STATUT_CHANTIER } from '../lib/statuts';
 
 const HERO_PHOTO = 'https://images.unsplash.com/photo-1783260606348-bb2deaa215a3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
 
@@ -72,16 +74,24 @@ function rangEtape(etapeActuelle: string): number {
 
 // ─── Micro components ─────────────────────────────────────────────────────────
 
+/**
+ * Pastille de statut. Les couples couleur/fond viennent de `DS.status` — le
+ * même registre que le reste de l'application —, et le jeu de variantes couvre
+ * `StatusVariant` en entier : sans cela, un statut réel (« En retard », en
+ * danger) n'avait aucune variante correspondante et retombait sur le neutre.
+ */
 function Badge({ children, variant = 'default' }: {
   children: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'muted' | 'primary';
+  variant?: 'default' | StatusVariant;
 }) {
-  const styles = {
-    default:  { background: 'var(--secondary)',           color: 'var(--primary)'          },
-    success:  { background: 'rgba(26,107,68,0.10)',       color: 'var(--success)'          },
-    warning:  { background: 'rgba(200,146,26,0.12)',      color: 'var(--accent-text)'           },
-    muted:    { background: 'var(--input-background)',    color: 'var(--muted-foreground)' },
-    primary:  { background: 'var(--primary)',              color: '#fff'                    },
+  const styles: Record<'default' | StatusVariant, { background: string; color: string }> = {
+    default: { background: 'var(--secondary)', color: 'var(--primary)' },
+    success: { background: DS.status.success.bg, color: DS.status.success.color },
+    warning: { background: DS.status.warning.bg, color: DS.status.warning.color },
+    danger:  { background: DS.status.danger.bg,  color: DS.status.danger.color  },
+    info:    { background: DS.status.info.bg,    color: DS.status.info.color    },
+    muted:   { background: DS.status.muted.bg,   color: DS.status.muted.color   },
+    primary: { background: DS.status.primary.bg, color: DS.status.primary.color },
   };
   return (
     <span style={{
@@ -410,8 +420,10 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
   const statut = chantierInfo.statut;
   const etapeIndex = rangEtape(chantierInfo.etapeActuelle);
   const [photoOuverte, setPhotoOuverte] = useState<{ url: string | null; label: string; tranche: string; date: string } | null>(null);
-  const statutLabel = statut === 'en-cours' ? 'En cours' : statut === 'termine' ? 'Terminé' : statut === 'livre' ? 'Livré' : statut === 'en-retard' ? 'En retard' : statut === 'suspendu' ? 'Suspendu' : 'Non démarré';
-  const statutVariant = statut === 'en-cours' ? 'warning' : statut === 'termine' || statut === 'livre' ? 'success' : statut === 'en-retard' ? 'warning' : 'muted';
+  // Registre unique (src/app/lib/statuts.ts) plutôt qu'une chaîne de ternaires :
+  // celle-ci retombait sur « Non démarré » pour tout statut non prévu, donc un
+  // chantier suspendu s'affichait comme jamais commencé.
+  const { label: statutLabel, variant: statutVariant } = STATUT_CHANTIER[statut];
 
   const tranchesDone = TRANCHES_LIVE.filter(t => t.etat === 'terminee').length;
   const totalDec = DISBURSEMENTS.filter(d => d.etat === 'payee').length;

@@ -7,6 +7,8 @@ import { useClientContext } from '../contexts/ClientContext';
 import { useDocState } from '../data/docStateContext';
 import { resolveClientBank } from '../data/bankRegistry';
 import { apiErrorMessage } from '../api/client';
+// Aliasé : `toast` est déjà le nom de l'état du bandeau de confirmation local.
+import { toast as notifier } from 'sonner';
 import { formatAmount, formatFCFA, parseAmount } from '../lib/format';
 import { ConfirmDialog, Modal } from './ui/overlays';
 import {
@@ -33,9 +35,18 @@ export default function DecaissementsModule() {
   const [commentFor, setCommentFor] = useState<{ id: string; tr: number } | null>(null);
   const [commentText, setCommentText] = useState('');
   const [toast, setToast] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2800); };
-  const failWith = (fallback: string) => (e: unknown) => setActionError(apiErrorMessage(e, fallback));
+  /**
+   * Le message du serveur, tel quel, dans le canal unique de l'application.
+   *
+   * L'écran affichait ses échecs dans un bandeau qui lui était propre, en plus
+   * du toast global de `main.tsx` : deux messages identiques pour un seul refus.
+   * Le repli n'est utilisé que si le serveur n'a rien dit — un 409 de séquence
+   * (« la tranche 2 ne peut pas être validée avant la tranche 1 », « ce
+   * décaissement dépasse le montant accordé ») arrive avec son propre texte,
+   * écrit pour l'agent, et c'est celui-là qu'il faut lire.
+   */
+  const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
 
   // Saisie de montant : optimiste à l'écran, persistée au blur (PUT).
   const [draftAmounts, setDraftAmounts] = useState<Record<string, { terrain?: number; construction?: number }>>({});
@@ -194,15 +205,6 @@ export default function DecaissementsModule() {
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--foreground)', margin: '0 0 4px' }}>Décaissements bancaires</h2>
         <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0 }}>Acquisition foncière (décaissement unique) puis construction par tranches. Les informations sont visibles par le client.</p>
       </div>
-
-      {/* Erreur d'action (rien n'échoue en silence) */}
-      {actionError && (
-        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderRadius: 'var(--r-md)', background: 'rgba(192,57,43,0.10)', border: '1px solid rgba(192,57,43,0.35)', color: 'var(--destructive)', fontSize: '0.8125rem', fontWeight: 600 }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{actionError}</span>
-          <button onClick={() => setActionError(null)} style={{ border: 'none', background: 'transparent', color: 'var(--destructive)', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 700 }}>Fermer</button>
-        </div>
-      )}
 
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>

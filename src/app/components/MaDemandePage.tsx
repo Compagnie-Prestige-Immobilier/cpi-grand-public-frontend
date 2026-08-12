@@ -16,7 +16,7 @@ import { MA_DEMANDE_QUERY_KEY, useMaDemandeQuery } from '../data/maDemande';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
 import { useNavigate } from '../contexts/NavigationContext';
 import { clientApi, type DemandeData, type DemandeInput } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
 import { usePermission } from '../auth/PermissionContext';
 import { JOURNEY_QUERY_KEY, useDossierJourney } from '../data/dossierJourney';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
@@ -432,6 +432,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   };
 
   const saveMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (payload: DemandeInput) => clientApi.saveMaDemande(payload),
     onSuccess: () => {
       refreshDossier();
@@ -442,6 +444,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   });
 
   const submitMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: async (payload: DemandeInput) => {
       await clientApi.saveMaDemande(payload);
       return clientApi.submitMaDemande();
@@ -458,6 +462,8 @@ export default function MaDemandePage({ user: _user }: Props) {
   // s'afficherait même si rien n'était arrivé — c'était le défaut de l'ancienne
   // version, qui annonçait la réussite sans jamais produire de fichier.
   const recapMutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: () => clientApi.telechargerRecapitulatif(),
     onError: e => addToast('error', apiErrorMessage(e, 'Le récapitulatif n\'a pas pu être généré.')),
   });
@@ -509,12 +515,18 @@ export default function MaDemandePage({ user: _user }: Props) {
   };
 
   const handleDepot = (docId: string, file: File) => {
-    depositDoc(docId, file);
+    // Le dépôt est refusé (409) dès que le parcours est verrouillé
+    // (`dossier_etape >= 3`) : la confirmation attend donc la réponse du
+    // serveur. Annoncée au clic, elle laissait le client persuadé d'avoir
+    // envoyé une pièce que l'API n'avait pas acceptée — et le message
+    // expliquant le verrouillage passait pour une erreur sans conséquence.
+    depositDoc(docId, file, undefined, () => {
+      // La pièce repasse « en attente de validation » : plus rien à mettre en
+      // évidence, l'encadré rouge et l'alerte disparaissent d'eux-mêmes.
+      setSurligneDocId(null);
+      addToast('success', 'Document envoyé — votre conseiller CPI va le valider.');
+    });
     setDepotDocId(null);
-    // La pièce repasse « en attente de validation » : plus rien à mettre en
-    // évidence, l'encadré rouge et l'alerte disparaissent d'eux-mêmes.
-    setSurligneDocId(null);
-    addToast('success', 'Document envoyé — votre conseiller CPI va le valider.');
   };
 
   const validDocs   = requisDocs.filter(d => d.status === 'accepte').length;

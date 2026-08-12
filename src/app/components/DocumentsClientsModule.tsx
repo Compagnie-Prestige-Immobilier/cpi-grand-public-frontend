@@ -119,36 +119,47 @@ export default function DocumentsClientsModule({ agentName = 'Agent CPI' }: Prop
     });
 
   // ── Actions ──────────────────────────────────────────────────────────────────
+  // Les confirmations n'apparaissent qu'après acceptation par le serveur : une
+  // pièce jamais déposée ne peut pas passer en vérification, et l'API le refuse
+  // désormais par un 409 dont le message dit ce qui est possible. Annoncer la
+  // réussite au clic faisait cohabiter la confirmation et le refus.
   const accept = (clientId: string, docId: string) => {
-    ctxAcceptDoc(docId, agentName, clientId);
-    showToast('Document accepté — visible dans le dossier client.');
+    ctxAcceptDoc(docId, agentName, clientId, () => showToast('Document accepté — visible dans le dossier client.'));
   };
   const openComment = (clientId: string, docId: string, docLabel: string, mode: 'refus' | 'complement') => {
     setCommentModal({ clientId, docId, docLabel, mode });
     setCommentText('');
   };
   const backToVerif = (clientId: string, docId: string) => {
-    ctxRemettreVerification(docId, agentName, clientId);
-    showToast('Document remis en vérification.');
+    ctxRemettreVerification(docId, agentName, clientId, () => showToast('Document remis en vérification.'));
   };
   const acceptAll = (client: ClientEntry) => {
     const pending = client.docs.filter(d => d.status === 'en-analyse');
-    pending.forEach(d => ctxAcceptDoc(d.id, agentName, client.id));
-    if (pending.length) showToast(`${pending.length} pièce${pending.length > 1 ? 's' : ''} acceptée${pending.length > 1 ? 's' : ''}.`);
+    // Chaque pièce est comptée à la réponse du serveur : sur un lot dont une
+    // partie est refusée, le total annoncé reste celui des acceptations réelles.
+    let acceptees = 0;
+    pending.forEach(d => ctxAcceptDoc(d.id, agentName, client.id, () => {
+      acceptees += 1;
+      showToast(`${acceptees} pièce${acceptees > 1 ? 's' : ''} acceptée${acceptees > 1 ? 's' : ''}.`);
+    }));
   };
 
   const handleCommentSubmit = () => {
     if (!commentModal || !commentText.trim()) return;
     const { clientId, docId, docLabel, mode } = commentModal;
     const txt = commentText.trim();
+    // La notification au client ne part QUE si le serveur a accepté le refus :
+    // sinon le client recevait une demande de correction pour une décision qui
+    // n'avait pas été enregistrée.
+    const notifierEtConfirmer = () => {
+      pushNotification(clientId, `Pièce « ${docLabel} » — action requise : ${txt}`, 'Notification', agentName);
+      showToast(mode === 'refus' ? 'Document refusé — client notifié.' : 'Remplacement demandé — client notifié.');
+    };
     if (mode === 'complement') {
-      ctxRequestReplacement(docId, agentName, txt, clientId);
+      ctxRequestReplacement(docId, agentName, txt, clientId, notifierEtConfirmer);
     } else {
-      ctxRefuseDoc(docId, agentName, txt, clientId);
+      ctxRefuseDoc(docId, agentName, txt, clientId, notifierEtConfirmer);
     }
-    // (C) Notifier automatiquement le client
-    pushNotification(clientId, `Pièce « ${docLabel} » — action requise : ${txt}`, 'Notification', agentName);
-    showToast(mode === 'refus' ? 'Document refusé — client notifié.' : 'Remplacement demandé — client notifié.');
     setCommentModal(null);
     setCommentText('');
   };

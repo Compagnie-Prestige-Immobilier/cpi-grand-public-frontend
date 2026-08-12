@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import type { DocStatus } from './demoStore';
 import { clientApi, staffApi, type RequisDocData } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
+import { toast } from 'sonner';
 import { usePermission } from '../auth/PermissionContext';
 import {
   CLIENTS_QUERY_KEY, MY_PROFILE_QUERY_KEY,
@@ -47,17 +48,17 @@ interface DocStateCtx {
   history: ActivityEntry[];
   allDocsByClient: Record<string, SharedDoc[]>;
   allHistoryByClient: Record<string, ActivityEntry[]>;
-  acceptDoc: (docId: string, agentName: string, clientId?: string) => void;
-  refuseDoc: (docId: string, agentName: string, comment: string, clientId?: string) => void;
-  requestReplacement: (docId: string, agentName: string, comment: string, clientId?: string) => void;
-  remettreVerification: (docId: string, agentName: string, clientId?: string) => void;
+  acceptDoc: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
+  refuseDoc: (docId: string, agentName: string, comment: string, clientId?: string, onOk?: () => void) => void;
+  requestReplacement: (docId: string, agentName: string, comment: string, clientId?: string, onOk?: () => void) => void;
+  remettreVerification: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
   // Dépôt côté client (dans « Ma demande ») : la pièce part sur le stockage CPI
   // puis passe en analyse. Le fichier réel est nécessaire (upload multipart).
-  depositDoc: (docId: string, file?: File, clientId?: string) => void;
+  depositDoc: (docId: string, file?: File, clientId?: string, onOk?: () => void) => void;
   // Parcours du dossier piloté par l'Agent CPI (index 0-5 dans TIMELINE_STEPS).
   dossierEtape: number;
   dossierEtapes: Record<string, number>;
-  setDossierEtape: (etape: number, agentName: string, clientId?: string) => void;
+  setDossierEtape: (etape: number, agentName: string, clientId?: string, onOk?: () => void) => void;
   /**
    * Notification envoyée par le personnel CPI vers un dossier (ou « tous »).
    * Passe par POST /staff/notifications/send : la notification arrive vraiment
@@ -137,25 +138,20 @@ function notificationToEntry(n: NotificationData, clientName: string): ActivityE
   };
 }
 
-// ─── Bandeau d'erreur (aucune action ne échoue en silence) ───────────────────
-
-export function ApiErrorBanner({ message, onClose }: { message: string; onClose: () => void }) {
-  return (
-    <div role="alert" style={{
-      position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 9998,
-      display: 'flex', alignItems: 'center', gap: 12, maxWidth: 560,
-      padding: '11px 16px', borderRadius: 'var(--r-md)',
-      background: 'rgba(192,57,43,0.97)', color: '#fff',
-      fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600,
-      boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 700 }}>
-        Fermer
-      </button>
-    </div>
-  );
-}
+// ─── Un seul canal de retour : le toast global ───────────────────────────────
+//
+// Ce module affichait en plus son propre bandeau rouge fixe. Or `main.tsx`
+// installe déjà un `MutationCache.onError` qui passe TOUTE erreur de mutation
+// dans `apiErrorMessage` et la publie en toast : chaque échec produisait donc
+// deux messages superposés, disant la même chose à deux endroits.
+//
+// Les mutations ci-dessous portent `meta: SILENCIEUX` — elles gèrent leur
+// propre message, avec un repli plus précis que le repli générique —, et c'est
+// bien ce message, celui du serveur quand il y en a un, qui s'affiche.
+//
+// Cela vaut en particulier pour les **409 de transition illégale** : leur
+// `message` énumère les transitions possibles et il est écrit pour
+// l'utilisateur. Il ne doit jamais être remplacé par un texte générique.
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -176,8 +172,6 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
   // client (aucune route /client/historique n'existe).
   const historiqueQuery = useHistoriqueQuery(isStaff);
   const notificationsQuery = useMesNotificationsQuery(isClient);
-
-  const [actionError, setActionError] = useState<string | null>(null);
 
   // ── Pièces requises, par client ────────────────────────────────────────────
   const allDocs: Record<string, SharedDoc[]> = useMemo(() => {
@@ -258,41 +252,47 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
   // ── Mutations pièces (personnel CPI) ───────────────────────────────────────
 
   const acceptMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; docId: string }) => staffApi.docs.accept(v.clientId, v.docId),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Impossible de valider cette pièce.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Impossible de valider cette pièce.')),
   });
 
   const refuseMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; docId: string; comment: string }) =>
       staffApi.docs.refuse(v.clientId, v.docId, v.comment),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Impossible de refuser cette pièce.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Impossible de refuser cette pièce.')),
   });
 
   const replaceMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; docId: string; comment: string }) =>
       staffApi.docs.requestReplacement(v.clientId, v.docId, v.comment),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Impossible de demander le remplacement.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Impossible de demander le remplacement.')),
   });
 
   const verifyMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; docId: string }) => staffApi.docs.remettreVerification(v.clientId, v.docId),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Impossible de remettre la pièce en vérification.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Impossible de remettre la pièce en vérification.')),
   });
 
   const depositMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { docId: string; file: File }) => clientApi.depositDoc(v.docId, v.file),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Le dépôt du document a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Le dépôt du document a échoué.')),
   });
 
   const etapeMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; etape: number }) => staffApi.clients.setDossierEtape(v.clientId, v.etape),
     onSuccess: invalidateDocs,
-    onError: e => setActionError(apiErrorMessage(e, "Impossible de mettre à jour l'étape du dossier.")),
+    onError: e => toast.error(apiErrorMessage(e, "Impossible de mettre à jour l'étape du dossier.")),
   });
 
   const sendNotificationMutation = useSendNotification();
@@ -304,35 +304,47 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
   // rafraîchit l'historique. Écrire des deux côtés produirait des doublons —
   // et une trace locale mensongère quand le serveur refuse.
 
-  const acceptDoc = (docId: string, _agentName: string, clientId: string = selectedClientId) => {
-    acceptMutation.mutate({ clientId, docId });
+  /**
+   * `onOk` n'est appelé qu'après acceptation par le serveur.
+   *
+   * Les écrans affichaient leur confirmation (« Document accepté », « Pièce
+   * remise en vérification ») dès le clic. L'API refuse maintenant les
+   * transitions impossibles — mettre en vérification une pièce jamais déposée,
+   * toucher au dossier d'un parcours verrouillé — avec un 409 : sans ce rappel,
+   * l'écran annonçait la réussite d'un geste que le serveur venait de refuser.
+   */
+  const acceptDoc = (docId: string, _agentName: string, clientId: string = selectedClientId, onOk?: () => void) => {
+    acceptMutation.mutate({ clientId, docId }, { onSuccess: () => onOk?.() });
   };
 
-  const refuseDoc = (docId: string, _agentName: string, comment: string, clientId: string = selectedClientId) => {
-    refuseMutation.mutate({ clientId, docId, comment });
+  const refuseDoc = (docId: string, _agentName: string, comment: string, clientId: string = selectedClientId, onOk?: () => void) => {
+    refuseMutation.mutate({ clientId, docId, comment }, { onSuccess: () => onOk?.() });
   };
 
-  const requestReplacement = (docId: string, _agentName: string, comment: string, clientId: string = selectedClientId) => {
-    replaceMutation.mutate({ clientId, docId, comment });
+  const requestReplacement = (docId: string, _agentName: string, comment: string, clientId: string = selectedClientId, onOk?: () => void) => {
+    replaceMutation.mutate({ clientId, docId, comment }, { onSuccess: () => onOk?.() });
   };
 
-  const remettreVerification = (docId: string, _agentName: string, clientId: string = selectedClientId) => {
-    verifyMutation.mutate({ clientId, docId });
+  const remettreVerification = (docId: string, _agentName: string, clientId: string = selectedClientId, onOk?: () => void) => {
+    verifyMutation.mutate({ clientId, docId }, { onSuccess: () => onOk?.() });
   };
 
   // Nombre d'étapes du parcours (miroir de dossierJourney.TIMELINE_STEPS).
   const NB_ETAPES = 6;
 
-  const setDossierEtape = (etape: number, _agentName: string, clientId: string = selectedClientId) => {
-    etapeMutation.mutate({ clientId, etape: Math.max(0, Math.min(NB_ETAPES - 1, etape)) });
+  const setDossierEtape = (etape: number, _agentName: string, clientId: string = selectedClientId, onOk?: () => void) => {
+    etapeMutation.mutate({ clientId, etape: Math.max(0, Math.min(NB_ETAPES - 1, etape)) }, { onSuccess: () => onOk?.() });
   };
 
-  const depositDoc = (docId: string, file?: File, _clientId: string = selectedClientId) => {
+  const depositDoc = (docId: string, file?: File, _clientId: string = selectedClientId, onOk?: () => void) => {
     if (!file) {
-      setActionError('Aucun fichier sélectionné — le dépôt a été annulé.');
+      toast.error('Aucun fichier sélectionné — le dépôt a été annulé.');
       return;
     }
-    depositMutation.mutate({ docId, file });
+    // Le dépôt est refusé (409) dès que le parcours est verrouillé
+    // (`dossier_etape >= 3`) : la confirmation attend la réponse du serveur, et
+    // le message de refus explique au client pourquoi son dossier est figé.
+    depositMutation.mutate({ docId, file }, { onSuccess: () => onOk?.() });
   };
 
   /**
@@ -345,7 +357,7 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
     for (const clientId of ids) {
       sendNotificationMutation.mutate(
         { client_id: clientId, titre: canal, message, type: 'info' },
-        { onError: e => setActionError(apiErrorMessage(e, "L'envoi de la notification a échoué.")) },
+        { onError: e => toast.error(apiErrorMessage(e, "L'envoi de la notification a échoué.")) },
       );
     }
   };
@@ -372,7 +384,6 @@ export function DocStateProvider({ children }: { children: React.ReactNode }) {
       dossierEtape, dossierEtapes: allEtapes, setDossierEtape, pushNotification,
       submittedByClient, loading, error, retry,
     }}>
-      {actionError && <ApiErrorBanner message={actionError} onClose={() => setActionError(null)} />}
       {children}
     </DocStateContext.Provider>
   );

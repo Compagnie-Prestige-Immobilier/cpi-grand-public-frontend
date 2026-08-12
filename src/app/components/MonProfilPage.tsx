@@ -10,7 +10,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
 import { auth, clientApi } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
 import { MY_PROFILE_QUERY_KEY } from '../data/clientRegistry';
@@ -263,6 +263,8 @@ function PanneauEdition({
     Object.fromEntries(champs.map(c => [c.cle, valeurs[c.cle] === '—' ? '' : valeurs[c.cle]])));
 
   const mutation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (payload: Record<string, string | null>) => clientApi.updateProfile(payload),
     onSuccess: () => {
       // Le registre client dérive de cette requête : sans invalidation, l'écran

@@ -133,3 +133,13 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default api;
+
+/**
+ * `meta` d'une mutation qui affiche elle-même son message d'erreur.
+ *
+ * `main.tsx` installe un `MutationCache.onError` global qui publie en toast le
+ * message d'`apiErrorMessage` : sans ce marqueur, une mutation dotée de son
+ * propre `onError` produit DEUX messages pour un seul échec. Le marqueur dit
+ * « je m'en occupe » — il n'autorise jamais à taire l'erreur.
+ */
+export const SILENCIEUX = { silencieux: true } as const;

@@ -142,17 +142,30 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
     setEditLivraison(chantierInfo.dateLivraisonIso);
   };
 
+  /**
+   * La confirmation n'est plus affichée au clic mais à la réponse du serveur.
+   *
+   * Le changement de statut est celui qui compte : l'API refuse désormais les
+   * transitions illégales (« non démarré » → « livré »…) avec un 409 dont le
+   * message énumère ce qui est possible. Annoncer « Avancement mis à jour »
+   * avant cette réponse faisait cohabiter à l'écran une confirmation et un
+   * refus portant sur le même geste.
+   */
   const saveEdit = (chId: string) => {
+    const ok = () => showToast("Avancement mis à jour — visible dans l'espace client.");
     if (chId === CH1_ID) {
-      updateProgression(editProg, agentName);
+      const statutChange = editStatut !== chantierInfo.statut;
+      updateProgression(editProg, agentName, undefined, statutChange ? undefined : ok);
       if (editEtape !== ch1Live.etape) updateEtape(editEtape, agentName);
-      if (editStatut !== chantierInfo.statut) updateStatut(editStatut, agentName);
+      // Le statut, s'il change, porte la confirmation : c'est la seule des
+      // quatre écritures que le serveur peut refuser pour cause de séquence.
+      if (statutChange) updateStatut(editStatut, agentName, ok);
       if (editLivraison !== chantierInfo.dateLivraisonIso) updateLivraison(editLivraison, agentName);
     } else {
       setCh2(prev => ({ ...prev, progression: editProg, etape: editEtape, dateLivraison: editLivraison }));
+      ok();
     }
     setEditingId(null);
-    showToast("Avancement mis à jour — visible dans l'espace client.");
   };
 
   const addComment = (chId: string) => {
@@ -161,20 +174,22 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       addPublication({
         phase: 0, titre: commentText.trim(), description: '',
         type: 'commentaire', visibleClient: true, auteur: agentName,
-      }, agentName);
+      }, agentName, () => showToast('Commentaire ajouté.'));
     } else {
       setCh2(prev => ({
         ...prev,
         commentaires: [{ auteur: agentName, date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }), texte: commentText.trim() }, ...prev.commentaires],
       }));
+      showToast('Commentaire ajouté.');
     }
     setCommentText('');
-    showToast('Commentaire ajouté.');
   };
 
+  // Le serveur refuse une tranche validée hors ordre (409) : la confirmation
+  // attend donc sa réponse plutôt que de partir au clic.
   const validateTranche = (chId: string, trNum: number) => {
     if (chId === CH1_ID) {
-      ctxValidateTranche(trNum, agentName);
+      ctxValidateTranche(trNum, agentName, () => showToast('Tranche validée.'));
     } else {
       setCh2(prev => ({
         ...prev,
@@ -183,40 +198,42 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
           date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
         }),
       }));
+      showToast('Tranche validée.');
     }
-    showToast('Tranche validée.');
   };
 
   const saveTrancheComment = () => {
     if (!trancheComment || !trancheCommentText.trim()) return;
     const { chId, trNum } = trancheComment;
     if (chId === CH1_ID) {
-      ctxAddTrancheComment(trNum, trancheCommentText.trim(), agentName);
+      ctxAddTrancheComment(trNum, trancheCommentText.trim(), agentName, () => showToast('Commentaire de tranche enregistré.'));
     } else {
       setCh2(prev => ({
         ...prev,
         tranches: prev.tranches.map(t => t.num !== trNum ? t : { ...t, comment: trancheCommentText.trim() }),
       }));
+      showToast('Commentaire de tranche enregistré.');
     }
     setTrancheComment(null);
     setTrancheCommentText('');
-    showToast('Commentaire de tranche enregistré.');
   };
 
   const submitPub = () => {
     if (!pubForm.titre.trim()) return;
-    addPublication({ ...pubForm, auteur: agentName }, agentName);
+    const visible = pubForm.visibleClient;
+    addPublication({ ...pubForm, auteur: agentName }, agentName,
+      () => showToast(`Publication ajoutée${visible ? ' — visible dans l\'espace client.' : ' (interne).'}`));
     setPubForm({ titre: '', description: '', type: 'actualite', phase: 2, visibleClient: true });
     setShowPubForm(false);
-    showToast(`Publication ajoutée${pubForm.visibleClient ? ' — visible dans l\'espace client.' : ' (interne).'}`);
   };
 
   const submitEvent = () => {
     if (!eventForm.titre.trim() || !eventForm.date.trim()) return;
-    addEvent({ ...eventForm, statut: 'prevu' }, agentName);
+    const visible = eventForm.visibleClient;
+    addEvent({ ...eventForm, statut: 'prevu' }, agentName,
+      () => showToast(`Événement planifié${visible ? ' — visible dans l\'espace client.' : '.'}`));
     setEventForm({ titre: '', type: 'visite', date: '', heure: '', description: '', visibleClient: true });
     setShowEventForm(false);
-    showToast(`Événement planifié${eventForm.visibleClient ? ' — visible dans l\'espace client.' : '.'}`);
   };
 
   /** Dépôt d'une photo/vidéo : le fichier est requis, le titre vient du nom. */
@@ -231,7 +248,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       url: '',
       bg: 'linear-gradient(135deg,#630210,#B05070)',
       visibleClient: true,
-    }, agentName, file);
+    }, agentName, file, () => showToast('Média envoyé — visible dans l\'espace client.'));
     showToast('Envoi du média en cours…');
   };
 

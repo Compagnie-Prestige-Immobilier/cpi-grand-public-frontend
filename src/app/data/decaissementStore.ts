@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { SILENCIEUX } from '../api/client';
 import { staffApi, type DecaissementData, type DecaissementUpdateInput } from '../api/endpoints';
 
 export interface DecaissementState {
@@ -183,6 +184,8 @@ function useInvalidateDecaissements() {
 export function useUpdateDecaissement() {
   const invalidate = useInvalidateDecaissements();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; input: DecaissementUpdateInput }) =>
       staffApi.decaissements.update(v.clientId, v.input),
     onSuccess: invalidate,
@@ -192,6 +195,8 @@ export function useUpdateDecaissement() {
 export function useValidateTerrain() {
   const invalidate = useInvalidateDecaissements();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (clientId: string) => staffApi.decaissements.validateTerrain(clientId),
     onSuccess: invalidate,
   });
@@ -200,6 +205,8 @@ export function useValidateTerrain() {
 export function useValidateFoncierStep() {
   const invalidate = useInvalidateDecaissements();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; step: number }) =>
       staffApi.decaissements.validateFoncierStep(v.clientId, v.step),
     onSuccess: invalidate,
@@ -209,6 +216,8 @@ export function useValidateFoncierStep() {
 export function useValidateTranche() {
   const invalidate = useInvalidateDecaissements();
   return useMutation({
+    // L'appelant affiche le message du serveur ; pas de second toast.
+    meta: SILENCIEUX,
     mutationFn: (v: { clientId: string; num: number }) =>
       staffApi.decaissements.validateTranche(v.clientId, v.num),
     onSuccess: invalidate,

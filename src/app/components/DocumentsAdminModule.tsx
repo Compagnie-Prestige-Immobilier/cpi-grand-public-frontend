@@ -30,14 +30,14 @@ const TEMPLATES: { label: string; categorie: CpiCategorie; signature: boolean }[
   { label: 'PV de réservation',             categorie: 'pv',            signature: false },
 ];
 
-// Filtres de statut
-const FILTERS = ['all', 'a-signer', 'brouillon', 'publie', 'signe', 'archive'] as const;
+// Filtres de statut. `FilterStatut` dérive de l'union du backend : le filtre
+// « Publiés » visait un statut `publie` que l'API ne renvoie jamais, et ne
+// remontait donc que les documents `disponible` — par accident, via son repli.
+const FILTERS = ['all', 'a-signer', 'brouillon', 'disponible', 'signe', 'archive'] as const;
 type FilterStatut = typeof FILTERS[number];
-const FILTER_LABELS: Record<FilterStatut, string> = { all: 'Tous', 'a-signer': 'À signer', brouillon: 'Brouillons', publie: 'Publiés', signe: 'Signés', archive: 'Archivés' };
+const FILTER_LABELS: Record<FilterStatut, string> = { all: 'Tous', 'a-signer': 'À signer', brouillon: 'Brouillons', disponible: 'Publiés', signe: 'Signés', archive: 'Archivés' };
 function matchesFilter(status: CpiDocStatus, f: FilterStatut): boolean {
-  if (f === 'all') return true;
-  if (f === 'publie') return status === 'publie' || status === 'disponible';
-  return status === f;
+  return f === 'all' || status === f;
 }
 
 interface Props { agentName?: string; }
@@ -107,18 +107,26 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   };
 
   // ── Actions par document (avec notification) ───────────────────────────────────
+  //
+  // Ni la notification au client ni la confirmation à l'agent ne partent avant
+  // la réponse du serveur. L'API refuse les changements de statut impossibles
+  // (marquer signé un brouillon, republier un document archivé) par un 409 dont
+  // le message énumère les transitions permises : l'ancien code envoyait quand
+  // même la notification au client, pour un document resté en brouillon.
   const doPublish = (doc: CpiDoc, clientId: string) => {
-    publishDoc(doc.id, agentName, clientId);
-    pushNotification(clientId, `Nouveau document disponible : « ${doc.nom} »`, 'Notification', agentName);
-    showToast(`Document publié dans l'espace client de ${nameOf(clientId)} · client notifié.`);
+    publishDoc(doc.id, agentName, clientId, () => {
+      pushNotification(clientId, `Nouveau document disponible : « ${doc.nom} »`, 'Notification', agentName);
+      showToast(`Document publié dans l'espace client de ${nameOf(clientId)} · client notifié.`);
+    });
   };
   const doRequestSign = (doc: CpiDoc, clientId: string) => {
-    requestSignature(doc.id, agentName, clientId);
-    pushNotification(clientId, `Document à signer : « ${doc.nom} »`, 'Notification', agentName);
-    showToast('Signature demandée · client notifié.');
+    requestSignature(doc.id, agentName, clientId, () => {
+      pushNotification(clientId, `Document à signer : « ${doc.nom} »`, 'Notification', agentName);
+      showToast('Signature demandée · client notifié.');
+    });
   };
-  const doMarkSigned = (doc: CpiDoc, clientId: string) => { markSigned(doc.id, agentName, clientId); showToast('Document marqué comme signé.'); };
-  const doArchive = (doc: CpiDoc, clientId: string) => { archiveDoc(doc.id, agentName, clientId); showToast('Document archivé.'); };
+  const doMarkSigned = (doc: CpiDoc, clientId: string) => { markSigned(doc.id, agentName, clientId, () => showToast('Document marqué comme signé.')); };
+  const doArchive = (doc: CpiDoc, clientId: string) => { archiveDoc(doc.id, agentName, clientId, () => showToast('Document archivé.')); };
   /**
    * Retrait d'un document de l'espace client — confirmation obligatoire.
    *
@@ -127,7 +135,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
    * moyen de savoir ce qui s'est passé ni de le récupérer lui-même.
    */
   const [aRetirer, setARetirer] = useState<{ doc: CpiDoc; clientId: string } | null>(null);
-  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId); showToast("Document retiré de l'espace client."); setARetirer(null); };
+  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId, () => showToast("Document retiré de l'espace client.")); setARetirer(null); };
 
   const downloadRecap = (clientName: string, ref: string, doc: CpiDoc, timeline: { action: string; date: string; heure: string }[]) => {
     const lines = [
@@ -401,7 +409,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                         <button onClick={() => setPreview({ clientId: client.id, clientName: client.name, ref: client.ref, doc })} style={btnSm('var(--primary)', 'var(--secondary)')}><Eye size={12} /> Aperçu</button>
                         {doc.status === 'brouillon' && <button onClick={() => doPublish(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={12} /> Publier</button>}
-                        {(doc.status === 'disponible' || doc.status === 'publie') && <button onClick={() => doRequestSign(doc, client.id)} style={btnSm('#8B5CF6', 'rgba(139,92,246,0.10)')}><PenSquare size={12} /> Demander signature</button>}
+                        {doc.status === 'disponible' && <button onClick={() => doRequestSign(doc, client.id)} style={btnSm('#8B5CF6', 'rgba(139,92,246,0.10)')}><PenSquare size={12} /> Demander signature</button>}
                         {doc.status === 'a-signer' && <button onClick={() => doMarkSigned(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><CheckCircle2 size={12} /> Marquer signé</button>}
                         {doc.visibleClient && doc.status !== 'archive' && <button onClick={() => setARetirer({ doc, clientId: client.id })} style={btnSm('var(--muted-foreground)', 'var(--muted)')}><EyeOff size={12} /> Retirer</button>}
                         {doc.status !== 'archive' && <button onClick={() => doArchive(doc, client.id)} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><Archive size={12} /> Archiver</button>}

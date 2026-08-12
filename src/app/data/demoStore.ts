@@ -29,22 +29,13 @@ export interface RequisDocData {
   taille?: string;
 }
 
-// ─── CPI admin documents (folders) ──────────────────────────────────────────
-
-export type CpiDocStatus = 'disponible' | 'signe' | 'en-attente' | 'a-signer' | 'consulte';
-
-export interface CpiDocItem {
-  id: string;
-  label: string;
-  status: CpiDocStatus;
-  date?: string;
-}
-
-export interface CpiFolderData {
-  id: string;
-  label: string;
-  docs: CpiDocItem[];
-}
+// ─── Documents CPI ───────────────────────────────────────────────────────────
+// `CpiDocStatus`, `CpiDocItem` et `CpiFolderData` vivaient ici, jamais importés,
+// et déclaraient des statuts (`consulte`, `en-attente`) que l'API ne connaît
+// pas. Deux types du même nom coexistaient donc dans le projet, l'un faux :
+// c'est précisément la confusion qui faisait afficher « Disponible » sur un
+// document refusé. Le seul type valable est `CpiDocStatus` de
+// data/cpiDocsContext.ts, alias de l'union produite par le backend.
 
 // ─── Chantier / Tranches ─────────────────────────────────────────────────────
 

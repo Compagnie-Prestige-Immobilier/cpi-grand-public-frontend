@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
-import { useCpiDocs, type CpiDoc } from '../data/cpiDocsContext';
+import { useCpiDocs, type CpiDoc, type CpiDocStatus } from '../data/cpiDocsContext';
 import {
   ChevronDown, ChevronUp, Download, Eye,
   CheckCircle2, XCircle, Clock, RefreshCw, AlertCircle,
@@ -15,7 +15,8 @@ import type { AuthUser } from '../App';
 import { useClientData } from '../data/useClientData';
 import { libelleProjet, libelleLocalisation, useMaDemandeQuery } from '../data/maDemande';
 import { usePermission } from '../auth/PermissionContext';
-import { useMesBanquesQuery, toBankAssignment, type BankStatus } from '../data/bankRegistry';
+import { useMesBanquesQuery, toBankAssignment } from '../data/bankRegistry';
+import { STATUT_BANQUE } from '../lib/statuts';
 import { apiErrorMessage } from '../api/client';
 import { useDossierJourney, TIMELINE_STEPS } from '../data/dossierJourney';
 import { useNavigate } from '../contexts/NavigationContext';
@@ -76,13 +77,17 @@ interface CpiFolder {
   docs: Array<{ id: string; nom: string; date: string; statut: string; canSign: boolean; version: string; format?: string; taille?: string; categorie: string }>;
 }
 
-const CPI_STATUS_LABEL: Record<string, string> = {
+/**
+ * Libellés côté client. `Record<CpiDocStatus, …>` et non `Record<string, …>` :
+ * la table contenait deux clés (`publie`, `refuse`) que l'API ne renvoie pas,
+ * et le repli `|| d.status` aurait affiché la clé technique brute si un statut
+ * venait à manquer. Le compilateur interdit désormais les deux.
+ */
+const CPI_STATUS_LABEL: Record<CpiDocStatus, string> = {
   brouillon:  'À venir',
-  publie:     'Disponible',
   disponible: 'Disponible',
   'a-signer': 'À signer',
   signe:      'Signé',
-  refuse:     'Refusé',
   archive:    'Archivé',
 };
 
@@ -102,7 +107,7 @@ function computeCpiDocs(docs: CpiDoc[]): CpiFolder['docs'] {
     id: d.id,
     nom: d.nom,
     date: d.datePublication || d.dateCreation || '—',
-    statut: (d.signatureRequise && d.status === 'a-signer') ? 'À signer' : (CPI_STATUS_LABEL[d.status] || d.status),
+    statut: (d.signatureRequise && d.status === 'a-signer') ? 'À signer' : CPI_STATUS_LABEL[d.status],
     canSign: d.signatureRequise && d.status === 'a-signer',
     version: d.version,
     format: d.format,
@@ -123,12 +128,14 @@ const STATUS_CONFIG: Record<DossierStatus, { label: string; color: string; bg: s
   'depose':       { label: 'Déposé — analyse', icon: Send,         ...DS.status.info    },
 };
 
+// Indexée par le libellé affiché, lui-même issu de CPI_STATUS_LABEL : les deux
+// tables ne peuvent donc plus se contredire.
 const CPI_STATUS_MAP: Record<string, { color: string; bg: string }> = {
   'Signé':      DS.status.success,
   'À signer':   DS.status.danger,
   'À venir':    DS.status.muted,
   'Disponible': DS.status.primary,
-  'Refusé':     DS.status.danger,
+  'Archivé':    DS.status.warning,
 };
 
 // ─── Progress — counts dossiers, not individual files ─────────────────────────
@@ -993,12 +1000,6 @@ function HistoriqueSection() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-const BANK_STATUS_UI: Record<BankStatus, { label: string; color: string; bg: string }> = {
-  'en-attente': { label: 'En cours d’étude', color: 'var(--accent-text)',      bg: 'rgba(200,146,26,0.10)' },
-  accord:       { label: 'Accord de principe', color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)' },
-  refus:        { label: 'Non retenue',        color: 'var(--destructive)', bg: 'rgba(192,57,43,0.08)' },
-};
-
 /**
  * Orientations bancaires du dossier connecté — GET /client/mes-banques.
  * L'API n'expose pas le registre complet des banques à un compte client
@@ -1049,7 +1050,7 @@ function BanksSection() {
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {assigned.map(a => {
-          const st = BANK_STATUS_UI[a.status];
+          const st = STATUT_BANQUE[a.status];
           return (
             <div key={a.bankId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '12px 14px', background: 'var(--secondary)', borderRadius: 'var(--radius)' }}>
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{a.bankName}</span>

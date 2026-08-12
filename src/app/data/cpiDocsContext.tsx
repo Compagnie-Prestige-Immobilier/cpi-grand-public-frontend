@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { frDate } from './demoStore';
 import { clientApi, staffApi, type CpiDocData } from '../api/endpoints';
-import { apiErrorMessage } from '../api/client';
+import { apiErrorMessage, SILENCIEUX } from '../api/client';
+import { toast } from 'sonner';
 import { usePermission } from '../auth/PermissionContext';
 import { useMyProfileQuery } from './clientRegistry';
-import { ApiErrorBanner } from './docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
 import {
   HISTORIQUE_QUERY_KEY, groupByClient, isCpiDocEvent, toActivityEntries,
@@ -14,14 +14,17 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type CpiDocStatus =
-  | 'brouillon'
-  | 'publie'
-  | 'disponible'
-  | 'a-signer'
-  | 'signe'
-  | 'refuse'
-  | 'archive';
+/**
+ * Statuts d'un document CPI — l'union produite par le backend, pas une copie.
+ *
+ * Cette union était recopiée à la main et avait dérivé : elle déclarait deux
+ * statuts (`publie`, `refuse`) que l'API n'a jamais renvoyés, et les écrans
+ * testaient `status === 'publie'` — une condition définitivement fausse, donc
+ * une branche morte qui donnait l'illusion d'un cas traité. En la faisant
+ * pointer sur `App.Enums.CpiDocStatut`, toute divergence redevient une erreur
+ * de compilation.
+ */
+export type CpiDocStatus = App.Enums.CpiDocStatut;
 
 export type CpiCategorie =
   | 'contrats'
@@ -74,13 +77,13 @@ interface CpiDocsCtx {
   cpiHistory: ActivityEntry[];
   allCpiDocsByClient: Record<string, CpiDoc[]>;
   allCpiHistoryByClient: Record<string, ActivityEntry[]>;
-  publishDoc: (docId: string, agentName: string, clientId?: string) => void;
-  archiveDoc: (docId: string, agentName: string, clientId?: string) => void;
-  requestSignature: (docId: string, agentName: string, clientId?: string) => void;
-  markSigned: (docId: string, agentName: string, clientId?: string) => void;
+  publishDoc: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
+  archiveDoc: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
+  requestSignature: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
+  markSigned: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
   // Signature électronique par le client (depuis « Mon dossier »).
-  signDocByClient: (docId: string, clientId?: string) => void;
-  retireFromClient: (docId: string, agentName: string, clientId?: string) => void;
+  signDocByClient: (docId: string, clientId?: string, onOk?: () => void) => void;
+  retireFromClient: (docId: string, agentName: string, clientId?: string, onOk?: () => void) => void;
   createDoc: (
     fields: Omit<CpiDoc, 'id' | 'dateCreation' | 'datePublication' | 'status' | 'visibleClient'>,
     agentName: string,
@@ -169,8 +172,6 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
   // doublent donc rien.
   const historiqueQuery = useHistoriqueQuery(isStaff);
 
-  const [actionError, setActionError] = useState<string | null>(null);
-
   const allCpiDocs: Record<string, CpiDoc[]> = useMemo(() => {
     const result: Record<string, CpiDoc[]> = {};
     if (isStaff) {
@@ -204,48 +205,55 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const publishMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (docId: string) => staffApi.cpiDocs.publish(docId),
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'La publication du document a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'La publication du document a échoué.')),
   });
 
   const archiveMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (docId: string) => staffApi.cpiDocs.archive(docId),
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, "L'archivage du document a échoué.")),
+    onError: e => toast.error(apiErrorMessage(e, "L'archivage du document a échoué.")),
   });
 
   // Demander une signature = marquer la signature requise puis publier
   // (l'API bascule alors le statut en « à signer » et rend le doc visible).
   const requestSignatureMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: async (docId: string) => {
       await staffApi.cpiDocs.update(docId, { signature_requise: true });
       return staffApi.cpiDocs.publish(docId);
     },
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'La demande de signature a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'La demande de signature a échoué.')),
   });
 
   const signMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (docId: string) => staffApi.cpiDocs.sign(docId),
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'La signature du document a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'La signature du document a échoué.')),
   });
 
   const signByClientMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (docId: string) => clientApi.signCpiDoc(docId),
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'La signature électronique a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'La signature électronique a échoué.')),
   });
 
   // Retirer de l'espace client sans archiver : seule la visibilité change.
   const retireMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: (docId: string) => staffApi.cpiDocs.update(docId, { visible_client: false }),
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'Le retrait du document a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'Le retrait du document a échoué.')),
   });
 
   const createMutation = useMutation({
+    meta: SILENCIEUX,
     mutationFn: async (v: {
       clientId: string;
       fields: Omit<CpiDoc, 'id' | 'dateCreation' | 'datePublication' | 'status' | 'visibleClient'>;
@@ -271,38 +279,44 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
       return v.publishNow ? staffApi.cpiDocs.publish(created.id) : created;
     },
     onSuccess: invalidateCpiDocs,
-    onError: e => setActionError(apiErrorMessage(e, 'La création du document a échoué.')),
+    onError: e => toast.error(apiErrorMessage(e, 'La création du document a échoué.')),
   });
 
   // ── Actions exposées (mêmes signatures qu'avant l'API) ─────────────────────
 
+  // `onOk` n'est appelé qu'après acceptation par le serveur : l'API refuse
+  // désormais les transitions impossibles (signer un brouillon, republier un
+  // document archivé) avec un 409 dont le message énumère ce qui est permis.
+  // Sans ce rappel, l'écran confirmait un geste que le serveur venait de
+  // refuser, et les deux messages se contredisaient à l'écran.
+  //
   // Aucune écriture de journal ici : l'API journalise chaque geste
   // (`cpi-doc-publie`, `cpi-doc-signe`…) et `invalidateCpiDocs` recharge
   // l'historique. Le paramètre `agentName` reste dans la signature — les écrans
   // l'affichent —, mais il ne sert plus à écrire de trace locale.
 
-  const publishDoc = (docId: string, _agentName?: string, _clientId: string = selectedClientId) => {
-    publishMutation.mutate(docId);
+  const publishDoc = (docId: string, _agentName?: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    publishMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
-  const archiveDoc = (docId: string, _agentName?: string, _clientId: string = selectedClientId) => {
-    archiveMutation.mutate(docId);
+  const archiveDoc = (docId: string, _agentName?: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    archiveMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
-  const requestSignature = (docId: string, _agentName?: string, _clientId: string = selectedClientId) => {
-    requestSignatureMutation.mutate(docId);
+  const requestSignature = (docId: string, _agentName?: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    requestSignatureMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
-  const markSigned = (docId: string, _agentName?: string, _clientId: string = selectedClientId) => {
-    signMutation.mutate(docId);
+  const markSigned = (docId: string, _agentName?: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    signMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
-  const signDocByClient = (docId: string, _clientId: string = selectedClientId) => {
-    signByClientMutation.mutate(docId);
+  const signDocByClient = (docId: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    signByClientMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
-  const retireFromClient = (docId: string, _agentName?: string, _clientId: string = selectedClientId) => {
-    retireMutation.mutate(docId);
+  const retireFromClient = (docId: string, _agentName?: string, _clientId: string = selectedClientId, onOk?: () => void) => {
+    retireMutation.mutate(docId, { onSuccess: () => onOk?.() });
   };
 
   const createDoc = (
@@ -338,7 +352,6 @@ export function CpiDocsProvider({ children }: { children: React.ReactNode }) {
       publishDoc, archiveDoc, requestSignature, markSigned, signDocByClient, retireFromClient, createDoc,
       loading, error, retry,
     }}>
-      {actionError && <ApiErrorBanner message={actionError} onClose={() => setActionError(null)} />}
       {children}
     </CpiDocsContext.Provider>
   );

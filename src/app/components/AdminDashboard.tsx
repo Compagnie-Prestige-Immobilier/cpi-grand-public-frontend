@@ -21,7 +21,9 @@ import {
   CLIENTS_QUERY_KEY,
   type StaffAccount,
 } from '../data/clientRegistry';
-import { apiErrorMessage, TOKEN_KEY } from '../api/client';
+import { apiErrorMessage, SILENCIEUX, TOKEN_KEY } from '../api/client';
+// Aliasé : `toast` est déjà le nom d'un état local de confirmation.
+import { toast as notifier } from 'sonner';
 import {
   staffApi, DEMO_REF_PREFIX,
   type DemoSeedResult, type DemoClearResult,
@@ -42,7 +44,7 @@ import NotificationsModule from './NotificationsModule';
 import HistoriqueModule from './HistoriqueModule';
 import { MONTHS_ABBR, frDateSortKey, parseFrDate } from '../lib/format';
 import { ConfirmDialog, Modal } from './ui/overlays';
-import { STATUT_DOC_CPI, STATUT_PIECE } from '../lib/statuts';
+import { STATUT_BANQUE, STATUT_DOC_CPI, STATUT_PIECE } from '../lib/statuts';
 
 interface Props { user: AuthUser; activeNav?: string }
 
@@ -1335,6 +1337,8 @@ function DemandesView({ agentName }: { agentName: string }) {
   const peutPrendreLaMain = role === 'super-admin';
 
   const impersonation = useMutation({
+    // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
+    meta: SILENCIEUX,
     mutationFn: (userId: string) => staffApi.impersonate(userId),
     // Rechargement complet plutôt qu'une remise à zéro des contextes : toute
     // l'application (menus, requêtes, permissions) doit repartir sur le compte
@@ -1345,8 +1349,15 @@ function DemandesView({ agentName }: { agentName: string }) {
   const [impersonationError, setImpersonationError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
-  const [bankError, setBankError] = useState<string | null>(null);
-  const failWith = (fallback: string) => (e: unknown) => setBankError(apiErrorMessage(e, fallback));
+  /**
+   * Le message du serveur, tel quel, dans le canal unique de l'application.
+   *
+   * Cet écran avait son propre bandeau d'erreur, en plus du toast global de
+   * `main.tsx` : deux messages pour un seul refus. Le repli ne sert que si le
+   * serveur n'a rien dit — un 409 de transition arrive avec un texte écrit pour
+   * l'agent, qui énumère ce qui est possible, et c'est celui-là qui compte.
+   */
+  const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
 
   // Banques partenaires + orientations : /staff/banks porte les deux.
   const banksQuery = useBanksQuery(true);
@@ -1355,12 +1366,6 @@ function DemandesView({ agentName }: { agentName: string }) {
   const assignMutation = useAssignBank();
   const statusMutation = useSetBankStatus();
   const removeMutation = useRemoveBankAssignment();
-
-  const BANK_STATUS_CFG: Record<BankStatus, { label: string; color: string }> = {
-    'en-attente': { label: 'En attente', color: A.gold },
-    accord:       { label: 'Accord',     color: A.green },
-    refus:        { label: 'Refus',      color: A.red },
-  };
 
   const rows = allClients.map(c => {
     const docs = allDocsByClient[c.id] ?? [];
@@ -1566,7 +1571,7 @@ function DemandesView({ agentName }: { agentName: string }) {
               <div style={{ fontSize: '0.6875rem', color: A.muted, marginBottom: 6 }}>Faire avancer le dossier :</div>
               <div className="flex gap-2 flex-wrap">
                 {[3, 4, 5].map(e => (
-                  <button key={e} onClick={() => { setDossierEtape(e, agentName, selected.c.id); showToast('Étape mise à jour.'); }}
+                  <button key={e} onClick={() => setDossierEtape(e, agentName, selected.c.id, () => showToast('Étape mise à jour.'))}
                     style={{ padding: '5px 10px', borderRadius: 'var(--r-sm)', border: `1px solid ${selected.etapeCpi === e ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 700,
                       background: selected.etapeCpi === e ? A.bordeaux : 'white', color: selected.etapeCpi === e ? 'white' : A.text }}>
                     → {TIMELINE_STEPS[e]?.label}
@@ -1660,15 +1665,9 @@ function DemandesView({ agentName }: { agentName: string }) {
                       <button onClick={() => { void banksQuery.refetch(); }} style={{ background: 'transparent', border: 'none', color: A.bordeaux, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Réessayer</button>
                     </div>
                   )}
-                  {bankError && (
-                    <div role="alert" style={{ fontSize: '0.8125rem', fontWeight: 600, color: A.red, background: 'rgba(192,57,43,0.08)', border: `1px solid ${A.red}40`, borderRadius: 'var(--r-sm)', padding: '8px 12px' }}>
-                      {bankError}{' '}
-                      <button onClick={() => setBankError(null)} style={{ background: 'transparent', border: 'none', color: A.red, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
-                    </div>
-                  )}
                   {!banksQuery.isPending && !banksQuery.isError && banks.length === 0 && <div style={{ fontSize: '0.8125rem', color: A.muted }}>Aucune banque partenaire enregistrée. Ajoutez-en dans « Partenaires ».</div>}
                   {assigned.map(a => {
-                    const st = BANK_STATUS_CFG[a.status];
+                    const st = STATUT_BANQUE[a.status];
                     return (
                       <div key={a.bankId} className="p-3" style={{ background: '#FAF7F7', borderRadius: 'var(--r-sm)' }}>
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
@@ -1682,14 +1681,14 @@ function DemandesView({ agentName }: { agentName: string }) {
                           </div>
                         </div>
                         <div className="flex gap-1.5 flex-wrap">
-                          {(['en-attente', 'accord', 'refus'] as BankStatus[]).map(s => (
+                          {(Object.keys(STATUT_BANQUE) as BankStatus[]).map(s => (
                             <button key={s} disabled={busy} onClick={() => statusMutation.mutate({ clientId, bankId: a.bankId, status: s }, {
                               onSuccess: () => {
                                 showToast('Statut mis à jour.');
                               },
                               onError: failWith('La mise à jour du statut a échoué.'),
                             })}
-                              style={{ padding: '3px 10px', borderRadius: 'var(--r-xs)', border: `1px solid ${a.status === s ? BANK_STATUS_CFG[s].color : A.border}`, cursor: 'pointer', fontSize: '0.625rem', fontWeight: 700, background: a.status === s ? BANK_STATUS_CFG[s].color : 'white', color: a.status === s ? 'white' : A.muted }}>{BANK_STATUS_CFG[s].label}</button>
+                              style={{ padding: '3px 10px', borderRadius: 'var(--r-xs)', border: `1px solid ${a.status === s ? STATUT_BANQUE[s].color : A.border}`, cursor: 'pointer', fontSize: '0.625rem', fontWeight: 700, background: a.status === s ? STATUT_BANQUE[s].color : 'white', color: a.status === s ? 'white' : A.muted }}>{STATUT_BANQUE[s].label}</button>
                           ))}
                         </div>
                       </div>
@@ -2051,9 +2050,8 @@ function PartnersView() {
   const [confirmDel, setConfirmDel] = useState<Bank | null>(null);
   const [form, setForm] = useState<{ name: string; conventionDate: string; validity: string; products: string[]; rate: string; contact: string; color: string }>({ name: '', conventionDate: '', validity: '', products: [], rate: '', contact: '', color: BANK_COLORS[0] });
   const [toast, setToast] = useState<string | null>(null);
-  const [bankError, setBankError] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
-  const failWith = (fallback: string) => (e: unknown) => setBankError(apiErrorMessage(e, fallback));
+  const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
 
   // /staff/banks : registre + orientations en un seul appel.
   const banksQuery = useBanksQuery(true);
@@ -2129,14 +2127,6 @@ function PartnersView() {
           <Plus className="w-4 h-4" /> Ajouter une banque
         </button>
       </div>
-
-      {/* Erreur d'action (rien n'échoue en silence) */}
-      {bankError && (
-        <div role="alert" className="p-3" style={{ background: 'rgba(192,57,43,0.08)', border: `1px solid ${A.red}40`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, color: A.red }}>
-          {bankError}{' '}
-          <button onClick={() => setBankError(null)} style={{ background: 'transparent', border: 'none', color: A.red, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
-        </div>
-      )}
 
       {/* Synthèse */}
       <div className="grid grid-cols-3 gap-3">
