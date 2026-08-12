@@ -78,8 +78,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Cible */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Destinataire</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <span id="groupe-destinataire" style={labelStyle}>Destinataire</span>
+          <div role="group" aria-labelledby="groupe-destinataire" style={{ display: 'flex', gap: '8px' }}>
             {([['client', 'Un client', User], ['tous', 'Tous les clients', Users]] as const).map(([val, lbl, Icon]) => (
               <button key={val} onClick={() => setCible(val)} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 14px', borderRadius: 'var(--r-sm)', border: `1px solid ${cible === val ? 'var(--primary)' : 'var(--border)'}`, background: cible === val ? 'var(--primary)' : 'transparent', color: cible === val ? 'var(--primary-foreground)' : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: cible === val ? 700 : 500, cursor: 'pointer' }}>
                 <Icon size={14} /> {lbl}
@@ -90,8 +90,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {cible === 'client' && (
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Client</label>
-            <select value={selectedClient} onChange={e => setSelectedClient(e.target.value)} style={inputStyle}>
+            <label htmlFor="champ-client" style={labelStyle}>Client</label>
+            <select id="champ-client" value={selectedClient} onChange={e => setSelectedClient(e.target.value)} style={inputStyle}>
               <option value="">Sélectionner un client</option>
               {allClients.map(c => <option key={c.id} value={c.id}>{c.name} — {c.ref}</option>)}
             </select>
@@ -100,8 +100,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Canal */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Canal</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <span id="groupe-canal" style={labelStyle}>Canal</span>
+          <div role="group" aria-labelledby="groupe-canal" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(Object.keys(TYPE_CFG) as NotifType[]).map(t => (
               <button key={t} onClick={() => setType(t)} style={{ padding: '6px 14px', borderRadius: 'var(--r-full)', border: `1px solid ${type === t ? TYPE_CFG[t].color : 'var(--border)'}`, background: type === t ? TYPE_CFG[t].bg : 'transparent', color: type === t ? TYPE_CFG[t].color : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: type === t ? 700 : 500, cursor: 'pointer' }}>
                 {TYPE_CFG[t].label}
@@ -112,8 +112,8 @@ export default function NotificationsModule({ agentName = 'Agent CPI' }: Props) 
 
         {/* Message */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={labelStyle}>Message</label>
-          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Rédigez votre message..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55 }} />
+          <label htmlFor="champ-message" style={labelStyle}>Message</label>
+          <textarea id="champ-message" value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Rédigez votre message..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55 }} />
         </div>
 
         {/* Templates */}

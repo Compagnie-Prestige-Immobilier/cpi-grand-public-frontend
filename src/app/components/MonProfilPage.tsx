@@ -576,7 +576,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {photo.avatar
-                ? <img src={photo.avatar} alt={`Photo de profil de ${user.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={photo.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{
                     fontFamily: 'var(--font-display)',
                     fontSize: '1.75rem', fontWeight: 800, color: '#fff',
@@ -1244,7 +1244,7 @@ function StaffProfile({ user, onLogout }: { user: AuthUser; onLogout?: () => voi
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div style={{ width: '88px', height: '88px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.12)', border: '2.5px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {avatar
-                ? <img src={avatar} alt={`Photo de profil de ${user.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: 800, color: '#fff' }}>{initials}</span>}
             </div>
             <BoutonPhoto id="photo-profil-personnel" onPick={photo.choisir} disabled={photo.envoiEnCours} />

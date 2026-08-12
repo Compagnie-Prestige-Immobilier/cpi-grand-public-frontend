@@ -135,7 +135,9 @@ function toForm(d: DemandeData): DemandeForm {
 
 /** « 25 000 000 » → 25000000. Renvoie null si la saisie n'est pas un nombre. */
 function parseMontant(value: string): number | null {
-  const cleaned = value.replace(/[\s ]/g, '').replace(',', '.');
+  // \u202F : espace fine insécable, séparateur de milliers du français. Écrite
+  // en toutes lettres — le caractère brut est invisible dans le code source.
+  const cleaned = value.replace(/[\s\u202f]/g, '').replace(',', '.');
   if (cleaned === '') return null;
   const n = Number(cleaned);
   return Number.isFinite(n) && n >= 0 ? n : null;
@@ -320,6 +322,8 @@ function InlineDepot({ label, onDeposit }: { label: string; onDeposit: (file: Fi
     return (
       <div>
         <div
+          role="button" tabIndex={0} aria-label="Choisir la pièce à déposer"
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) pick(f); }}

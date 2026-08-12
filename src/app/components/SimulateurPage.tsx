@@ -271,11 +271,11 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Montant */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <label htmlFor="champ-montant-pret" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Montant du prêt
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <input
+                    <input id="champ-montant-pret"
                       value={montantRaw}
                       onChange={e => setMontantRaw(e.target.value)}
                       onBlur={e => handleMontantCommit(e.target.value)}
@@ -300,9 +300,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Taux */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Taux d'intérêt annuel
-                  </label>
+                  </span>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--primary)' }}>
                     {taux.toFixed(2)} %
                   </span>
@@ -335,9 +335,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Durée */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Durée
-                  </label>
+                  </span>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--primary)' }}>
                       {dureeAns} ans
@@ -353,6 +353,8 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   {[1, 5, 10, 15, 20, 25].map(y => (
                     <span
                       key={y}
+                      role="button" tabIndex={0} aria-label={`Durée : ${y} ans`}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDuree(y); } }}
                       onClick={() => setDuree(y)}
                       style={{
                         fontFamily: 'var(--font-sans)', fontSize: '0.625rem', cursor: 'pointer',
@@ -388,10 +390,10 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
 
               {/* Premier paiement */}
               <div>
-                <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '9px' }}>
+                <label htmlFor="champ-date-premier-paiement" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '9px' }}>
                   Date du 1er paiement
                 </label>
-                <input
+                <input id="champ-date-premier-paiement"
                   type="date"
                   value={dateDebut}
                   onChange={e => { setDateDebut(e.target.value); setPage(0); }}

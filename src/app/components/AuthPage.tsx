@@ -354,6 +354,8 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
             return (
               <div
                 key={p.type}
+                role="button" tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileSelect(p.type); } }}
                 onClick={() => onProfileSelect(p.type)}
                 onMouseEnter={() => setHovered(p.type)}
                 onMouseLeave={() => setHovered(null)}
@@ -899,6 +901,8 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                 return (
                   <div
                     key={p.type}
+                    role="button" tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setProfil(p.type); setStep(2); } }}
                     onClick={() => { setProfil(p.type); setStep(2); }}
                     onMouseEnter={() => setHovered(p.type)}
                     onMouseLeave={() => setHovered(null)}

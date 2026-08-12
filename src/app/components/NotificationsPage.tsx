@@ -348,6 +348,8 @@ export default function NotificationsPage() {
                   return (
                     <div
                       key={notif.id}
+                      role="button" tabIndex={0} aria-label={`Marquer « ${notif.titre} » comme lue`}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markRead(notif.id); } }}
                       onClick={() => markRead(notif.id)}
                       style={{
                         display: 'flex', gap: '14px', padding: '14px 16px',

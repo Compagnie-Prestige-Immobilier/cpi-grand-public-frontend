@@ -341,26 +341,26 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                   {isEditing ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', padding: '14px', background: 'var(--secondary)', border: '1px solid var(--border)' }}>
                       <div>
-                        <label style={labelStyle}>Progression (%)</label>
-                        <input type="number" min={0} max={100} value={editProg} onChange={e => setEditProg(Math.max(0, Math.min(100, Number(e.target.value))))} style={{ ...inputStyle, width: '90px' }} />
+                        <label htmlFor="champ-progression" style={labelStyle}>Progression (%)</label>
+                        <input id="champ-progression" type="number" min={0} max={100} value={editProg} onChange={e => setEditProg(Math.max(0, Math.min(100, Number(e.target.value))))} style={{ ...inputStyle, width: '90px' }} />
                       </div>
                       <div>
-                        <label style={labelStyle}>Étape courante</label>
-                        <select value={editEtape} onChange={e => setEditEtape(e.target.value as ChantierEtape)} style={inputStyle}>
+                        <label htmlFor="champ-etape-courante" style={labelStyle}>Étape courante</label>
+                        <select id="champ-etape-courante" value={editEtape} onChange={e => setEditEtape(e.target.value as ChantierEtape)} style={inputStyle}>
                           {ETAPES.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
                       {isCh1 && (
                         <>
                           <div>
-                            <label style={labelStyle}>Statut</label>
-                            <select value={editStatut} onChange={e => setEditStatut(e.target.value as ChantierStatut)} style={inputStyle}>
+                            <label htmlFor="champ-statut" style={labelStyle}>Statut</label>
+                            <select id="champ-statut" value={editStatut} onChange={e => setEditStatut(e.target.value as ChantierStatut)} style={inputStyle}>
                               {STATUTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label style={labelStyle}>Livraison estimée</label>
-                            <input type="date" value={editLivraison} onChange={e => setEditLivraison(e.target.value)} style={inputStyle} />
+                            <label htmlFor="champ-livraison-estimee" style={labelStyle}>Livraison estimée</label>
+                            <input id="champ-livraison-estimee" type="date" value={editLivraison} onChange={e => setEditLivraison(e.target.value)} style={inputStyle} />
                           </div>
                         </>
                       )}
@@ -393,18 +393,18 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Nouvelle publication</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                         <div>
-                          <label style={labelStyle}>Titre</label>
-                          <input value={pubForm.titre} onChange={e => setPubForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Toiture posée" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-publication-titre" style={labelStyle}>Titre</label>
+                          <input id="champ-publication-titre" value={pubForm.titre} onChange={e => setPubForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Toiture posée" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Type</label>
-                          <select value={pubForm.type} onChange={e => setPubForm(f => ({ ...f, type: e.target.value as PublicationType }))} style={inputStyle}>
+                          <label htmlFor="champ-publication-type" style={labelStyle}>Type</label>
+                          <select id="champ-publication-type" value={pubForm.type} onChange={e => setPubForm(f => ({ ...f, type: e.target.value as PublicationType }))} style={inputStyle}>
                             {PUB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={labelStyle}>Phase</label>
-                          <select value={pubForm.phase} onChange={e => setPubForm(f => ({ ...f, phase: Number(e.target.value) }))} style={inputStyle}>
+                          <label htmlFor="champ-phase" style={labelStyle}>Phase</label>
+                          <select id="champ-phase" value={pubForm.phase} onChange={e => setPubForm(f => ({ ...f, phase: Number(e.target.value) }))} style={inputStyle}>
                             {[1,2,3,4].map(n => <option key={n} value={n}>Phase {n}</option>)}
                           </select>
                         </div>
@@ -414,8 +414,8 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                         </div>
                       </div>
                       <div style={{ marginBottom: '10px' }}>
-                        <label style={labelStyle}>Description (optionnelle)</label>
-                        <textarea value={pubForm.description} onChange={e => setPubForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box' }} />
+                        <label htmlFor="champ-description-optionnelle" style={labelStyle}>Description (optionnelle)</label>
+                        <textarea id="champ-description-optionnelle" value={pubForm.description} onChange={e => setPubForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box' }} />
                       </div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button onClick={() => setShowPubForm(false)} style={btnOutline}>Annuler</button>
@@ -430,22 +430,22 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Planifier un événement</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                         <div>
-                          <label style={labelStyle}>Titre</label>
-                          <input value={eventForm.titre} onChange={e => setEventForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Visite de chantier" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-evenement-titre" style={labelStyle}>Titre</label>
+                          <input id="champ-evenement-titre" value={eventForm.titre} onChange={e => setEventForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Visite de chantier" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Type</label>
-                          <select value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value as CalendarEventType }))} style={inputStyle}>
+                          <label htmlFor="champ-evenement-type" style={labelStyle}>Type</label>
+                          <select id="champ-evenement-type" value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value as CalendarEventType }))} style={inputStyle}>
                             {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={labelStyle}>Date</label>
-                          <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-date" style={labelStyle}>Date</label>
+                          <input id="champ-date" type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Heure (optionnelle)</label>
-                          <input type="time" value={eventForm.heure} onChange={e => setEventForm(f => ({ ...f, heure: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-heure-optionnelle" style={labelStyle}>Heure (optionnelle)</label>
+                          <input id="champ-heure-optionnelle" type="time" value={eventForm.heure} onChange={e => setEventForm(f => ({ ...f, heure: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '20px' }}>
                           <input type="checkbox" id="evVisible" checked={eventForm.visibleClient} onChange={e => setEventForm(f => ({ ...f, visibleClient: e.target.checked }))} />

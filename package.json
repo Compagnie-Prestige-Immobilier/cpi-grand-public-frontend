@@ -6,6 +6,10 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,13 +31,21 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "6.0.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.10.0",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.6",
     "tailwindcss": "4.3.3",
     "typescript": "^7.0.2",
     "vite": "8.2.0"

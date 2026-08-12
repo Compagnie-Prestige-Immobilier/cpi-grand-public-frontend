@@ -824,7 +824,7 @@ export default function MonChantierPage({ user: _user }: { user: AuthUser }) {
             }
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(feedExpanded ? FEED_LIVE : FEED_LIVE.slice(0, 1)).map((group, gi) => (
+            {(feedExpanded ? FEED_LIVE : FEED_LIVE.slice(0, 1)).map(group => (
               <Card key={group.date}>
                 <div style={{ padding: '10px 16px', background: 'var(--input-background)', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>

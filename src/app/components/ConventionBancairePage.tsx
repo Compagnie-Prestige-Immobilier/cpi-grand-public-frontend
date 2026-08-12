@@ -35,7 +35,6 @@ function ProductCard({
   title,
   subtitle,
   rows,
-  accent,
   headerBg,
   icon,
 }: {

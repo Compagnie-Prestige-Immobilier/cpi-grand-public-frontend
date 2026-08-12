@@ -393,8 +393,18 @@ Mesures relevées le 12 août 2026 sur `src/app` (hors `components/ui/`) :
 | Couleurs hexadécimales écrites en dur | **227**, pour **42** valeurs distinctes |
 
 Les règles ESLint `no-restricted-syntax` d'`eslint.config.js` détectent les deux
-dernières familles. Elles sont volontairement en **`warn`** : les passer en
-`error` bloquerait la CI sur plus de mille occurrences préexistantes.
+dernières familles. Mesure au 12 août 2026, outillage en place :
+
+| Règle | Avertissements | Fichiers |
+|---|---|---|
+| Taille de police littérale | **1 172** | 24 |
+| Couleur hexadécimale en dur | **242** | 24 |
+
+Elles sont volontairement en **`warn`** : les passer en `error` bloquerait
+l'intégration continue sur 1 414 occurrences préexistantes, ce qui conduirait
+en pratique à désactiver la règle plutôt qu'à traiter la dette. Le compte
+ci-dessus est le **plafond** : il ne doit jamais remonter. `npm run lint`
+l'affiche à chaque exécution, et la CI publie le total.
 
 **Plan de résorption** — à appliquer par écran, jamais en une passe globale :
 
@@ -409,6 +419,34 @@ dernières familles. Elles sont volontairement en **`warn`** : les passer en
    `files` en `error` dans `eslint.config.js` pour empêcher la régression.
 4. Quand tous les fichiers y figurent, basculer la règle globale en `error` et
    supprimer la liste.
+
+### Prettier — installé, pas encore appliqué
+
+`prettier` et sa configuration (`.prettierrc.json`, `.prettierignore`) sont en
+place, avec `npm run format` et `npm run format:check`. Le code n'a **pas** été
+reformaté : `prettier --check .` signale 53 fichiers, et les réécrire
+maintenant produirait une différence de plusieurs milliers de lignes qui
+noierait les correctifs de cette remédiation et casserait l'alignement en
+colonnes des tables de configuration (`statuts.ts`, `demoStore.ts`…), voulu et
+lisible.
+
+`format:check` n'est donc **pas** bloquant en intégration continue. La bascule
+se fait en un seul commit dédié, sans aucune autre modification, à un moment où
+rien n'est en cours de relecture — puis `format:check` devient bloquant dans le
+même commit.
+
+### Règles du compilateur React
+
+`eslint-plugin-react-hooks` 7 embarque les vérifications du React Compiler.
+Quatre d'entre elles sont en `warn` — `static-components` (6), `purity` (1),
+`set-state-in-effect` (2), `incompatible-library` (2) : les constats sont
+justes, mais y répondre suppose de remonter des composants définis pendant le
+rendu et de revoir des effets dans cinq écrans. Ce n'est pas une correction
+mécanique.
+
+`react-hooks/rules-of-hooks` reste **bloquante** : c'est la seule qui décrive un
+plantage certain. Elle en a d'ailleurs trouvé un — `AdminDashboard` plaçait un
+`return` anticipé avant une douzaine de hooks.
 
 ---
 

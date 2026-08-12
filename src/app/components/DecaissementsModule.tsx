@@ -102,7 +102,7 @@ export default function DecaissementsModule() {
     });
   };
 
-  const validateFoncier = (id: string, idx: number, name: string) => {
+  const validateFoncier = (id: string, idx: number, _name: string) => {
     foncierMutation.mutate({ clientId: id, step: idx }, {
       onError: failWith("La validation de l'étape foncière a échoué."),
     });

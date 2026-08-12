@@ -64,11 +64,28 @@ const ACT_ICON: Record<string, { El: LucideIcon; color: string }> = {
 
 const MODULE_NAVS = ['documents-clients', 'documents-admin', 'chantier', 'decaissements', 'notifications-agent', 'historique'];
 
+/**
+ * Aiguillage entre les modules et la vue d'ensemble.
+ *
+ * Ce `return` anticipé se trouvait AVANT une douzaine de hooks, dans le même
+ * composant. Passer d'un onglet module (« Décaissements ») à un onglet de vue
+ * d'ensemble (« Rapports ») changeait donc le nombre de hooks appelés d'un
+ * rendu à l'autre — ce que React interdit : « Rendered fewer hooks than
+ * expected », écran blanc, session perdue. Le défaut ne se voyait pas parce que
+ * la navigation remonte l'arbre et remonte le composant la plupart du temps ;
+ * il attendait la première fois où ce ne serait pas le cas.
+ *
+ * Séparer les deux corps règle la question par construction : chacun appelle
+ * ses propres hooks, toujours dans le même ordre.
+ */
 export default function AdminDashboard({ user, activeNav }: Props) {
   if (MODULE_NAVS.includes(activeNav ?? '')) {
     return <AdminModuleView activeNav={activeNav!} agentName={user.name} />;
   }
+  return <AdminOverview user={user} activeNav={activeNav} />;
+}
 
+function AdminOverview({ user, activeNav }: Props) {
   const { navigate } = useNavigate();
   const { allClients } = useClientContext();
   const { allDocsByClient, dossierEtapes, submittedByClient, allHistoryByClient } = useDocState();
@@ -1947,8 +1964,8 @@ function UsersView({ agentName }: { agentName: string }) {
             </div>
             <div className="space-y-3">
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Rôle</label>
-                <div className="flex gap-2 mt-1 flex-wrap">
+                <span id="groupe-role" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Rôle</span>
+                <div role="group" aria-labelledby="groupe-role" className="flex gap-2 mt-1 flex-wrap">
                   {(['client', 'agent-cpi', 'admin'] as const).map(rr => (
                     <button key={rr} onClick={() => setForm(f => ({ ...f, role: rr }))}
                       style={{ padding: '6px 12px', borderRadius: 'var(--r-sm)', border: `1px solid ${form.role === rr ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
@@ -2228,8 +2245,8 @@ function PartnersView() {
                 </div>
               ))}
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Produits de financement</label>
-                <div className="flex gap-1.5 mt-1 flex-wrap">
+                <span id="groupe-produits" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Produits de financement</span>
+                <div role="group" aria-labelledby="groupe-produits" className="flex gap-1.5 mt-1 flex-wrap">
                   {PRODUCT_OPTIONS.map(p => (
                     <button key={p} onClick={() => toggleProduct(p)}
                       style={{ padding: '5px 10px', borderRadius: 'var(--r-full)', border: `1px solid ${form.products.includes(p) ? A.bordeaux : A.border}`, cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 700, background: form.products.includes(p) ? A.bordeaux : 'white', color: form.products.includes(p) ? 'white' : A.muted }}>{p}</button>
@@ -2237,8 +2254,8 @@ function PartnersView() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Couleur d'identité</label>
-                <div className="flex gap-2 mt-1">
+                <span id="groupe-couleur" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Couleur d'identité</span>
+                <div role="group" aria-labelledby="groupe-couleur" className="flex gap-2 mt-1">
                   {BANK_COLORS.map(c => (
                     <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))} style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: c, border: form.color === c ? `3px solid ${A.text}` : '2px solid white', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)', cursor: 'pointer' }} />
                   ))}

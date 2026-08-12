@@ -347,10 +347,10 @@ function SupportPage() {
             ) : (
               <form onSubmit={handleTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '7px' }}>
+                  <label htmlFor="champ-support-sujet" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '7px' }}>
                     Sujet
                   </label>
-                  <select
+                  <select id="champ-support-sujet"
                     value={ticketSubject}
                     onChange={e => setTicketSubject(e.target.value)}
                     required
@@ -372,10 +372,10 @@ function SupportPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '7px' }}>
+                  <label htmlFor="champ-support-message" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '7px' }}>
                     Message
                   </label>
-                  <textarea
+                  <textarea id="champ-support-message"
                     value={ticketMessage}
                     onChange={e => setTicketMessage(e.target.value)}
                     required

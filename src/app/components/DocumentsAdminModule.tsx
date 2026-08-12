@@ -220,9 +220,11 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
 
           {/* Fichier (optionnel — un modèle génère un document sans fichier) */}
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Fichier du document <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted-foreground)' }}>· optionnel</span></label>
+            <span style={labelStyle}>Fichier du document <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted-foreground)' }}>· optionnel</span></span>
             {!file ? (
-              <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
+              <div role="button" tabIndex={0} aria-label="Choisir le fichier du document"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f); }}
                 onClick={() => fileInputRef.current?.click()}
                 style={{ border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', padding: '18px 16px', textAlign: 'center', cursor: 'pointer', background: dragging ? 'var(--secondary)' : 'var(--input-background)' }}>
@@ -247,12 +249,12 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
             <div>
-              <label style={labelStyle}>Titre du document</label>
-              <input value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Contrat de réservation" style={inputStyle} />
+              <label htmlFor="champ-titre-du-document" style={labelStyle}>Titre du document</label>
+              <input id="champ-titre-du-document" value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Contrat de réservation" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Catégorie</label>
-              <select value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value as CpiCategorie }))} style={inputStyle}>
+              <label htmlFor="champ-categorie" style={labelStyle}>Catégorie</label>
+              <select id="champ-categorie" value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value as CpiCategorie }))} style={inputStyle}>
                 {CPI_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIE_LABELS[c]}</option>)}
               </select>
             </div>
@@ -261,9 +263,9 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
           {/* Destinataires (multi) */}
           <div style={{ marginBottom: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>Destinataire(s)</label>
+              <label htmlFor="champ-destinataire-s" style={{ ...labelStyle, marginBottom: 0 }}>Destinataire(s)</label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.75rem', color: 'var(--foreground)' }}>
-                <input type="checkbox" checked={allRecipients} onChange={e => setAllRecipients(e.target.checked)} style={{ accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                <input id="champ-destinataire-s" type="checkbox" checked={allRecipients} onChange={e => setAllRecipients(e.target.checked)} style={{ accentColor: 'var(--primary)', cursor: 'pointer' }} />
                 <Users size={12} /> Tous les clients
               </label>
             </div>
@@ -282,8 +284,8 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
           </div>
 
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Note interne (optionnelle)</label>
-            <textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={2} placeholder="Note visible uniquement par l'équipe..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
+            <label htmlFor="champ-note-interne-optionnelle" style={labelStyle}>Note interne (optionnelle)</label>
+            <textarea id="champ-note-interne-optionnelle" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={2} placeholder="Note visible uniquement par l'équipe..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
           </div>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', marginBottom: '16px' }}>
             <input type="checkbox" checked={form.signature} onChange={e => setForm(f => ({ ...f, signature: e.target.checked }))} style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }} />

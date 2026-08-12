@@ -461,7 +461,7 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
 
   // ── Actions exposées (mêmes signatures qu'avant l'API) ─────────────────────
 
-  const updateProgression = (pct: number, agentName: string, role = 'Agent CPI', onOk?: () => void) => {
+  const updateProgression = (pct: number, agentName: string, _role = 'Agent CPI', onOk?: () => void) => {
     const clamped = Math.max(0, Math.min(100, Math.round(pct)));
     const ancienne = chantierInfo.progression;
     if (clamped === ancienne) return;
@@ -534,7 +534,7 @@ export function ChantierStateProvider({ children }: { children: React.ReactNode 
     }, journaliseSiOk("La planification de l'événement a échoué.", onOk));
   };
 
-  const signalerRetard = (reason: string, jours: number, agentName: string) => {
+  const signalerRetard = (reason: string, jours: number, _agentName: string) => {
     const libelle = `Retard signalé — ${jours} jour${jours > 1 ? 's' : ''}`;
     // Deux écritures enchaînées : le statut d'abord, la publication seulement si
     // le serveur l'a acceptée — sinon le fil annoncerait un retard non enregistré.

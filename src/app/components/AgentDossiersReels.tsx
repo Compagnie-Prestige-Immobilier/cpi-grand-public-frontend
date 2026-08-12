@@ -95,9 +95,9 @@ function CommentModal({ title, cta, onConfirm, onClose }: { title: string; cta: 
 
 // ─── Frise parcours + contrôles d'avancement ──────────────────────────────────
 
-function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: {
+function ParcoursControl({ activeStep, allValid, submitted, onSet }: {
   activeStep: number; allValid: boolean; submitted: boolean;
-  onSet: (etape: number) => void; agentName: string;
+  onSet: (etape: number) => void;
 }) {
   return (
     <div style={{ background: 'var(--primary)', borderRadius: 'var(--r-md)', padding: '18px 20px', color: '#fff' }}>
@@ -213,7 +213,7 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
       </div>
 
       {/* Parcours + contrôles */}
-      <ParcoursControl activeStep={activeStep} allValid={allValid} submitted={submitted} agentName={agentName}
+      <ParcoursControl activeStep={activeStep} allValid={allValid} submitted={submitted}
         onSet={etape => setDossierEtape(etape, agentName, client.id)} />
 
       {/* Pièces justificatives */}
@@ -386,6 +386,8 @@ function UploadDocModal({ onClose, onPublish }: {
         {/* Zone de dépôt */}
         {!fichier ? (
           <div
+            role="button" tabIndex={0} aria-label="Choisir un fichier à joindre"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) selectFile(f); }}
@@ -425,13 +427,13 @@ function UploadDocModal({ onClose, onPublish }: {
         {/* Métadonnées */}
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Nom du document</label>
-            <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex : Convention de financement"
+            <label htmlFor="champ-nom-du-document" style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Nom du document</label>
+            <input id="champ-nom-du-document" value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex : Convention de financement"
               style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Catégorie</label>
-            <select value={categorie} onChange={e => setCategorie(e.target.value)}
+            <label htmlFor="champ-categorie" style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Catégorie</label>
+            <select id="champ-categorie" value={categorie} onChange={e => setCategorie(e.target.value)}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', boxSizing: 'border-box' }}>
               {Object.entries(CPI_CAT_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
