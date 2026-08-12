@@ -704,7 +704,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                       </div>
                       <span className="flex-1" style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text, minWidth: 90 }}>{h.label}</span>
                       {h.ok === null ? (
-                        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>backend</span>
+                        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>non mesuré</span>
                       ) : (
                         <span className="flex items-center gap-1.5" style={{ fontSize: '0.6875rem', fontWeight: 700, color: dot, flexShrink: 0, textAlign: 'right' }}>
                           <span style={{ width: 7, height: 7, borderRadius: 'var(--r-full)', background: dot, flexShrink: 0 }} /> {h.value}
@@ -715,7 +715,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                 })}
               </div>
               <p style={{ fontSize: '0.6875rem', color: A.muted, marginTop: 12, lineHeight: 1.5 }}>
-                Les métriques serveur (uptime, latence API, base de données, sauvegardes) s'afficheront ici une fois le backend connecté par vos techniciens.
+                La disponibilité des serveurs, les temps de réponse et les sauvegardes ne sont pas encore mesurés par la plateforme. Ces indicateurs resteront vides tant qu'aucun outil de supervision ne sera en place.
               </p>
             </div>
 
@@ -744,7 +744,7 @@ export default function AdminDashboard({ user, activeNav }: Props) {
                     <Timer className="w-3.5 h-3.5" style={{ color: A.muted }} />
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: A.text }}>Délai moyen de traitement</span>
                   </div>
-                  <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>backend</span>
+                  <span style={{ fontSize: '0.625rem', fontWeight: 700, color: A.muted, background: 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>non mesuré</span>
                 </div>
               </div>
             </div>
@@ -971,7 +971,7 @@ function SystemeView() {
       <div className={cardCls} style={cs}>
         <div className="flex items-center gap-2 mb-1"><Zap className="w-4 h-4" style={{ color: A.gold }} /><h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: A.text }}>Intégrations</h3></div>
         <p style={{ fontSize: '0.75rem', color: A.muted, marginBottom: 14 }}>
-          Services déjà branchés sur la plateforme, et ceux qui restent à connecter par vos techniciens.
+          Services déjà actifs sur la plateforme, et ceux qui restent à mettre en place.
         </p>
         <div className="grid sm:grid-cols-2 gap-2">
           {integrations.map(it => {
@@ -984,7 +984,7 @@ function SystemeView() {
                   <div style={{ fontSize: '0.625rem', color: A.muted }}>{it.note}</div>
                 </div>
                 <span style={{ fontSize: '0.625rem', fontWeight: 700, color: it.ok ? A.green : A.muted, background: it.ok ? 'rgba(26,107,68,0.10)' : 'rgba(107,74,82,0.10)', padding: '3px 8px', borderRadius: 'var(--r-full)', flexShrink: 0 }}>
-                  {it.ok ? 'connecté' : 'à connecter'}
+                  {it.ok ? 'actif' : 'non actif'}
                 </span>
               </div>
             );
@@ -2006,7 +2006,7 @@ function UsersView({ agentName }: { agentName: string }) {
             <textarea readOnly value={creds.message} rows={6}
               style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', padding: 10, fontSize: '0.75rem', color: A.text, background: '#FAFAFA', resize: 'vertical' }} />
             <div style={{ fontSize: '0.6875rem', color: A.muted, margin: '8px 0' }}>
-              ⚠️ L'envoi automatique par e-mail nécessitera un backend. Utilisez « Copier » ou « Envoyer par e-mail » (ouvre votre messagerie).
+              La plateforme n'envoie pas ces identifiants elle-même. Utilisez « Copier », ou « Envoyer par e-mail » qui ouvre votre messagerie avec le message prêt.
             </div>
             <div className="flex gap-2 flex-wrap">
               <button onClick={copyCreds} className="flex items-center gap-1 px-3 py-2" style={{ background: 'white', color: A.bordeaux, border: `1px solid ${A.border}`, borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}><Copy className="w-3.5 h-3.5" /> Copier</button>
