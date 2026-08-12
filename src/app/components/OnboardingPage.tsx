@@ -89,7 +89,7 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', padding: 24 }}>
+    <div className="cpi-onboarding" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 440, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '32px 28px', boxShadow: 'var(--elev-sm)' }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.375rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: 6 }}>
           Bienvenue, {userName}

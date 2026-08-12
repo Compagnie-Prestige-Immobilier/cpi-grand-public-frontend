@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Building2, LayoutDashboard, FileText, Bell, UserCircle,
   LogOut, ChevronRight, Menu, X, Users,
   BarChart3, ShieldCheck, CreditCard, BookOpen, FolderOpen, LifeBuoy,
-  Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye,
+  Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye, MoreHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import cpiLogo from '../../imports/image.png';
@@ -53,6 +53,32 @@ const ROLE_COLORS: Record<UserRole, { bg: string; text: string }> = {
 };
 
 type NavItem = { id: string; label: string; icon: LucideIcon };
+
+type MobileTab = NavItem;
+
+function getMobileTabs(role: UserRole): MobileTab[] {
+  if (role === 'client-fonctionnaire' || role === 'client-public') return [
+    { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+    { id: 'ma-demande', label: 'Demande', icon: FileText },
+    { id: 'mon-dossier', label: 'Dossier', icon: FolderOpen },
+    { id: 'notifications', label: 'Alertes', icon: Bell },
+  ];
+  return [
+    { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+    { id: role === 'agent-cpi' ? 'dossiers' : 'demandes', label: role === 'agent-cpi' ? 'Dossiers' : 'Demandes', icon: FileText },
+    { id: 'notifications-agent', label: 'Alertes', icon: Bell },
+  ];
+}
+
+function getMobileMoreItems(role: UserRole, hasChantier: boolean): NavItem[] {
+  const all = getNavItems(role, hasChantier);
+  const tabs = new Set(getMobileTabs(role).map(item => item.id));
+  const extras = all.filter(item => !tabs.has(item.id));
+  if (role === 'client-fonctionnaire' || role === 'client-public') {
+    extras.push({ id: 'mon-profil', label: 'Mon profil', icon: UserCircle }, { id: 'support', label: 'Support', icon: LifeBuoy });
+  }
+  return extras;
+}
 
 function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
   if (role === 'client-fonctionnaire' || role === 'client-public') return [
@@ -413,6 +439,7 @@ function SupportPage() {
 function AppShellInner({ user, onLogout }: AppShellProps) {
   const { activeNav, navigate } = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const roleLabel = ROLE_LABELS[user.role];
   const roleColor = ROLE_COLORS[user.role];
@@ -428,6 +455,15 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
   // alimenté que côté personnel et laissait l'entrée invisible pour tout client.
   const { hasChantier } = useChantierState();
   const navItems = getNavItems(user.role, isClientRole && hasChantier);
+  const mobileTabs = getMobileTabs(user.role);
+  const mobileMoreItems = getMobileMoreItems(user.role, isClientRole && hasChantier);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [moreOpen]);
 
   const renderDashboard = () => {
     if (activeNav === 'statistiques')  return <StatisticsDashboard user={user} />;
@@ -454,7 +490,7 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
   const navLabel = navItems.find(n => n.id === activeNav)?.label ?? EXTRA_NAV_LABELS[activeNav] ?? 'Tableau de bord';
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)', fontFamily: 'var(--font-sans)' }}>
+    <div className="cpi-app-shell flex h-screen overflow-hidden" style={{ background: 'var(--background)', fontFamily: 'var(--font-sans)' }}>
       {/* Lien d'évitement clavier (accessibilité) */}
       <a href="#cpi-main" className="cpi-skip">Aller au contenu</a>
       {/* Desktop sidebar */}
@@ -547,7 +583,7 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
         {/* Top bar */}
         <header className="bg-white border-b px-5 py-3.5 flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-4">
-            <button className="lg:hidden" style={{ color: 'var(--muted-foreground)' }} onClick={() => setSidebarOpen(true)}>
+            <button className="lg:hidden cpi-mobile-menu-trigger" aria-label="Ouvrir le menu" style={{ color: 'var(--muted-foreground)' }} onClick={() => setSidebarOpen(true)}>
               <Menu className="w-5 h-5" />
             </button>
             <div>
@@ -582,12 +618,63 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
         </header>
 
         {/* Content — animation d'entrée rejouée à chaque changement de page */}
-        <main id="cpi-main" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden p-5 lg:p-7" style={{ outline: 'none' }}>
+        <main id="cpi-main" tabIndex={-1} className="cpi-shell-main flex-1 overflow-y-auto overflow-x-hidden p-5 lg:p-7" style={{ outline: 'none' }}>
           <div key={activeNav} className="cpi-page-enter">
             {renderDashboard()}
           </div>
         </main>
       </div>
+
+      {/* Mobile first-level navigation. Secondary destinations live in Plus. */}
+      <nav className="cpi-mobile-bottom-nav" aria-label="Navigation principale">
+        {mobileTabs.map(item => {
+          const Icon = item.icon;
+          const active = activeNav === item.id;
+          return (
+            <button key={item.id} type="button" aria-current={active ? 'page' : undefined} onClick={() => { setMoreOpen(false); navigate(item.id); }} className={active ? 'is-active' : ''}>
+              <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+        <button type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)} className={moreOpen || mobileMoreItems.some(item => item.id === activeNav) ? 'is-active' : ''}>
+          <MoreHorizontal size={20} strokeWidth={2} />
+          <span>Plus</span>
+        </button>
+      </nav>
+
+      {moreOpen && (
+        <>
+          <button type="button" aria-label="Fermer le menu Plus" className="cpi-mobile-more-backdrop" onClick={() => setMoreOpen(false)} />
+          <section className="cpi-mobile-more-sheet" aria-label="Autres sections" role="dialog" aria-modal="true">
+            <div className="cpi-mobile-more-handle" />
+            <div className="cpi-mobile-more-heading">
+              <div>
+                <strong>Autres sections</strong>
+                <span>{roleLabel}</span>
+              </div>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Fermer"><X size={19} /></button>
+            </div>
+            <div className="cpi-mobile-more-grid">
+              {mobileMoreItems.map(item => {
+                const Icon = item.icon;
+                const active = activeNav === item.id;
+                return (
+                  <button key={item.id} type="button" className={active ? 'is-active' : ''} onClick={() => { setMoreOpen(false); navigate(item.id); }}>
+                    <span><Icon size={19} /></span>
+                    <strong>{item.label}</strong>
+                    {active && <span className="cpi-mobile-more-check">●</span>}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => { setMoreOpen(false); onLogout(); }}>
+                <span><LogOut size={19} /></span>
+                <strong>Se déconnecter</strong>
+              </button>
+            </div>
+          </section>
+        </>
+      )}
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (

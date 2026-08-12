@@ -377,3 +377,145 @@ img { max-width: 100%; height: auto; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══ CPI — mobile application shell ═══════════════════════════════════════ */
+.cpi-mobile-bottom-nav,
+.cpi-mobile-more-backdrop,
+.cpi-mobile-more-sheet { display: none; }
+
+@media (max-width: 767px) {
+  html, body, #root { min-width: 320px; }
+  body { overflow-x: hidden; }
+
+  .cpi-app-shell { height: 100dvh !important; }
+  .cpi-shell-main {
+    padding: 16px 14px calc(88px + env(safe-area-inset-bottom)) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cpi-mobile-menu-trigger { display: none; }
+
+  .cpi-mobile-bottom-nav {
+    position: fixed;
+    z-index: var(--z-sticky);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,0.96);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px rgba(28,8,16,0.08);
+    backdrop-filter: blur(16px);
+  }
+  .cpi-mobile-bottom-nav button {
+    min-width: 0;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px 2px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--muted-foreground);
+    font: 600 0.66rem/1 var(--font-sans);
+    cursor: pointer;
+  }
+  .cpi-mobile-bottom-nav button.is-active {
+    color: var(--primary);
+    background: var(--secondary);
+  }
+
+  .cpi-mobile-more-backdrop {
+    position: fixed;
+    z-index: calc(var(--z-modal) - 1);
+    display: block;
+    inset: 0;
+    border: 0;
+    background: rgba(28,8,16,0.42);
+    animation: cpi-backdrop-in var(--dur-2) var(--ease-out) backwards;
+  }
+  .cpi-mobile-more-sheet {
+    position: fixed;
+    z-index: var(--z-modal);
+    display: block;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    background: var(--card);
+    box-shadow: var(--elev-xl);
+    animation: cpi-sheet-up var(--dur-3) var(--ease-out) backwards;
+  }
+  .cpi-mobile-more-handle {
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 14px;
+    border-radius: var(--r-full);
+    background: var(--border);
+  }
+  .cpi-mobile-more-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .cpi-mobile-more-heading div { display: flex; flex-direction: column; gap: 3px; }
+  .cpi-mobile-more-heading strong { font: 800 1rem var(--font-display); color: var(--foreground); }
+  .cpi-mobile-more-heading span { font: 0.75rem var(--font-sans); color: var(--muted-foreground); }
+  .cpi-mobile-more-heading button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--muted); color: var(--foreground); }
+  .cpi-mobile-more-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; max-height: min(54vh, 430px); overflow-y: auto; }
+  .cpi-mobile-more-grid > button {
+    position: relative;
+    min-height: 74px;
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--card);
+    color: var(--foreground);
+    text-align: left;
+  }
+  .cpi-mobile-more-grid > button > span:first-child { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--secondary); color: var(--primary); }
+  .cpi-mobile-more-grid > button strong { font: 700 0.76rem/1.25 var(--font-sans); }
+  .cpi-mobile-more-grid > button.is-active { border-color: var(--primary); background: var(--secondary); }
+  .cpi-mobile-more-check { position: absolute; top: 12px; right: 12px; color: var(--success); font-size: 0.65rem; }
+
+  /* Inline desktop compositions become readable mobile sections. */
+  .cpi-shell-main .grid.grid-cols-2,
+  .cpi-shell-main [class*="grid-cols-2"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .cpi-shell-main [class*="lg:grid-cols-3"],
+  .cpi-shell-main [class*="lg:grid-cols-4"],
+  .cpi-shell-main [class*="lg:grid-cols-5"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .cpi-shell-main [class*="lg:col-span"] { grid-column: auto !important; }
+  .cpi-shell-main [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .cpi-shell-main [style*="min-width"] { min-width: 0 !important; }
+  .cpi-shell-main input, .cpi-shell-main select, .cpi-shell-main textarea { font-size: 16px !important; }
+  .cpi-shell-main button, .cpi-shell-main [role="button"] { min-height: 44px; }
+  .cpi-shell-main table { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cpi-shell-main [style*="position: fixed"][style*="bottom: 24px"] { left: 14px !important; right: 14px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
+  .cpi-app-shell > [style*="position: fixed"][style*="inset: 0"] { align-items: flex-end !important; padding: 12px !important; }
+  .cpi-app-shell > [style*="position: fixed"][style*="inset: 0"] > div { width: 100% !important; max-height: 92dvh !important; overflow-y: auto !important; }
+  .cpi-shell-main h1 { font-size: clamp(1.35rem, 6vw, 1.8rem) !important; }
+  .cpi-shell-main h2 { font-size: clamp(1.15rem, 5vw, 1.5rem) !important; }
+
+  .cpi-onboarding { align-items: flex-start !important; padding: 16px !important; }
+  .cpi-onboarding > div { padding: 22px 16px !important; border-radius: var(--r-lg) !important; }
+  .cpi-onboarding [style*="repeat(3, 1fr)"] { grid-template-columns: 1fr !important; }
+  .cpi-terms-modal { padding: 0 !important; place-items: end !important; }
+  .cpi-terms-dialog { width: 100% !important; max-height: 96dvh !important; border-radius: var(--r-xl) var(--r-xl) 0 0 !important; }
+  .cpi-terms-dialog > header { padding: 22px 18px !important; }
+  .cpi-terms-dialog > header h1 { font-size: 1.55rem !important; }
+  .cpi-terms-dialog > div { padding: 0 18px 28px !important; }
+  .cpi-terms-dialog > div section { padding: 18px 0 !important; }
+}
+
+@keyframes cpi-sheet-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
