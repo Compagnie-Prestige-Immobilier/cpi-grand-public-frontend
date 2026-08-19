@@ -4,16 +4,6 @@
 // URL : la référence ci-dessus apporte leurs déclarations de module.
 
 /**
- * Ressources Figma exportées, résolues vers `src/assets` par le greffon
- * `figmaAssetResolver` de vite.config.ts. Sans cette déclaration, TypeScript
- * ne peut pas connaître un schéma d'import propre à ce projet.
- */
-declare module 'figma:asset/*' {
-  const src: string;
-  export default src;
-}
-
-/**
  * Variables de build lues dans le code applicatif. Déclarées explicitement pour
  * qu'une faute de frappe devienne une erreur de compilation plutôt qu'un
  * `undefined` silencieux au démarrage.

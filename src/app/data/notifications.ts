@@ -11,6 +11,7 @@ import {
   useMutation, useQuery, useQueryClient,
   type UseMutationResult, type UseQueryResult,
 } from '@tanstack/react-query';
+import { SILENCIEUX } from '../api/client';
 import {
   clientApi, staffApi,
   type NotificationData, type NotificationSendInput, type NotificationType,
@@ -58,6 +59,8 @@ export function useSendNotification(): UseMutationResult<NotificationData, unkno
   const queryClient = useQueryClient();
 
   return useMutation({
+    // L'appelant (docStateContext.pushNotification) affiche déjà son message.
+    meta: SILENCIEUX,
     mutationFn: (input: NotificationSendInput) => staffApi.notifications.send(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STAFF_NOTIFICATIONS_QUERY_KEY });

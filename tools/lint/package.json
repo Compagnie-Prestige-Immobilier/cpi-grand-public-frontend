@@ -1,0 +1,11 @@
+{
+  "name": "@cpi/lint-toolchain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "typescript-eslint et l'API TypeScript 6 qu'il exige, isolés du typescript 7 du projet.",
+  "dependencies": {
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.46.0"
+  },
+  "main": "index.js"
+}

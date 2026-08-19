@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, Legend,
 } from 'recharts';
 import type { AuthUser } from '../App';
+import { formatAmount } from '../lib/format';
 
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
@@ -59,9 +60,6 @@ function generateSchedule(
   return rows;
 }
 
-function fmt(n: number): string {
-  return Math.round(n).toLocaleString('fr-FR');
-}
 
 // ─── Injected styles (range thumb + responsive) ───────────────────────────────
 
@@ -172,15 +170,15 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
     const n = parseInt(raw.replace(/\s/g, '').replace(/[^0-9]/g, ''), 10);
     if (!isNaN(n) && n >= 500_000 && n <= 100_000_000) {
       setMontant(n);
-      setMontantRaw(n.toLocaleString('fr-FR'));
+      setMontantRaw(formatAmount(n));
     } else {
-      setMontantRaw(montant.toLocaleString('fr-FR'));
+      setMontantRaw(formatAmount(montant));
     }
   };
 
   const handleMontantSlider = (v: number) => {
     setMontant(v);
-    setMontantRaw(v.toLocaleString('fr-FR'));
+    setMontantRaw(formatAmount(v));
   };
 
   const setDuree = (v: number) => { setDureeAns(v); setPage(0); };
@@ -197,7 +195,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               p.dataKey === 'capitalRestant' ? 'Capital restant' :
               p.dataKey === 'cumulInterets' ? 'Cumul intérêts' : 'Cumul capital'
             }</span>
-            <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{fmt(p.value)} FCFA</span>
+            <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{formatAmount(p.value)} FCFA</span>
           </div>
         ))}
       </div>
@@ -240,7 +238,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                 borderRadius: 'var(--r-md)', padding: '12px 18px', textAlign: 'center', minWidth: '100px',
               }}>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>{label}</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 800, color: '#FFC65A' }}>{value}</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 800, color: 'var(--accent-on-dark)' }}>{value}</div>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.5625rem', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{sub}</div>
               </div>
             ))}
@@ -273,11 +271,11 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Montant */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <label htmlFor="champ-montant-pret" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Montant du prêt
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <input
+                    <input id="champ-montant-pret"
                       value={montantRaw}
                       onChange={e => setMontantRaw(e.target.value)}
                       onBlur={e => handleMontantCommit(e.target.value)}
@@ -302,9 +300,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Taux */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Taux d'intérêt annuel
-                  </label>
+                  </span>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--primary)' }}>
                     {taux.toFixed(2)} %
                   </span>
@@ -337,9 +335,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               {/* Durée */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Durée
-                  </label>
+                  </span>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 800, color: 'var(--primary)' }}>
                       {dureeAns} ans
@@ -355,6 +353,8 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   {[1, 5, 10, 15, 20, 25].map(y => (
                     <span
                       key={y}
+                      role="button" tabIndex={0} aria-label={`Durée : ${y} ans`}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDuree(y); } }}
                       onClick={() => setDuree(y)}
                       style={{
                         fontFamily: 'var(--font-sans)', fontSize: '0.625rem', cursor: 'pointer',
@@ -390,10 +390,10 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
 
               {/* Premier paiement */}
               <div>
-                <label style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '9px' }}>
+                <label htmlFor="champ-date-premier-paiement" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '9px' }}>
                   Date du 1er paiement
                 </label>
-                <input
+                <input id="champ-date-premier-paiement"
                   type="date"
                   value={dateDebut}
                   onChange={e => { setDateDebut(e.target.value); setPage(0); }}
@@ -447,8 +447,8 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   Mensualité calculée
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem,4vw,2.875rem)', fontWeight: 900, color: '#FFC65A', lineHeight: 1 }}>
-                    {fmt(mensualite)}
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem,4vw,2.875rem)', fontWeight: 900, color: 'var(--accent-on-dark)', lineHeight: 1 }}>
+                    {formatAmount(mensualite)}
                   </span>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>FCFA</span>
                 </div>
@@ -459,9 +459,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '200px' }}>
                 {[
-                  { label: 'Capital', value: fmt(montant) + ' FCFA' },
-                  { label: 'Total intérêts', value: fmt(totalInterets) + ' FCFA' },
-                  { label: 'Coût total', value: fmt(totalPaye) + ' FCFA' },
+                  { label: 'Capital', value: formatAmount(montant) + ' FCFA' },
+                  { label: 'Total intérêts', value: formatAmount(totalInterets) + ' FCFA' },
+                  { label: 'Coût total', value: formatAmount(totalPaye) + ' FCFA' },
                   { label: 'Nb mensualités', value: `${dureeMonths}` },
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -475,9 +475,9 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
               {[
-                { label: 'Capital emprunté', value: fmt(montant), color: 'var(--primary)', bg: 'var(--secondary)' },
-                { label: 'Total intérêts', value: fmt(totalInterets), color: 'var(--accent)', bg: 'rgba(200,146,26,0.08)' },
-                { label: 'Coût total crédit', value: fmt(totalPaye), color: 'var(--success)', bg: 'rgba(26,107,68,0.07)' },
+                { label: 'Capital emprunté', value: formatAmount(montant), color: 'var(--primary)', bg: 'var(--secondary)' },
+                { label: 'Total intérêts', value: formatAmount(totalInterets), color: 'var(--accent-text)', bg: 'rgba(200,146,26,0.08)' },
+                { label: 'Coût total crédit', value: formatAmount(totalPaye), color: 'var(--success)', bg: 'rgba(26,107,68,0.07)' },
               ].map(k => (
                 <div key={k.label} style={{ background: k.bg, border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '14px 16px' }}>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>{k.label}</div>
@@ -584,7 +584,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                       <Legend wrapperStyle={{ fontFamily: 'var(--font-sans)', fontSize: '11px' }} formatter={v => v === 'capitalRestant' ? 'Capital restant' : v === 'cumulInterets' ? 'Cumul intérêts' : 'Cumul capital remboursé'} />
                       <Tooltip content={<ChartTooltip />} />
                       <Area type="monotone" dataKey="capitalRestant" stroke="var(--primary)" strokeWidth={2.5} fill="url(#gCap)" dot={false} activeDot={{ r: 4, fill: 'var(--primary)' }} />
-                      <Area type="monotone" dataKey="cumulInterets" stroke="var(--accent)" strokeWidth={2.5} fill="url(#gInt)" dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} />
+                      <Area type="monotone" dataKey="cumulInterets" stroke="var(--accent-border)" strokeWidth={2.5} fill="url(#gInt)" dot={false} activeDot={{ r: 4, fill: 'var(--accent-border)' }} />
                       <Area type="monotone" dataKey="cumulCapital" stroke="var(--success)" strokeWidth={2} fill="url(#gCapR)" dot={false} activeDot={{ r: 4, fill: 'var(--success)' }} strokeDasharray="5 4" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -602,7 +602,7 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                   }}>
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                       <strong style={{ color: 'var(--foreground)' }}>{dureeMonths} périodes</strong>
-                      {' · '}Mensualité : <strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>{fmt(mensualite)} FCFA</strong>
+                      {' · '}Mensualité : <strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>{formatAmount(mensualite)} FCFA</strong>
                       {' · '}Taux mensuel : <strong style={{ color: 'var(--foreground)' }}>{(taux / 12).toFixed(5)}%</strong>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -673,19 +673,19 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                                 {row.date}
                               </td>
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--foreground)', borderRight: '1px solid var(--border)' }}>
-                                {fmt(row.balanceStart)}
+                                {formatAmount(row.balanceStart)}
                               </td>
-                              <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)', borderRight: '1px solid var(--border)' }}>
-                                {fmt(row.interest)}
+                              <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent-text)', borderRight: '1px solid var(--border)' }}>
+                                {formatAmount(row.interest)}
                               </td>
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--success)', borderRight: '1px solid var(--border)' }}>
-                                {fmt(row.capital)}
+                                {formatAmount(row.capital)}
                               </td>
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--foreground)', borderRight: '1px solid var(--border)' }}>
-                                {fmt(row.balanceEnd)}
+                                {formatAmount(row.balanceEnd)}
                               </td>
                               <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 900, color: 'var(--primary)' }}>
-                                {fmt(row.payment)}
+                                {formatAmount(row.payment)}
                               </td>
                             </tr>
                           );
@@ -697,15 +697,15 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
                             Sous-total · Année {page + 1}
                           </td>
                           <td style={{ padding: '9px 14px', borderRight: '1px solid var(--border)' }} />
-                          <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent)', borderRight: '1px solid var(--border)' }}>
-                            {fmt(pageRows.reduce((s, r) => s + r.interest, 0))}
+                          <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent-text)', borderRight: '1px solid var(--border)' }}>
+                            {formatAmount(pageRows.reduce((s, r) => s + r.interest, 0))}
                           </td>
                           <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--success)', borderRight: '1px solid var(--border)' }}>
-                            {fmt(pageRows.reduce((s, r) => s + r.capital, 0))}
+                            {formatAmount(pageRows.reduce((s, r) => s + r.capital, 0))}
                           </td>
                           <td style={{ padding: '9px 14px', borderRight: '1px solid var(--border)' }} />
                           <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 800, color: 'var(--primary)' }}>
-                            {fmt(pageRows.reduce((s, r) => s + r.payment, 0))}
+                            {formatAmount(pageRows.reduce((s, r) => s + r.payment, 0))}
                           </td>
                         </tr>
                       </tfoot>
@@ -756,14 +756,14 @@ export default function SimulateurPage({ user: _user }: { user: AuthUser }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px 22px' }}>
                 {[
-                  { label: 'Montant de départ au paiement 1', value: fmt(montant) + ' FCFA', color: 'var(--primary)' },
+                  { label: 'Montant de départ au paiement 1', value: formatAmount(montant) + ' FCFA', color: 'var(--primary)' },
                   { label: 'Taux d\'intérêt annuel', value: taux.toFixed(2) + ' %', color: 'var(--foreground)' },
                   { label: 'Durée', value: `${dureeAns} ans (${dureeMonths} mois)`, color: 'var(--foreground)' },
                   { label: 'Nb paiements/an', value: '12', color: 'var(--foreground)' },
-                  { label: 'Paiement calculé', value: fmt(mensualite) + ' FCFA', color: 'var(--primary)', bold: true },
-                  { label: 'Montant total échéance', value: fmt(mensualite) + ' FCFA', color: 'var(--accent)' },
-                  { label: 'Total intérêts versés', value: fmt(totalInterets) + ' FCFA', color: 'var(--accent)' },
-                  { label: 'Coût total du crédit', value: fmt(totalPaye) + ' FCFA', color: 'var(--success)' },
+                  { label: 'Paiement calculé', value: formatAmount(mensualite) + ' FCFA', color: 'var(--primary)', bold: true },
+                  { label: 'Montant total échéance', value: formatAmount(mensualite) + ' FCFA', color: 'var(--accent-text)' },
+                  { label: 'Total intérêts versés', value: formatAmount(totalInterets) + ' FCFA', color: 'var(--accent-text)' },
+                  { label: 'Coût total du crédit', value: formatAmount(totalPaye) + ' FCFA', color: 'var(--success)' },
                   { label: 'Date dernier paiement', value: schedule[schedule.length - 1]?.date ?? '—', color: 'var(--foreground)' },
                 ].map(({ label, value, color, bold }) => (
                   <div key={label}>

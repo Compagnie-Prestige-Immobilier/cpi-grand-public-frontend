@@ -1,0 +1,15 @@
+# Produits de construction
+dist/
+node_modules/
+tools/lint/node_modules/
+
+# Écrit par le backend (php artisan typescript:transform) : le reformater
+# créerait une différence à chaque régénération.
+src/app/api/types/generated.d.ts
+src/app/api/types/typescript-transformer-manifest.json
+
+# Verrous et rapports
+package-lock.json
+tools/lint/package-lock.json
+playwright-report/
+test-results/

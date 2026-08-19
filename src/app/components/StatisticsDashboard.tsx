@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   TrendingUp, TrendingDown, FileText, CheckCircle2, XCircle,
   Clock, Banknote, Users, BarChart3, Download, Eye, MousePointerClick, Repeat, Activity, Percent, UserCheck, UserPlus, Timer, Gauge,
@@ -13,6 +14,12 @@ import { useClientContext } from '../contexts/ClientContext';
 import { useDocState } from '../data/docStateContext';
 import { useCpiDocs } from '../data/cpiDocsContext';
 import { computeJourneyStep, SIGNATURE_INDEX, DOCS_VALIDES_INDEX, TIMELINE_STEPS } from '../data/dossierJourney';
+import { formatFCFA, parseFrDate } from '../lib/format';
+import { staffApi } from '../api/endpoints';
+import { SILENCIEUX } from '../api/client';
+
+/** Clé de cache des totaux plateforme (GET /staff/stats/dashboard). */
+const STATS_DASHBOARD_QUERY_KEY = ['staff', 'stats', 'dashboard'] as const;
 
 interface Props { user: AuthUser }
 
@@ -21,7 +28,10 @@ const C = {
   bordeaux: '#630210',
   bordeauxLight: '#F5ECEE',
   bordeauxMid: '#B05070',
-  gold: '#C8921A',
+  // Or vif : séries de graphiques uniquement (objet non textuel, seuil 3:1).
+  gold: '#A87A15',
+  // Or foncé : toute valeur textuelle (WCAG AA 4,5:1 sur fond clair).
+  goldText: '#856011',
   goldLight: '#F0B840',
   green: '#1A6B44',
   greenLight: 'rgba(26,107,68,0.1)',
@@ -51,7 +61,7 @@ function KpiCard({ label, value, sub, delta, positive, icon: Icon, color }: {
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
         {delta && (
-          <div className={`flex items-center gap-1 px-2 py-0.5 ${positive ? 'text-[#1A6B44]' : 'text-[#C0392B]'}`}
+          <div className={`flex items-center gap-1 px-2 py-0.5 ${positive ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}
             style={{ fontSize: '0.6875rem', fontWeight: 700, background: positive ? C.greenLight : 'rgba(192,57,43,0.08)' }}>
             {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {delta}
@@ -109,16 +119,6 @@ function MetricTile({ label, value, hint, source, icon: Icon }: {
   );
 }
 
-// Parse une date FR (« 25 juillet 2026 ») pour compter les nouvelles inscriptions.
-const _MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-function parseFrDate(s?: string): Date | null {
-  if (!s) return null;
-  const m = s.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
-  if (!m) return null;
-  const monthIdx = _MONTHS_FR.findIndex(x => m[2].toLowerCase().startsWith(x.slice(0, 4)));
-  if (monthIdx < 0) return null;
-  return new Date(parseInt(m[3]), monthIdx, parseInt(m[1]));
-}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -204,11 +204,37 @@ export default function StatisticsDashboard({ user }: Props) {
   const funnelLast = FUNNEL_DATA[FUNNEL_DATA.length - 1]?.value ?? 0;
   const conversionGlobal = funnelFirst > 0 ? Math.round((funnelLast / funnelFirst) * 100) : 0;
 
-  // Nombre d'agents réellement connectés à la plateforme (comptes professionnels).
-  const realAgentCount = 1;
+  // ── Totaux de la plateforme — GET /staff/stats/dashboard ───────────────────
+  //
+  // Ces deux valeurs étaient écrites en dur — `realAgentCount = 1` et
+  // `totalMontant = 0` — dans un écran qui affirme par ailleurs n'afficher
+  // « aucune donnée fictive ». « Agents actifs : 1 » et « Montant total
+  // accordé : 0 M FCFA » se lisaient comme des mesures ; c'étaient des
+  // littéraux. Le serveur les connaît : le bloc `admin` porte le décompte des
+  // comptes professionnels et les montants réellement décaissés.
+  //
+  // Un agent CPI reçoit `admin: null` (la route exige `view-stats`) : les
+  // tuiles concernées affichent alors « — », jamais un zéro qui se ferait
+  // passer pour une mesure.
+  const statsQuery = useQuery({
+    queryKey: STATS_DASHBOARD_QUERY_KEY,
+    queryFn: () => staffApi.stats.dashboard(),
+    // L'écran a ses propres tuiles « — » : un toast d'erreur global par-dessus
+    // n'apprendrait rien de plus à l'utilisateur.
+    meta: SILENCIEUX,
+  });
+  const adminStats = statsQuery.data?.admin ?? null;
 
-  // Montant engagé : non suivi à ce stade (pas de données financières réelles).
-  const totalMontant = 0;
+  /** Comptes « agent CPI » enregistrés. `null` si le serveur ne les expose pas. */
+  const realAgentCount: number | null = adminStats?.utilisateurs.agents ?? null;
+
+  /** Total décaissé, en FCFA : acquisition foncière + construction. */
+  const totalMontant: number | null = adminStats
+    ? adminStats.decaissements.montantTerrain + adminStats.decaissements.montantConstruction
+    : null;
+
+  /** Une valeur absente s'écrit « — », jamais « 0 ». */
+  const ouTiret = (v: number | null, format: (n: number) => string) => (v === null ? '—' : format(v));
 
   // Séries temporelles / performance par agent : nécessitent un historique et un
   // suivi par agent non disponibles → laissées vides (état honnête).
@@ -282,7 +308,7 @@ export default function StatisticsDashboard({ user }: Props) {
       <div className="bg-white p-5" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, marginBottom: '4px' }}>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.goldText, marginBottom: '4px' }}>
               Rapports & Analyses
             </div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.375rem', fontWeight: 800, color: C.text }}>
@@ -316,9 +342,9 @@ export default function StatisticsDashboard({ user }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 cpi-stagger">
         <KpiCard label="Dossiers suivis" value={String(rTotal)} sub="Portefeuille actuel" icon={FileText} color={C.bordeaux} />
         <KpiCard label="Dossiers finalisés" value={String(rFinalises)} sub={`${rTaux}% du portefeuille`} icon={CheckCircle2} color={C.green} />
-        <KpiCard label="En cours" value={String(rEnCours)} sub="Dossiers à traiter" icon={Clock} color={C.gold} />
+        <KpiCard label="En cours" value={String(rEnCours)} sub="Dossiers à traiter" icon={Clock} color={C.goldText} />
         <KpiCard label="Pièces à vérifier" value={String(rAVerifier)} sub="En attente de validation" icon={Banknote} color={C.bordeauxMid} />
-        <KpiCard label="Documents à signer" value={String(rASigner)} sub="En attente du client" icon={XCircle} color="#C0392B" />
+        <KpiCard label="Documents à signer" value={String(rASigner)} sub="En attente du client" icon={XCircle} color="var(--destructive)" />
       </div>
 
       {/* Tab navigation */}
@@ -452,9 +478,9 @@ export default function StatisticsDashboard({ user }: Props) {
               {/* KPIs financiers */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'Montant total accordé', value: `${totalMontant} M FCFA`, color: C.bordeaux },
-                  { label: 'Montant moyen / dossier', value: `${(totalMontant * 1_000_000 / Math.max(1, rFinalises)).toLocaleString('fr-FR')} FCFA`, color: C.gold },
-                  { label: 'Dossiers financés', value: String(rFinalises), color: C.gold },
+                  { label: 'Montant total décaissé', value: ouTiret(totalMontant, formatFCFA), color: C.bordeaux },
+                  { label: 'Montant moyen / dossier financé', value: ouTiret(totalMontant, m => formatFCFA(m / Math.max(1, rFinalises))), color: C.goldText },
+                  { label: 'Dossiers financés', value: String(rFinalises), color: C.goldText },
                   { label: 'Reste à financer', value: `${rEnCours} dossier${rEnCours > 1 ? 's' : ''}`, color: C.bordeaux },
                 ].map(k => (
                   <div key={k.label} className="p-5 bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
@@ -490,9 +516,9 @@ export default function StatisticsDashboard({ user }: Props) {
               {/* Aperçu réel */}
               <div className="grid sm:grid-cols-3 gap-4">
                 {[
-                  { label: 'Agents actifs', value: String(realAgentCount), sub: 'Comptes professionnels CPI', color: C.bordeaux },
+                  { label: 'Agents actifs', value: ouTiret(realAgentCount, String), sub: 'Comptes professionnels CPI', color: C.bordeaux },
                   { label: 'Dossiers suivis', value: String(rTotal), sub: 'Portefeuille en cours', color: C.green },
-                  { label: 'Dossiers finalisés', value: String(rFinalises), sub: `${rTaux}% du portefeuille`, color: C.gold },
+                  { label: 'Dossiers finalisés', value: String(rFinalises), sub: `${rTaux}% du portefeuille`, color: C.goldText },
                 ].map(k => (
                   <div key={k.label} className="p-5 bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: 'var(--r-md)' }}>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 800, color: k.color }}>{k.value}</div>

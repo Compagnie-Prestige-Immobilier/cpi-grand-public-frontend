@@ -7,18 +7,12 @@ import {
 import { useCpiDocs, type CpiDoc, type CpiDocStatus, type CpiCategorie } from '../data/cpiDocsContext';
 import { useDocState } from '../data/docStateContext';
 import { useClientContext } from '../contexts/ClientContext';
+import { ConfirmDialog } from './ui/overlays';
+import { STATUT_DOC_CPI } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
-const CPI_STATUS_CFG: Record<CpiDocStatus, { label: string; color: string; bg: string }> = {
-  brouillon:  { label: 'Brouillon',   color: 'var(--muted-foreground)', bg: 'var(--muted)'             },
-  publie:     { label: 'Publié',      color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
-  disponible: { label: 'Disponible',  color: 'var(--primary)',          bg: 'var(--secondary)'         },
-  'a-signer': { label: 'À signer',    color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'     },
-  signe:      { label: 'Signé',       color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)'     },
-  refuse:     { label: 'Refusé',      color: '#C0392B',                 bg: 'rgba(192,57,43,0.08)'     },
-  archive:    { label: 'Archivé',     color: '#C8921A',                 bg: 'rgba(200,146,26,0.10)'    },
-};
 
 const CATEGORIE_LABELS: Record<CpiCategorie, string> = {
   contrats: 'Contrat', conventions: 'Convention', bancaires: 'Document bancaire',
@@ -36,14 +30,14 @@ const TEMPLATES: { label: string; categorie: CpiCategorie; signature: boolean }[
   { label: 'PV de réservation',             categorie: 'pv',            signature: false },
 ];
 
-// Filtres de statut
-const FILTERS = ['all', 'a-signer', 'brouillon', 'publie', 'signe', 'archive'] as const;
+// Filtres de statut. `FilterStatut` dérive de l'union du backend : le filtre
+// « Publiés » visait un statut `publie` que l'API ne renvoie jamais, et ne
+// remontait donc que les documents `disponible` — par accident, via son repli.
+const FILTERS = ['all', 'a-signer', 'brouillon', 'disponible', 'signe', 'archive'] as const;
 type FilterStatut = typeof FILTERS[number];
-const FILTER_LABELS: Record<FilterStatut, string> = { all: 'Tous', 'a-signer': 'À signer', brouillon: 'Brouillons', publie: 'Publiés', signe: 'Signés', archive: 'Archivés' };
+const FILTER_LABELS: Record<FilterStatut, string> = { all: 'Tous', 'a-signer': 'À signer', brouillon: 'Brouillons', disponible: 'Publiés', signe: 'Signés', archive: 'Archivés' };
 function matchesFilter(status: CpiDocStatus, f: FilterStatut): boolean {
-  if (f === 'all') return true;
-  if (f === 'publie') return status === 'publie' || status === 'disponible';
-  return status === f;
+  return f === 'all' || status === f;
 }
 
 interface Props { agentName?: string; }
@@ -69,7 +63,6 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const [file, setFile] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [taille, setTaille] = useState('—');
-  const [progress, setProgress] = useState(0);
   const [uploadDone, setUploadDone] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,15 +71,15 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   const nameOf = (id: string) => allClientSummaries.find(c => c.id === id)?.name ?? id;
 
   const startUpload = (f: File) => {
-    setFile(f.name); setPendingFile(f); setUploadDone(false); setProgress(0);
+    // Le fichier est seulement SÉLECTIONNÉ ici : le transfert vers R2 n'a lieu
+    // qu'à la création (createDoc → upload), et pour plusieurs destinataires à
+    // la fois. Une barre de progression à ce stade ne pourrait mesurer que du
+    // vide — l'ancienne version l'animait avec `Math.random()`.
+    setFile(f.name); setPendingFile(f); setUploadDone(true);
     setTaille(`${(f.size / 1048576).toFixed(1)} Mo`);
     if (!form.titre) setForm(fo => ({ ...fo, titre: f.name.replace(/\.[^.]+$/, '') }));
-    // Le vrai envoi vers R2 a lieu à la création (createDoc → upload) ; la barre
-    // signale seulement que la pièce est prête à partir.
-    let p = 0;
-    const iv = setInterval(() => { p += Math.random() * 24 + 10; if (p >= 100) { p = 100; clearInterval(iv); setUploadDone(true); } setProgress(Math.round(p)); }, 130);
   };
-  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setPendingFile(null); setTaille('—'); setProgress(0); setUploadDone(false); setShowForm(false); };
+  const resetForm = () => { setForm(emptyForm); setAllRecipients(false); setFile(null); setPendingFile(null); setTaille('—'); setUploadDone(false); setShowForm(false); };
 
   const applyTemplate = (t: typeof TEMPLATES[number]) => {
     setForm(f => ({ ...f, titre: t.label, categorie: t.categorie, signature: t.signature }));
@@ -114,25 +107,41 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
   };
 
   // ── Actions par document (avec notification) ───────────────────────────────────
+  //
+  // Ni la notification au client ni la confirmation à l'agent ne partent avant
+  // la réponse du serveur. L'API refuse les changements de statut impossibles
+  // (marquer signé un brouillon, republier un document archivé) par un 409 dont
+  // le message énumère les transitions permises : l'ancien code envoyait quand
+  // même la notification au client, pour un document resté en brouillon.
   const doPublish = (doc: CpiDoc, clientId: string) => {
-    publishDoc(doc.id, agentName, clientId);
-    pushNotification(clientId, `Nouveau document disponible : « ${doc.nom} »`, 'Notification', agentName);
-    showToast(`Document publié dans l'espace client de ${nameOf(clientId)} · client notifié.`);
+    publishDoc(doc.id, agentName, clientId, () => {
+      pushNotification(clientId, `Nouveau document disponible : « ${doc.nom} »`, 'Notification', agentName);
+      showToast(`Document publié dans l'espace client de ${nameOf(clientId)} · client notifié.`);
+    });
   };
   const doRequestSign = (doc: CpiDoc, clientId: string) => {
-    requestSignature(doc.id, agentName, clientId);
-    pushNotification(clientId, `Document à signer : « ${doc.nom} »`, 'Notification', agentName);
-    showToast('Signature demandée · client notifié.');
+    requestSignature(doc.id, agentName, clientId, () => {
+      pushNotification(clientId, `Document à signer : « ${doc.nom} »`, 'Notification', agentName);
+      showToast('Signature demandée · client notifié.');
+    });
   };
-  const doMarkSigned = (doc: CpiDoc, clientId: string) => { markSigned(doc.id, agentName, clientId); showToast('Document marqué comme signé.'); };
-  const doArchive = (doc: CpiDoc, clientId: string) => { archiveDoc(doc.id, agentName, clientId); showToast('Document archivé.'); };
-  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId); showToast("Document retiré de l'espace client."); };
+  const doMarkSigned = (doc: CpiDoc, clientId: string) => { markSigned(doc.id, agentName, clientId, () => showToast('Document marqué comme signé.')); };
+  const doArchive = (doc: CpiDoc, clientId: string) => { archiveDoc(doc.id, agentName, clientId, () => showToast('Document archivé.')); };
+  /**
+   * Retrait d'un document de l'espace client — confirmation obligatoire.
+   *
+   * Le document disparaît de chez le client sans préavis. S'il s'agit d'un
+   * contrat qu'il consultait, ou d'un acte qu'il devait signer, il n'a aucun
+   * moyen de savoir ce qui s'est passé ni de le récupérer lui-même.
+   */
+  const [aRetirer, setARetirer] = useState<{ doc: CpiDoc; clientId: string } | null>(null);
+  const doRetire = (doc: CpiDoc, clientId: string) => { retireFromClient(doc.id, agentName, clientId, () => showToast("Document retiré de l'espace client.")); setARetirer(null); };
 
   const downloadRecap = (clientName: string, ref: string, doc: CpiDoc, timeline: { action: string; date: string; heure: string }[]) => {
     const lines = [
       'CPI IMMOBILIER — Document', `Client : ${clientName}   Dossier : ${ref}`,
       `Document : ${doc.nom}`, `Catégorie : ${CATEGORIE_LABELS[doc.categorie]}   Version : ${doc.version}`,
-      `Statut : ${CPI_STATUS_CFG[doc.status].label}   Signature requise : ${doc.signatureRequise ? 'oui' : 'non'}`,
+      `Statut : ${STATUT_DOC_CPI[doc.status].label}   Signature requise : ${doc.signatureRequise ? 'oui' : 'non'}`,
       doc.commentaire ? `Note : ${doc.commentaire}` : '', '',
       'Historique :', ...(timeline.length ? timeline.map(t => `  - ${t.date} ${t.heure} — ${t.action}`) : ['  (aucun événement)']),
     ].filter(Boolean);
@@ -178,7 +187,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
         {[
           { l: 'Documents au total', v: kTotal, c: 'var(--primary)' },
-          { l: 'À signer', v: kASigner, c: '#C0392B' },
+          { l: 'À signer', v: kASigner, c: 'var(--destructive)' },
           { l: 'Brouillons', v: kBrouillons, c: 'var(--muted-foreground)' },
           { l: 'Signés', v: kSignes, c: 'var(--success)' },
         ].map(s => (
@@ -211,9 +220,11 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
 
           {/* Fichier (optionnel — un modèle génère un document sans fichier) */}
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Fichier du document <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted-foreground)' }}>· optionnel</span></label>
+            <span style={labelStyle}>Fichier du document <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted-foreground)' }}>· optionnel</span></span>
             {!file ? (
-              <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
+              <div role="button" tabIndex={0} aria-label="Choisir le fichier du document"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f); }}
                 onClick={() => fileInputRef.current?.click()}
                 style={{ border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--r-sm)', padding: '18px 16px', textAlign: 'center', cursor: 'pointer', background: dragging ? 'var(--secondary)' : 'var(--input-background)' }}>
@@ -227,10 +238,10 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                   <FileText size={17} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                   <span style={{ flex: 1, fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file} · {taille}</span>
                   {uploadDone && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
-                  <button onClick={() => { setFile(null); setUploadDone(false); setProgress(0); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600 }}>Retirer</button>
+                  <button onClick={() => { setFile(null); setPendingFile(null); setUploadDone(false); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600 }}>Retirer</button>
                 </div>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progress}%`, background: uploadDone ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  Prêt à envoyer — le fichier partira à la publication.
                 </div>
               </div>
             )}
@@ -238,12 +249,12 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
             <div>
-              <label style={labelStyle}>Titre du document</label>
-              <input value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Contrat de réservation" style={inputStyle} />
+              <label htmlFor="champ-titre-du-document" style={labelStyle}>Titre du document</label>
+              <input id="champ-titre-du-document" value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Contrat de réservation" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Catégorie</label>
-              <select value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value as CpiCategorie }))} style={inputStyle}>
+              <label htmlFor="champ-categorie" style={labelStyle}>Catégorie</label>
+              <select id="champ-categorie" value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value as CpiCategorie }))} style={inputStyle}>
                 {CPI_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIE_LABELS[c]}</option>)}
               </select>
             </div>
@@ -252,9 +263,9 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
           {/* Destinataires (multi) */}
           <div style={{ marginBottom: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>Destinataire(s)</label>
+              <label htmlFor="champ-destinataire-s" style={{ ...labelStyle, marginBottom: 0 }}>Destinataire(s)</label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.75rem', color: 'var(--foreground)' }}>
-                <input type="checkbox" checked={allRecipients} onChange={e => setAllRecipients(e.target.checked)} style={{ accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                <input id="champ-destinataire-s" type="checkbox" checked={allRecipients} onChange={e => setAllRecipients(e.target.checked)} style={{ accentColor: 'var(--primary)', cursor: 'pointer' }} />
                 <Users size={12} /> Tous les clients
               </label>
             </div>
@@ -273,8 +284,8 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
           </div>
 
           <div style={{ marginBottom: '14px' }}>
-            <label style={labelStyle}>Note interne (optionnelle)</label>
-            <textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={2} placeholder="Note visible uniquement par l'équipe..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
+            <label htmlFor="champ-note-interne-optionnelle" style={labelStyle}>Note interne (optionnelle)</label>
+            <textarea id="champ-note-interne-optionnelle" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={2} placeholder="Note visible uniquement par l'équipe..." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
           </div>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', marginBottom: '16px' }}>
             <input type="checkbox" checked={form.signature} onChange={e => setForm(f => ({ ...f, signature: e.target.checked }))} style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }} />
@@ -294,14 +305,14 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       {queue.length > 0 && (
         <div style={card}>
           <button onClick={() => setQueueOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'rgba(192,57,43,0.05)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-            <ListChecks size={18} style={{ color: '#C0392B', flexShrink: 0 }} />
+            <ListChecks size={18} style={{ color: 'var(--destructive)', flexShrink: 0 }} />
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', flex: 1 }}>À traiter — {queue.length} document{queue.length > 1 ? 's' : ''} (à signer / à publier)</span>
             {queueOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
           </button>
           {queueOpen && (
             <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border)' }}>
               {queue.map(({ clientId, clientName, ref, doc }) => {
-                const cfg = CPI_STATUS_CFG[doc.status];
+                const cfg = STATUT_DOC_CPI[doc.status];
                 return (
                   <div key={clientId + doc.id} style={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 180 }}>
@@ -369,7 +380,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                {toSign > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#C0392B', background: 'rgba(192,57,43,0.08)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>{toSign} à signer</span>}
+                {toSign > 0 && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--destructive)', background: 'rgba(192,57,43,0.08)', padding: '3px 8px', borderRadius: 'var(--r-full)' }}>{toSign} à signer</span>}
                 <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', background: 'var(--muted)', padding: '2px 8px', borderRadius: 'var(--r-full)' }}>{docs.length} doc{docs.length > 1 ? 's' : ''}</span>
                 {isOpen ? <ChevronUp size={16} style={{ color: 'var(--muted-foreground)' }} /> : <ChevronDown size={16} style={{ color: 'var(--muted-foreground)' }} />}
               </div>
@@ -380,7 +391,7 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
             ) : (
               <div style={{ borderTop: '1px solid var(--border)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--background)' }}>
                 {docs.map((doc: CpiDoc) => {
-                  const cfg = CPI_STATUS_CFG[doc.status];
+                  const cfg = STATUT_DOC_CPI[doc.status];
                   const dateDisplay = doc.datePublication || doc.dateCreation || '—';
                   return (
                     <div key={doc.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
@@ -400,9 +411,9 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                         <button onClick={() => setPreview({ clientId: client.id, clientName: client.name, ref: client.ref, doc })} style={btnSm('var(--primary)', 'var(--secondary)')}><Eye size={12} /> Aperçu</button>
                         {doc.status === 'brouillon' && <button onClick={() => doPublish(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><Send size={12} /> Publier</button>}
-                        {(doc.status === 'disponible' || doc.status === 'publie') && <button onClick={() => doRequestSign(doc, client.id)} style={btnSm('#8B5CF6', 'rgba(139,92,246,0.10)')}><PenSquare size={12} /> Demander signature</button>}
+                        {doc.status === 'disponible' && <button onClick={() => doRequestSign(doc, client.id)} style={btnSm('#8B5CF6', 'rgba(139,92,246,0.10)')}><PenSquare size={12} /> Demander signature</button>}
                         {doc.status === 'a-signer' && <button onClick={() => doMarkSigned(doc, client.id)} style={btnSm('var(--success)', 'rgba(26,107,68,0.10)')}><CheckCircle2 size={12} /> Marquer signé</button>}
-                        {doc.visibleClient && doc.status !== 'archive' && <button onClick={() => doRetire(doc, client.id)} style={btnSm('var(--muted-foreground)', 'var(--muted)')}><EyeOff size={12} /> Retirer</button>}
+                        {doc.visibleClient && doc.status !== 'archive' && <button onClick={() => setARetirer({ doc, clientId: client.id })} style={btnSm('var(--muted-foreground)', 'var(--muted)')}><EyeOff size={12} /> Retirer</button>}
                         {doc.status !== 'archive' && <button onClick={() => doArchive(doc, client.id)} style={btnSm('#C8921A', 'rgba(200,146,26,0.10)')}><Archive size={12} /> Archiver</button>}
                       </div>
                     </div>
@@ -417,17 +428,17 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
       {/* (N3 + suivi signature) Aperçu */}
       {preview && (() => {
         const timeline = (allCpiHistoryByClient[preview.clientId] ?? []).filter(e => e.action.toLowerCase().includes(preview.doc.nom.toLowerCase()));
-        const cfg = CPI_STATUS_CFG[preview.doc.status];
+        const cfg = STATUT_DOC_CPI[preview.doc.status];
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div onClick={() => setPreview(null)} style={{ position: 'absolute', inset: 0 }} />
-            <div style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
+          <Modal open onClose={() => setPreview(null)} sansCroix
+            titre={`Document — ${preview.doc.nom}`} largeur={520} style={{ padding: 24 }}>
+            <>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.0625rem', color: 'var(--foreground)' }}>{preview.doc.nom}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{preview.clientName} · {preview.ref}</div>
                 </div>
-                <button onClick={() => setPreview(null)} style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} style={{ color: 'var(--muted-foreground)' }} /></button>
+                <button onClick={() => setPreview(null)} aria-label="Fermer l'aperçu" style={{ background: 'var(--secondary)', border: 'none', borderRadius: 'var(--r-sm)', padding: 6, cursor: 'pointer' }}><X size={16} aria-hidden="true" style={{ color: 'var(--muted-foreground)' }} /></button>
               </div>
               <div style={{ background: 'var(--background)', border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', padding: '28px 20px', textAlign: 'center', marginBottom: 14 }}>
                 <FileText size={30} style={{ color: cfg.color, margin: '0 auto 8px', display: 'block' }} />
@@ -475,10 +486,26 @@ export default function DocumentsAdminModule({ agentName = 'Agent CPI' }: Props)
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={() => downloadRecap(preview.clientName, preview.ref, preview.doc, timeline)} style={btnOutline}><Download size={13} /> Télécharger le récap</button>
               </div>
-            </div>
-          </div>
+            </>
+          </Modal>
         );
       })()}
+
+      <ConfirmDialog
+        open={aRetirer !== null}
+        onOpenChange={ouvert => { if (!ouvert) setARetirer(null); }}
+        titre="Retirer ce document de l'espace client ?"
+        description={aRetirer ? (
+          <>
+            « <strong style={{ color: 'var(--foreground)' }}>{aRetirer.doc.nom}</strong> » disparaîtra immédiatement de
+            l'espace de <strong style={{ color: 'var(--foreground)' }}>{nameOf(aRetirer.clientId)}</strong>, sans
+            notification. S'il était en cours de consultation ou de signature, le client n'aura aucun moyen de
+            comprendre sa disparition ni de le récupérer.
+          </>
+        ) : ''}
+        libelleConfirmer="Retirer le document"
+        onConfirmer={() => { if (aRetirer) doRetire(aRetirer.doc, aRetirer.clientId); }}
+      />
 
       {/* Toast */}
       {toast && (

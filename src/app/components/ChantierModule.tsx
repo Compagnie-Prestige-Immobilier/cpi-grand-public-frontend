@@ -4,6 +4,8 @@ import {
   AlertCircle, Edit2, Upload, Plus, Calendar, Send, Loader2,
 } from 'lucide-react';
 import { useChantierState, type ChantierStatut, type CalendarEventType, type PublicationType } from '../data/chantierStateContext';
+import { STATUT_TRANCHE } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 
 type TrancheStatus = 'valide' | 'en-cours' | 'en-attente' | 'bloque';
 type ChantierEtape = 'Préparation' | 'Fondations' | 'Gros œuvre' | 'Second œuvre' | 'Finitions' | 'Livraison';
@@ -23,12 +25,6 @@ interface ChantierProject {
   commentaires: { auteur: string; date: string; texte: string }[];
 }
 
-const TRANCHE_STATUS_CFG: Record<TrancheStatus, { label: string; color: string; bg: string }> = {
-  'valide':    { label: 'Validée',    color: 'var(--success)',    bg: 'rgba(26,107,68,0.10)'  },
-  'en-cours':  { label: 'En cours',   color: 'var(--primary)',    bg: 'var(--secondary)'      },
-  'en-attente':{ label: 'En attente', color: '#C8921A',           bg: 'rgba(200,146,26,0.10)' },
-  'bloque':    { label: 'Bloquée',    color: '#C0392B',           bg: 'rgba(192,57,43,0.08)'  },
-};
 
 const ETAPES: ChantierEtape[] = ['Préparation', 'Fondations', 'Gros œuvre', 'Second œuvre', 'Finitions', 'Livraison'];
 const STATUTS: { value: ChantierStatut; label: string }[] = [
@@ -146,17 +142,30 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
     setEditLivraison(chantierInfo.dateLivraisonIso);
   };
 
+  /**
+   * La confirmation n'est plus affichée au clic mais à la réponse du serveur.
+   *
+   * Le changement de statut est celui qui compte : l'API refuse désormais les
+   * transitions illégales (« non démarré » → « livré »…) avec un 409 dont le
+   * message énumère ce qui est possible. Annoncer « Avancement mis à jour »
+   * avant cette réponse faisait cohabiter à l'écran une confirmation et un
+   * refus portant sur le même geste.
+   */
   const saveEdit = (chId: string) => {
+    const ok = () => showToast("Avancement mis à jour — visible dans l'espace client.");
     if (chId === CH1_ID) {
-      updateProgression(editProg, agentName);
+      const statutChange = editStatut !== chantierInfo.statut;
+      updateProgression(editProg, agentName, undefined, statutChange ? undefined : ok);
       if (editEtape !== ch1Live.etape) updateEtape(editEtape, agentName);
-      if (editStatut !== chantierInfo.statut) updateStatut(editStatut, agentName);
+      // Le statut, s'il change, porte la confirmation : c'est la seule des
+      // quatre écritures que le serveur peut refuser pour cause de séquence.
+      if (statutChange) updateStatut(editStatut, agentName, ok);
       if (editLivraison !== chantierInfo.dateLivraisonIso) updateLivraison(editLivraison, agentName);
     } else {
       setCh2(prev => ({ ...prev, progression: editProg, etape: editEtape, dateLivraison: editLivraison }));
+      ok();
     }
     setEditingId(null);
-    showToast("Avancement mis à jour — visible dans l'espace client.");
   };
 
   const addComment = (chId: string) => {
@@ -165,20 +174,22 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       addPublication({
         phase: 0, titre: commentText.trim(), description: '',
         type: 'commentaire', visibleClient: true, auteur: agentName,
-      }, agentName);
+      }, agentName, () => showToast('Commentaire ajouté.'));
     } else {
       setCh2(prev => ({
         ...prev,
         commentaires: [{ auteur: agentName, date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }), texte: commentText.trim() }, ...prev.commentaires],
       }));
+      showToast('Commentaire ajouté.');
     }
     setCommentText('');
-    showToast('Commentaire ajouté.');
   };
 
+  // Le serveur refuse une tranche validée hors ordre (409) : la confirmation
+  // attend donc sa réponse plutôt que de partir au clic.
   const validateTranche = (chId: string, trNum: number) => {
     if (chId === CH1_ID) {
-      ctxValidateTranche(trNum, agentName);
+      ctxValidateTranche(trNum, agentName, () => showToast('Tranche validée.'));
     } else {
       setCh2(prev => ({
         ...prev,
@@ -187,40 +198,42 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
           date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
         }),
       }));
+      showToast('Tranche validée.');
     }
-    showToast('Tranche validée.');
   };
 
   const saveTrancheComment = () => {
     if (!trancheComment || !trancheCommentText.trim()) return;
     const { chId, trNum } = trancheComment;
     if (chId === CH1_ID) {
-      ctxAddTrancheComment(trNum, trancheCommentText.trim(), agentName);
+      ctxAddTrancheComment(trNum, trancheCommentText.trim(), agentName, () => showToast('Commentaire de tranche enregistré.'));
     } else {
       setCh2(prev => ({
         ...prev,
         tranches: prev.tranches.map(t => t.num !== trNum ? t : { ...t, comment: trancheCommentText.trim() }),
       }));
+      showToast('Commentaire de tranche enregistré.');
     }
     setTrancheComment(null);
     setTrancheCommentText('');
-    showToast('Commentaire de tranche enregistré.');
   };
 
   const submitPub = () => {
     if (!pubForm.titre.trim()) return;
-    addPublication({ ...pubForm, auteur: agentName }, agentName);
+    const visible = pubForm.visibleClient;
+    addPublication({ ...pubForm, auteur: agentName }, agentName,
+      () => showToast(`Publication ajoutée${visible ? ' — visible dans l\'espace client.' : ' (interne).'}`));
     setPubForm({ titre: '', description: '', type: 'actualite', phase: 2, visibleClient: true });
     setShowPubForm(false);
-    showToast(`Publication ajoutée${pubForm.visibleClient ? ' — visible dans l\'espace client.' : ' (interne).'}`);
   };
 
   const submitEvent = () => {
     if (!eventForm.titre.trim() || !eventForm.date.trim()) return;
-    addEvent({ ...eventForm, statut: 'prevu' }, agentName);
+    const visible = eventForm.visibleClient;
+    addEvent({ ...eventForm, statut: 'prevu' }, agentName,
+      () => showToast(`Événement planifié${visible ? ' — visible dans l\'espace client.' : '.'}`));
     setEventForm({ titre: '', type: 'visite', date: '', heure: '', description: '', visibleClient: true });
     setShowEventForm(false);
-    showToast(`Événement planifié${eventForm.visibleClient ? ' — visible dans l\'espace client.' : '.'}`);
   };
 
   /** Dépôt d'une photo/vidéo : le fichier est requis, le titre vient du nom. */
@@ -235,7 +248,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       url: '',
       bg: 'linear-gradient(135deg,#630210,#B05070)',
       visibleClient: true,
-    }, agentName, file);
+    }, agentName, file, () => showToast('Média envoyé — visible dans l\'espace client.'));
     showToast('Envoi du média en cours…');
   };
 
@@ -262,7 +275,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {header}
         <div role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px', background: 'var(--card)', border: '1px solid var(--border)', textAlign: 'center' }}>
-          <AlertCircle size={20} style={{ color: '#C0392B' }} />
+          <AlertCircle size={20} style={{ color: 'var(--destructive)' }} />
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0, maxWidth: 420, lineHeight: 1.6 }}>{error}</p>
           <button onClick={retry} style={btnPrimary}>Réessayer</button>
         </div>
@@ -328,26 +341,26 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                   {isEditing ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', padding: '14px', background: 'var(--secondary)', border: '1px solid var(--border)' }}>
                       <div>
-                        <label style={labelStyle}>Progression (%)</label>
-                        <input type="number" min={0} max={100} value={editProg} onChange={e => setEditProg(Math.max(0, Math.min(100, Number(e.target.value))))} style={{ ...inputStyle, width: '90px' }} />
+                        <label htmlFor="champ-progression" style={labelStyle}>Progression (%)</label>
+                        <input id="champ-progression" type="number" min={0} max={100} value={editProg} onChange={e => setEditProg(Math.max(0, Math.min(100, Number(e.target.value))))} style={{ ...inputStyle, width: '90px' }} />
                       </div>
                       <div>
-                        <label style={labelStyle}>Étape courante</label>
-                        <select value={editEtape} onChange={e => setEditEtape(e.target.value as ChantierEtape)} style={inputStyle}>
+                        <label htmlFor="champ-etape-courante" style={labelStyle}>Étape courante</label>
+                        <select id="champ-etape-courante" value={editEtape} onChange={e => setEditEtape(e.target.value as ChantierEtape)} style={inputStyle}>
                           {ETAPES.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
                       {isCh1 && (
                         <>
                           <div>
-                            <label style={labelStyle}>Statut</label>
-                            <select value={editStatut} onChange={e => setEditStatut(e.target.value as ChantierStatut)} style={inputStyle}>
+                            <label htmlFor="champ-statut" style={labelStyle}>Statut</label>
+                            <select id="champ-statut" value={editStatut} onChange={e => setEditStatut(e.target.value as ChantierStatut)} style={inputStyle}>
                               {STATUTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label style={labelStyle}>Livraison estimée</label>
-                            <input type="date" value={editLivraison} onChange={e => setEditLivraison(e.target.value)} style={inputStyle} />
+                            <label htmlFor="champ-livraison-estimee" style={labelStyle}>Livraison estimée</label>
+                            <input id="champ-livraison-estimee" type="date" value={editLivraison} onChange={e => setEditLivraison(e.target.value)} style={inputStyle} />
                           </div>
                         </>
                       )}
@@ -380,18 +393,18 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Nouvelle publication</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                         <div>
-                          <label style={labelStyle}>Titre</label>
-                          <input value={pubForm.titre} onChange={e => setPubForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Toiture posée" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-publication-titre" style={labelStyle}>Titre</label>
+                          <input id="champ-publication-titre" value={pubForm.titre} onChange={e => setPubForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Toiture posée" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Type</label>
-                          <select value={pubForm.type} onChange={e => setPubForm(f => ({ ...f, type: e.target.value as PublicationType }))} style={inputStyle}>
+                          <label htmlFor="champ-publication-type" style={labelStyle}>Type</label>
+                          <select id="champ-publication-type" value={pubForm.type} onChange={e => setPubForm(f => ({ ...f, type: e.target.value as PublicationType }))} style={inputStyle}>
                             {PUB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={labelStyle}>Phase</label>
-                          <select value={pubForm.phase} onChange={e => setPubForm(f => ({ ...f, phase: Number(e.target.value) }))} style={inputStyle}>
+                          <label htmlFor="champ-phase" style={labelStyle}>Phase</label>
+                          <select id="champ-phase" value={pubForm.phase} onChange={e => setPubForm(f => ({ ...f, phase: Number(e.target.value) }))} style={inputStyle}>
                             {[1,2,3,4].map(n => <option key={n} value={n}>Phase {n}</option>)}
                           </select>
                         </div>
@@ -401,8 +414,8 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                         </div>
                       </div>
                       <div style={{ marginBottom: '10px' }}>
-                        <label style={labelStyle}>Description (optionnelle)</label>
-                        <textarea value={pubForm.description} onChange={e => setPubForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box' }} />
+                        <label htmlFor="champ-description-optionnelle" style={labelStyle}>Description (optionnelle)</label>
+                        <textarea id="champ-description-optionnelle" value={pubForm.description} onChange={e => setPubForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box' }} />
                       </div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button onClick={() => setShowPubForm(false)} style={btnOutline}>Annuler</button>
@@ -417,22 +430,22 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Planifier un événement</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                         <div>
-                          <label style={labelStyle}>Titre</label>
-                          <input value={eventForm.titre} onChange={e => setEventForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Visite de chantier" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-evenement-titre" style={labelStyle}>Titre</label>
+                          <input id="champ-evenement-titre" value={eventForm.titre} onChange={e => setEventForm(f => ({ ...f, titre: e.target.value }))} placeholder="Ex : Visite de chantier" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Type</label>
-                          <select value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value as CalendarEventType }))} style={inputStyle}>
+                          <label htmlFor="champ-evenement-type" style={labelStyle}>Type</label>
+                          <select id="champ-evenement-type" value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value as CalendarEventType }))} style={inputStyle}>
                             {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={labelStyle}>Date</label>
-                          <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-date" style={labelStyle}>Date</label>
+                          <input id="champ-date" type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={labelStyle}>Heure (optionnelle)</label>
-                          <input type="time" value={eventForm.heure} onChange={e => setEventForm(f => ({ ...f, heure: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                          <label htmlFor="champ-heure-optionnelle" style={labelStyle}>Heure (optionnelle)</label>
+                          <input id="champ-heure-optionnelle" type="time" value={eventForm.heure} onChange={e => setEventForm(f => ({ ...f, heure: e.target.value }))} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '20px' }}>
                           <input type="checkbox" id="evVisible" checked={eventForm.visibleClient} onChange={e => setEventForm(f => ({ ...f, visibleClient: e.target.checked }))} />
@@ -452,7 +465,7 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '12px' }}>Tranches bancaires</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {ch.tranches.map(t => {
-                      const cfg = TRANCHE_STATUS_CFG[t.status];
+                      const cfg = STATUT_TRANCHE[t.status];
                       return (
                         <div key={t.num} style={{ padding: '12px 14px', background: 'var(--background)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <div style={{ width: '28px', height: '28px', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.875rem', color: 'var(--primary)' }}>T{t.num}</div>
@@ -545,16 +558,18 @@ export default function ChantierModule({ agentName = 'Agent CPI' }: Props) {
 
       {/* Tranche comment modal */}
       {trancheComment && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', width: '100%', maxWidth: '440px', padding: '24px' }}>
+        <Modal open onClose={() => setTrancheComment(null)} sansCroix
+          titre={`Commentaire de la tranche T${trancheComment.trNum}`} largeur={440}
+          style={{ borderRadius: 0, padding: 24 }}>
+          <>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '12px' }}>Commentaire — Tranche T{trancheComment.trNum}</div>
             <textarea value={trancheCommentText} onChange={e => setTrancheCommentText(e.target.value)} rows={3} placeholder="Ex : Travaux de gros œuvre en bonne progression..." style={{ ...inputStyle, width: '100%', resize: 'vertical', lineHeight: 1.55, marginBottom: '14px', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button onClick={() => setTrancheComment(null)} style={btnOutline}>Annuler</button>
               <button onClick={saveTrancheComment} style={btnPrimary}><CheckCircle2 size={13} /> Enregistrer</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
       {toast && (

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 // lucide-react 1.x ne fournit plus les icônes de marque (voir BrandIcons.tsx).
 import { Facebook, Instagram, Linkedin } from './BrandIcons';
+import { replierImage } from '../lib/images';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -334,7 +335,7 @@ export default function LandingPage({ onLogin, onRegister }: LandingPageProps) {
             {properties.map((p) => (
               <div key={p.type} className="bg-white overflow-hidden" style={{ border: `1px solid ${CPI_BORDER}` }}>
                 <div className="relative h-48 bg-gray-100 overflow-hidden">
-                  <img src={p.img} alt={p.type} className="w-full h-full object-cover" />
+                  <img src={p.img} alt={`${p.type} — ${p.location}`} className="w-full h-full object-cover" onError={replierImage} />
                   <div className="absolute top-3 left-3 px-2 py-1" style={{ background: p.tag === 'Disponible' ? '#1A6B44' : CPI_PRIMARY, fontSize: '0.6875rem', fontWeight: 700, color: 'white', letterSpacing: '0.05em' }}>
                     {p.tag}
                   </div>
@@ -381,7 +382,7 @@ export default function LandingPage({ onLogin, onRegister }: LandingPageProps) {
             </h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {process.map((p, i) => (
+            {process.map((p, _i) => (
               <div key={p.step} className="relative">
                 <div className="relative z-10">
                   <div className="w-12 h-12 flex items-center justify-center mb-5 text-white" style={{ background: CPI_PRIMARY, fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1rem' }}>
@@ -501,21 +502,26 @@ export default function LandingPage({ onLogin, onRegister }: LandingPageProps) {
             <div>
               <div className="mb-4" style={{ color: '#DFC0C8', fontWeight: 700, fontSize: '0.875rem' }}>Offres</div>
               <ul className="space-y-2">
+                {/* Ces entrées énumèrent l'offre ; elles ne mènent nulle part.
+                    Écrites en <a href="#">, elles se présentaient comme des
+                    liens : au clavier elles se sélectionnaient, et les activer
+                    remontait la page en tête. Un texte qui décrit reste un
+                    texte. */}
                 {['AM SA KER (Fonctionnaires)', 'Villas à Thiès', 'Parcelles à Thiès', 'Simulateur en ligne'].map(i => (
-                  <li key={i}><a href="#" style={{ color: '#6B3040', fontSize: '0.8125rem' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#DFC0C8'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6B3040'; }}>{i}</a></li>
+                  <li key={i} style={{ color: '#6B3040', fontSize: '0.8125rem' }}>{i}</li>
                 ))}
               </ul>
             </div>
             <div>
               <div className="mb-4" style={{ color: '#DFC0C8', fontWeight: 700, fontSize: '0.875rem' }}>Partenaires</div>
               <ul className="space-y-2">
-                {['Banques partenaires', 'Institutions financières agréées', 'cpi.sn'].map(i => (
-                  <li key={i}><a href="#" style={{ color: '#6B3040', fontSize: '0.8125rem' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#DFC0C8'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6B3040'; }}>{i}</a></li>
+                {['Banques partenaires', 'Institutions financières agréées'].map(i => (
+                  <li key={i} style={{ color: '#6B3040', fontSize: '0.8125rem' }}>{i}</li>
                 ))}
+                {/* Seul le site institutionnel a une destination réelle. */}
+                <li><a href="https://cpi.sn" target="_blank" rel="noreferrer" style={{ color: '#6B3040', fontSize: '0.8125rem' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#DFC0C8'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6B3040'; }}>cpi.sn</a></li>
               </ul>
             </div>
             <div>
@@ -543,8 +549,11 @@ export default function LandingPage({ onLogin, onRegister }: LandingPageProps) {
               © 2026 Compagnie Prestige Immobilier. Tous droits réservés.
             </div>
             <div className="flex gap-4">
+              {/* Les trois mentions renvoyaient sur « # ». Elles pointent
+                  désormais sur les conditions d'utilisation, qui existent
+                  vraiment (route /conditions). */}
               {['Mentions légales', 'Politique de confidentialité', 'CGU'].map(i => (
-                <a key={i} href="#" style={{ color: '#3D1525', fontSize: '0.75rem' }}
+                <a key={i} href="/conditions" style={{ color: '#3D1525', fontSize: '0.75rem' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#6B3040'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#3D1525'; }}>{i}</a>
               ))}

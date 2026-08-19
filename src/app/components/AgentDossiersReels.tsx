@@ -7,8 +7,10 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useClientContext } from '../contexts/ClientContext';
 import { useDocState, type SharedDoc } from '../data/docStateContext';
-import { useCpiDocs, type CpiDoc } from '../data/cpiDocsContext';
+import { useCpiDocs, type CpiDoc, type CreateDocHooks } from '../data/cpiDocsContext';
 import { useClientData } from '../data/useClientData';
+import { statutDocCpi } from '../lib/statuts';
+import { Modal } from './ui/overlays';
 import {
   TIMELINE_STEPS, computeJourneyStep,
   DOCS_VALIDES_INDEX, SIGNATURE_INDEX,
@@ -21,7 +23,7 @@ type DocStatus = SharedDoc['status'];
 const PIECE_CFG: Record<DocStatus, { label: string; color: string; bg: string; icon: LucideIcon }> = {
   'en-attente':  { label: 'À déposer',        color: 'var(--muted-foreground)', bg: 'var(--muted)',          icon: Clock },
   depose:        { label: 'Déposé — à vérifier', color: 'var(--chart-4)',       bg: 'rgba(176,80,112,0.08)', icon: Upload },
-  verification:  { label: 'En vérification',  color: 'var(--accent)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
+  verification:  { label: 'En vérification',  color: 'var(--accent-text)',           bg: 'rgba(200,146,26,0.10)', icon: Clock },
   accepte:       { label: 'Validé',           color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)',  icon: CheckCircle2 },
   refuse:        { label: 'Refusé',           color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)',  icon: XCircle },
   'a-remplacer': { label: 'À remplacer',      color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)',  icon: RefreshCw },
@@ -37,14 +39,6 @@ const CPI_CAT_CFG: Record<string, { label: string; icon: LucideIcon }> = {
   pv: { label: 'PV', icon: ClipboardList }, autorisations: { label: 'Autorisation', icon: FileSignature },
 };
 
-const CPI_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  brouillon:  { label: 'Brouillon',  color: 'var(--muted-foreground)', bg: 'var(--muted)' },
-  disponible: { label: 'Disponible', color: 'var(--primary)',          bg: 'var(--secondary)' },
-  publie:     { label: 'Publié',     color: 'var(--primary)',          bg: 'var(--secondary)' },
-  'a-signer': { label: 'À signer',   color: 'var(--destructive)',      bg: 'rgba(192,57,43,0.08)' },
-  signe:      { label: 'Signé',      color: 'var(--success)',          bg: 'rgba(26,107,68,0.10)' },
-  archive:    { label: 'Archivé',    color: 'var(--muted-foreground)', bg: 'var(--muted)' },
-};
 
 // ─── Dérivation de l'état d'un client ─────────────────────────────────────────
 
@@ -83,9 +77,9 @@ function deriveClientState(
 function CommentModal({ title, cta, onConfirm, onClose }: { title: string; cta: string; onConfirm: (c: string) => void; onClose: () => void }) {
   const [txt, setTxt] = useState('');
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: 16 }}>
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: 440, padding: 24, boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal open onClose={onClose} titre={title} largeur={440} sansCroix
+      style={{ borderRadius: 'var(--r-md)', padding: 24 }}>
+      <>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 12 }}>{title}</div>
         <textarea value={txt} onChange={e => setTxt(e.target.value)} rows={4} placeholder="Précisez le motif pour le client…"
           style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', resize: 'vertical', boxSizing: 'border-box' }} />
@@ -94,16 +88,16 @@ function CommentModal({ title, cta, onConfirm, onClose }: { title: string; cta: 
           <button disabled={txt.trim().length < 3} onClick={() => onConfirm(txt.trim())}
             style={{ padding: '9px 18px', borderRadius: 'var(--radius)', border: 'none', background: txt.trim().length >= 3 ? 'var(--destructive)' : 'var(--muted)', color: '#fff', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: txt.trim().length >= 3 ? 'pointer' : 'not-allowed' }}>{cta}</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
 // ─── Frise parcours + contrôles d'avancement ──────────────────────────────────
 
-function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: {
+function ParcoursControl({ activeStep, allValid, submitted, onSet }: {
   activeStep: number; allValid: boolean; submitted: boolean;
-  onSet: (etape: number) => void; agentName: string;
+  onSet: (etape: number) => void;
 }) {
   return (
     <div style={{ background: 'var(--primary)', borderRadius: 'var(--r-md)', padding: '18px 20px', color: '#fff' }}>
@@ -130,7 +124,7 @@ function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: 
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)' }}>Le client n'a pas encore envoyé sa demande.</div>
       ) : !allValid ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.75)' }}>
-          <AlertCircle size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} /> Validez d'abord toutes les pièces pour faire avancer le dossier.
+          <AlertCircle size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} /> Validez d'abord toutes les pièces pour faire avancer le dossier.
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -154,7 +148,7 @@ function ParcoursControl({ activeStep, allValid, submitted, onSet, agentName }: 
         </div>
       )}
       {activeStep >= SIGNATURE_INDEX && (
-        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)' }}>
+        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-text)' }}>
           <CheckCircle2 size={13} /> Dossier finalisé — prêt pour signature
         </div>
       )}
@@ -219,7 +213,7 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
       </div>
 
       {/* Parcours + contrôles */}
-      <ParcoursControl activeStep={activeStep} allValid={allValid} submitted={submitted} agentName={agentName}
+      <ParcoursControl activeStep={activeStep} allValid={allValid} submitted={submitted}
         onSet={etape => setDossierEtape(etape, agentName, client.id)} />
 
       {/* Pièces justificatives */}
@@ -268,7 +262,7 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visibleCpi.map(d => {
-              const scfg = CPI_STATUS_CFG[d.status] ?? CPI_STATUS_CFG.disponible;
+              const scfg = statutDocCpi(d.status);
               const cat = CPI_CAT_CFG[d.categorie];
               return (
                 <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', flexWrap: 'wrap' }}>
@@ -320,9 +314,14 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
       {showUpload && (
         <UploadDocModal
           onClose={() => setShowUpload(false)}
-          onPublish={(nom, categorie, signatureRequise, taille) => {
-            createDoc({ categorie: categorie as CpiDoc['categorie'], nom, version: 'V1', auteur: agentName, signatureRequise, format: 'PDF', taille }, agentName, true, client.id);
-            setShowUpload(false);
+          onPublish={(nom, categorie, signatureRequise, taille, fichier, hooks) => {
+            // Le 5e argument (`fichier`) manquait : le document partait avec ses
+            // seules métadonnées, `cpiDocsContext` n'appelait jamais l'upload, et
+            // l'agent voyait pourtant une barre de progression puis un succès.
+            createDoc(
+              { categorie: categorie as CpiDoc['categorie'], nom, version: 'V1', auteur: agentName, signatureRequise, format: 'PDF', taille },
+              agentName, true, client.id, fichier, hooks,
+            );
           }}
         />
       )}
@@ -332,10 +331,20 @@ function DossierFiche({ agentName, onBack }: { agentName: string; onBack: () => 
 
 // ─── Modale : téléverser un document pour le client ───────────────────────────
 
-function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish: (nom: string, categorie: string, signatureRequise: boolean, taille: string) => void }) {
-  const [file, setFile] = useState<string | null>(null);
+function UploadDocModal({ onClose, onPublish }: {
+  onClose: () => void;
+  onPublish: (
+    nom: string, categorie: string, signatureRequise: boolean, taille: string,
+    fichier: File, hooks: CreateDocHooks,
+  ) => void;
+}) {
+  // L'objet File lui-même, pas seulement son nom : c'est lui qu'il faut
+  // transmettre. L'ancienne version ne gardait que `name` et `size`, puis
+  // laissait le File être ramassé par le GC.
+  const [fichier, setFichier] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
-  const [done, setDone] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [nom, setNom] = useState('');
   const [categorie, setCategorie] = useState('contrats');
@@ -343,59 +352,88 @@ function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish
   const [taille, setTaille] = useState('—');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const startUpload = (name: string, sizeMo?: number) => {
-    setFile(name); setDone(false); setProgress(0);
-    if (!nom) setNom(name.replace(/\.[^.]+$/, ''));
-    setTaille(sizeMo ? `${sizeMo.toFixed(1)} Mo` : '—');
-    let p = 0;
-    const iv = setInterval(() => { p += Math.random() * 24 + 10; if (p >= 100) { p = 100; clearInterval(iv); setDone(true); } setProgress(Math.round(p)); }, 130);
+  const selectFile = (f: File) => {
+    setFichier(f);
+    setErreur(null);
+    setProgress(0);
+    if (!nom) setNom(f.name.replace(/\.[^.]+$/, ''));
+    setTaille(`${(f.size / 1048576).toFixed(1)} Mo`);
   };
 
-  const canPublish = done && nom.trim().length >= 3;
+  // Rien n'est encore parti tant que l'agent n'a pas validé : la barre ne
+  // s'affiche donc qu'à partir de l'envoi, et elle suit le transfert réel.
+  const canPublish = fichier !== null && nom.trim().length >= 3 && !envoi;
+
+  const handlePublish = () => {
+    if (!fichier || !canPublish) return;
+    setEnvoi(true);
+    setErreur(null);
+    onPublish(nom.trim(), categorie, signature, taille, fichier, {
+      onProgress: setProgress,
+      onDone: () => onClose(),
+      onError: message => { setEnvoi(false); setErreur(message); },
+    });
+  };
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(28,8,16,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', padding: 16 }}>
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--r-md)', width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto', padding: 24, boxShadow: '0 24px 64px rgba(28,8,16,0.28)' }}>
+    <Modal open onClose={onClose} titre="Téléverser un document"
+      description="Le document sera transmis au client, qui pourra le télécharger et le signer si nécessaire."
+      largeur={480} sansCroix style={{ borderRadius: 'var(--r-md)', maxHeight: '92vh', padding: 24 }}>
+      <>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: 4 }}>Téléverser un document</div>
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: 16 }}>Le document sera transmis au client, qui pourra le télécharger et le signer si nécessaire.</div>
 
         {/* Zone de dépôt */}
-        {!file ? (
+        {!fichier ? (
           <div
+            role="button" tabIndex={0} aria-label="Choisir un fichier à joindre"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) startUpload(f.name, f.size / 1048576); }}
+            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) selectFile(f); }}
             onClick={() => inputRef.current?.click()}
             style={{ border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--r-md)', padding: '26px 16px', textAlign: 'center', cursor: 'pointer', background: dragging ? 'var(--secondary)' : 'var(--input-background)' }}>
             <Upload size={26} style={{ color: 'var(--primary)', margin: '0 auto 8px', display: 'block' }} />
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>Glissez le fichier ici, ou cliquez</div>
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: 2 }}>PDF, JPG ou PNG · 10 Mo max</div>
-            <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) startUpload(f.name, f.size / 1048576); }} />
+            <input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); }} />
           </div>
         ) : (
           <div style={{ background: 'var(--input-background)', borderRadius: 'var(--r-sm)', padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <FileText size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file}</span>
-              {done && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
+              <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichier.name}</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', flexShrink: 0 }}>{taille}</span>
+              {!envoi && <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />}
             </div>
-            <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${progress}%`, background: done ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
-            </div>
+            {/* La barre n'apparaît qu'à l'envoi et suit le transfert réel : tant
+                que l'agent n'a pas validé, rien ne part sur le réseau. */}
+            {envoi && (
+              <>
+                <div style={{ height: 6, background: 'var(--border)', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: progress >= 100 ? 'var(--success)' : 'var(--primary)', borderRadius: 'var(--r-full)', transition: 'width 0.2s' }} />
+                </div>
+                <div style={{ marginTop: 6, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }} role="status" aria-live="polite">
+                  {progress >= 100 ? 'Finalisation…' : `Envoi ${progress} %`}
+                </div>
+              </>
+            )}
+            {erreur && (
+              <div style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--destructive)' }} role="alert">{erreur}</div>
+            )}
           </div>
         )}
 
         {/* Métadonnées */}
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Nom du document</label>
-            <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex : Convention de financement"
+            <label htmlFor="champ-nom-du-document" style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Nom du document</label>
+            <input id="champ-nom-du-document" value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex : Convention de financement"
               style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Catégorie</label>
-            <select value={categorie} onChange={e => setCategorie(e.target.value)}
+            <label htmlFor="champ-categorie" style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Catégorie</label>
+            <select id="champ-categorie" value={categorie} onChange={e => setCategorie(e.target.value)}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1.5px solid var(--border)', background: 'var(--input-background)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--foreground)', boxSizing: 'border-box' }}>
               {Object.entries(CPI_CAT_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
@@ -408,13 +446,13 @@ function UploadDocModal({ onClose, onPublish }: { onClose: () => void; onPublish
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--muted-foreground)', cursor: 'pointer' }}>Annuler</button>
-          <button disabled={!canPublish} onClick={() => onPublish(nom.trim(), categorie, signature, taille)}
+          <button disabled={!canPublish} onClick={handlePublish}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 'var(--radius)', border: 'none', background: canPublish ? 'var(--primary)' : 'var(--muted)', color: canPublish ? '#fff' : 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, cursor: canPublish ? 'pointer' : 'not-allowed' }}>
             <Send size={14} /> Transmettre au client
           </button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
@@ -451,8 +489,8 @@ export default function AgentDossiersReels({ agentName, mode = 'actifs' }: { age
       const nDepose = r.st.docs.filter(d => d.status === 'depose').length;
       if (nDepose > 0) reasons.push({ txt: `${nDepose} pièce${nDepose > 1 ? 's' : ''} à vérifier`, color: 'var(--chart-4)' });
       if (r.st.hasIssue) reasons.push({ txt: 'pièce à corriger (client)', color: 'var(--destructive)' });
-      if (r.st.allValid && r.st.activeStep === DOCS_VALIDES_INDEX) reasons.push({ txt: 'dossier à faire avancer', color: 'var(--accent)' });
-      if (r.st.toSign > 0) reasons.push({ txt: `${r.st.toSign} document${r.st.toSign > 1 ? 's' : ''} à signer (client)`, color: 'var(--accent)' });
+      if (r.st.allValid && r.st.activeStep === DOCS_VALIDES_INDEX) reasons.push({ txt: 'dossier à faire avancer', color: 'var(--accent-text)' });
+      if (r.st.toSign > 0) reasons.push({ txt: `${r.st.toSign} document${r.st.toSign > 1 ? 's' : ''} à signer (client)`, color: 'var(--accent-text)' });
       return { summary: r.summary, st: r.st, reasons };
     }).filter(a => a.reasons.length > 0);
 
@@ -584,7 +622,7 @@ export default function AgentDossiersReels({ agentName, mode = 'actifs' }: { age
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--success)' }}>{st.validated}/{st.total} pièces</span>
                     {st.docs.some(d => d.status === 'depose') && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--chart-4)' }}>· à vérifier</span>}
                     {st.hasIssue && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--destructive)' }}>· à corriger</span>}
-                    {st.toSign > 0 && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent)' }}>· {st.toSign} à signer</span>}
+                    {st.toSign > 0 && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent-text)' }}>· {st.toSign} à signer</span>}
                   </div>
                 </div>
                 <ChevronRight size={16} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />

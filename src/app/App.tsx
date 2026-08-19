@@ -1,10 +1,14 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router';
 import AuthPage from './components/AuthPage';
 import OnboardingPage from './components/OnboardingPage';
 import { PermissionProvider } from './auth/PermissionContext';
 import type { Permission, UserRole as ApiUserRole } from './auth/permissions';
 import { auth, type AuthPayload, type UserData } from './api/endpoints';
-import { getToken, setToken, clearToken } from './api/client';
+import { apiErrorMessage, getToken, setToken, clearToken, UNAUTHENTICATED_EVENT } from './api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { homePath, type NavArea } from './routes';
 
 // L'app authentifiée (dashboards, modules, graphiques Recharts) est chargée à la
 // demande : la landing / connexion reste ultra-légère au premier chargement.
@@ -25,7 +29,22 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
-export type AppPage = 'welcome' | 'login' | 'register' | 'dashboard';
+/**
+ * Écrans publics. Ce type est l'interface historique d'`AuthPage`, conservée
+ * telle quelle ; `App` traduit chaque valeur en URL réelle.
+ */
+export type AppPage = 'welcome' | 'login' | 'register' | 'terms' | 'dashboard';
+
+/** Chemin public correspondant à un écran d'`AuthPage`. */
+const PUBLIC_PATHS: Record<Exclude<AppPage, 'dashboard'>, string> = {
+  welcome: '/',
+  login: '/connexion',
+  register: '/inscription',
+  terms: '/conditions',
+};
+
+/** Chemin de retour du fournisseur d'identité Google. */
+export const GOOGLE_CALLBACK_PATH = '/auth/google/callback';
 
 /** Rôle Spatie (API) → rôle legacy attendu par les dashboards. */
 function mapApiRole(role: ApiUserRole, profileType: string | null): UserRole {
@@ -34,14 +53,42 @@ function mapApiRole(role: ApiUserRole, profileType: string | null): UserRole {
   return profileType === 'fonctionnaire' ? 'client-fonctionnaire' : 'client-public';
 }
 
+/** Espace de navigation d'un rôle : les URL ne sont pas les mêmes. */
+export function areaForRole(role: UserRole): NavArea {
+  return role === 'agent-cpi' || role === 'admin' ? 'staff' : 'client';
+}
+
+/** Vrai lorsque le navigateur est sur l'URL de retour du fournisseur Google. */
+function surRetourGoogle(): boolean {
+  return window.location.pathname === GOOGLE_CALLBACK_PATH;
+}
+
 /** Code OAuth présent quand Google redirige vers /auth/google/callback?code=… */
 function googleCallbackCode(): string | null {
-  if (window.location.pathname !== '/auth/google/callback') return null;
+  if (!surRetourGoogle()) return null;
   return new URLSearchParams(window.location.search).get('code');
 }
 
+/**
+ * Message destiné à l'utilisateur lorsque Google revient SANS code.
+ *
+ * C'est le cas nominal d'un refus : l'utilisateur ferme la fenêtre de
+ * consentement ou clique « Annuler », et Google redirige vers
+ * `/auth/google/callback?error=access_denied`. Jusqu'ici, l'application ne
+ * lisait que le paramètre `code` : sans lui, l'effet de montage rendait la
+ * main immédiatement, la route de retour affichait son écran de chargement…
+ * et n'en sortait jamais. L'utilisateur restait devant un squelette animé,
+ * sans message, sans bouton, sans moyen de revenir à la connexion autrement
+ * qu'en modifiant l'URL lui-même.
+ */
+function messageRetourGoogle(erreur: string | null): string {
+  if (erreur === 'access_denied')
+    return "Vous n'avez pas autorisé CPI à utiliser votre compte Google. Vous pouvez réessayer, ou vous connecter avec votre adresse e-mail et votre mot de passe.";
+  return "La connexion avec Google n'a pas abouti. Réessayez, ou connectez-vous avec votre adresse e-mail et votre mot de passe.";
+}
+
 // Écran de transition pendant le chargement du chunk de l'espace connecté.
-function AppLoader() {
+export function AppLoader() {
   const bar = (w: string, h = 12, r = 'var(--r-sm)') =>
     <div className="cpi-skeleton" style={{ width: w, height: h, borderRadius: r }} />;
   const card = (
@@ -76,7 +123,10 @@ function AppLoader() {
 }
 
 export default function App() {
-  const [page, setPage] = useState<AppPage>('welcome');
+  const queryClient = useQueryClient();
+  const routerNavigate = useNavigate();
+  const location = useLocation();
+
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [apiRole, setApiRole] = useState<ApiUserRole | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -84,40 +134,73 @@ export default function App() {
   // Restauration de session (token présent) ou retour du callback Google.
   const [booting, setBooting] = useState(() => Boolean(getToken()) || googleCallbackCode() !== null);
 
-  const applyAuth = (payload: AuthPayload) => {
+  /**
+   * Applique une session et emmène l'utilisateur au bon endroit.
+   *
+   * `to` permet de revenir à l'URL demandée avant la redirection vers l'écran
+   * de connexion : sans cela, un lien profond reçu par courriel ramenait
+   * systématiquement à l'accueil après authentification.
+   */
+  const applyAuth = (payload: AuthPayload, to?: string) => {
     const u = payload.user;
+    const role = mapApiRole(payload.role, u.profileType);
     setApiRole(payload.role);
     setPermissions(payload.permissions as Permission[]);
     setNeedsOnboarding(u.needsOnboarding);
     setAuthUser({
-      role: mapApiRole(payload.role, u.profileType),
+      role,
       name: u.name,
       email: u.email,
       clientId: payload.role === 'client' ? (u.clientId ?? u.id) : undefined,
       avatarUrl: u.avatarUrl ?? null,
     });
-    setPage('dashboard');
+    routerNavigate(to ?? homePath(areaForRole(role)), { replace: true });
   };
 
   // Au montage : échange du code Google, ou restauration de session via /auth/me.
   useEffect(() => {
     const code = googleCallbackCode();
+
+    // Retour de Google sans code : refus de l'utilisateur, ou échec côté
+    // fournisseur. Il faut le dire et ramener à la connexion — sinon l'écran
+    // de chargement de cette route tourne indéfiniment.
+    if (!code && surRetourGoogle()) {
+      toast.error(messageRetourGoogle(new URLSearchParams(window.location.search).get('error')));
+      routerNavigate(PUBLIC_PATHS.login, { replace: true });
+      return;
+    }
+
     if (!code && !getToken()) return;
     (async () => {
       try {
         if (code) {
           const payload = await auth.googleCallback(code);
           if (payload.token) setToken(payload.token);
-          window.history.replaceState({}, '', '/');
           applyAuth(payload);
         } else {
-          applyAuth(await auth.me());
+          // Restauration silencieuse : l'utilisateur reste sur l'URL qu'il a
+          // ouverte. Le rediriger vers l'accueil casserait tout lien profond.
+          const payload = await auth.me();
+          const role = mapApiRole(payload.role, payload.user.profileType);
+          setApiRole(payload.role);
+          setPermissions(payload.permissions as Permission[]);
+          setNeedsOnboarding(payload.user.needsOnboarding);
+          setAuthUser({
+            role,
+            name: payload.user.name,
+            email: payload.user.email,
+            clientId: payload.role === 'client' ? (payload.user.clientId ?? payload.user.id) : undefined,
+            avatarUrl: payload.user.avatarUrl ?? null,
+          });
         }
-      } catch {
+      } catch (err) {
         clearToken();
         if (code) {
-          window.history.replaceState({}, '', '/');
-          setPage('login');
+          // Échec de l'ÉCHANGE du code (jeton expiré, compte refusé côté API…).
+          // Muet à l'origine : l'utilisateur revenait sur l'écran de connexion
+          // sans savoir pourquoi, et recommençait la même manipulation.
+          toast.error(apiErrorMessage(err, messageRetourGoogle(null)));
+          routerNavigate(PUBLIC_PATHS.login, { replace: true });
         }
       } finally {
         setBooting(false);
@@ -128,7 +211,8 @@ export default function App() {
 
   const handleLogin = (payload: AuthPayload) => {
     if (payload.token) setToken(payload.token);
-    applyAuth(payload);
+    const from = (location.state as { from?: string } | null)?.from;
+    applyAuth(payload, from);
   };
 
   const handleOnboardingComplete = (user: UserData) => {
@@ -144,20 +228,60 @@ export default function App() {
     } : prev);
   };
 
-  const handleLogout = () => {
-    auth.logout().catch(() => { /* le token local est effacé quoi qu'il arrive */ });
+  /**
+   * Remet l'application dans son état déconnecté.
+   *
+   * `queryClient.clear()` est indispensable : sans lui, le cache React Query
+   * garde en mémoire le dossier, les documents et les montants de l'utilisateur
+   * sortant, que le suivant récupère tels quels le temps d'un rafraîchissement.
+   * Sur un poste partagé, c'est une fuite de données entre clients.
+   */
+  const resetAuthState = () => {
     clearToken();
+    queryClient.clear();
     setAuthUser(null);
     setApiRole(null);
     setPermissions([]);
     setNeedsOnboarding(false);
-    setPage('welcome');
+    routerNavigate(PUBLIC_PATHS.welcome, { replace: true });
+  };
+
+  const handleLogout = () => {
+    auth.logout().catch(() => { /* le token local est effacé quoi qu'il arrive */ });
+    resetAuthState();
+  };
+
+  // Session invalidée côté serveur : l'intercepteur a effacé le jeton, il reste
+  // à sortir l'utilisateur de l'interface et à le lui dire.
+  useEffect(() => {
+    const onUnauthenticated = () => {
+      resetAuthState();
+      toast.error('Votre session a expiré. Merci de vous reconnecter.');
+    };
+    window.addEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Traduit l'API historique d'`AuthPage` en navigation d'URL. */
+  const navigatePublic = (p: AppPage) => {
+    if (p === 'dashboard') {
+      routerNavigate(authUser ? homePath(areaForRole(authUser.role)) : PUBLIC_PATHS.welcome);
+      return;
+    }
+    routerNavigate(PUBLIC_PATHS[p]);
   };
 
   if (booting) return <AppLoader />;
 
-  if (page === 'dashboard' && authUser) {
-    // Les utilisateurs Google au profil incomplet doivent d'abord le compléter.
+  const publicScreen = (page: Exclude<AppPage, 'dashboard'>) => (
+    <AuthPage page={page} onLogin={handleLogin} onNavigate={navigatePublic} />
+  );
+
+  // Les utilisateurs Google au profil incomplet doivent d'abord le compléter :
+  // l'onboarding prime sur toute route, y compris un lien profond.
+  const authenticatedArea = () => {
+    if (!authUser) return null;
     if (needsOnboarding) {
       return (
         <OnboardingPage
@@ -174,13 +298,43 @@ export default function App() {
         </Suspense>
       </PermissionProvider>
     );
-  }
+  };
 
   return (
-    <AuthPage
-      page={page === 'dashboard' ? 'welcome' : page}
-      onLogin={handleLogin}
-      onNavigate={setPage}
-    />
+    <Routes>
+      {/*
+        Retour OAuth Google. La route doit exister pour que react-router ne
+        renvoie pas une 404 pendant l'échange du code : l'effet de montage
+        ci-dessus fait la redirection une fois le jeton obtenu.
+      */}
+      <Route path={GOOGLE_CALLBACK_PATH} element={<AppLoader />} />
+
+      <Route path={PUBLIC_PATHS.terms} element={publicScreen('terms')} />
+      <Route
+        path={PUBLIC_PATHS.login}
+        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role))} replace /> : publicScreen('login')}
+      />
+      <Route
+        path={PUBLIC_PATHS.register}
+        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role))} replace /> : publicScreen('register')}
+      />
+
+      {/*
+        Tout le reste. Authentifié : l'espace connecté, qui résout lui-même
+        l'URL en écran et rend une 404 si elle ne désigne rien. Non
+        authentifié : l'accueil public à la racine, et une redirection vers la
+        connexion ailleurs — en mémorisant la destination pour y revenir.
+      */}
+      <Route
+        path="/*"
+        element={
+          authUser
+            ? authenticatedArea()
+            : location.pathname === '/'
+              ? publicScreen('welcome')
+              : <Navigate to={PUBLIC_PATHS.login} state={{ from: location.pathname + location.search }} replace />
+        }
+      />
+    </Routes>
   );
 }

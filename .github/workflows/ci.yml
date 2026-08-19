@@ -12,6 +12,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint (ESLint + jsx-a11y)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # `tools/lint/` est un paquet à part : il embarque l'API TypeScript 6 que
+      # @typescript-eslint exige, alors que le projet compile en TypeScript 7.
+      # Voir tools/lint/index.js.
+      - name: Installer la chaîne d'analyse (API TypeScript 6)
+        run: npm ci --prefix tools/lint --ignore-scripts
+
+      # Bloquant sur les erreurs (accessibilité, règles des hooks, variables
+      # mortes). Les deux règles du design system sont en avertissement : leur
+      # plan de résorption est décrit dans docs/design.md § 15, avec le plafond
+      # d'occurrences à ne pas dépasser.
+      - name: Analyser le code
+        run: npm run lint
+
   types:
     name: Types (tsc --noEmit)
     runs-on: ubuntu-latest
@@ -53,6 +81,41 @@ jobs:
       # introuvable — ce qui a déjà rattrapé une migration laissée à mi-chemin.
       - name: Compiler l'application
         run: npm run build
+
+  e2e:
+    name: Parcours critiques (Playwright)
+    runs-on: ubuntu-latest
+
+    # Trois parcours dont l'échec coûterait le plus cher : s'inscrire AU
+    # CLAVIER (la case CGU était inatteignable — personne ne pouvait créer de
+    # compte sans souris), déposer une pièce, signer un document. Les tests
+    # doublent l'API : ni base de données, ni PHP, ni jeu de données à
+    # maintenir. Voir playwright.config.ts.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      - name: Installer le navigateur
+        run: npx playwright install --with-deps chromium
+
+      - name: Jouer les parcours
+        run: npm run test:e2e
+
+      - name: Conserver le rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: playwright-report/
+          retention-days: 7
 
   stockage-navigateur:
     name: Garde localStorage
@@ -123,6 +186,11 @@ jobs:
           fi
           echo "✓ Types générés présents."
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Prettier n'est PAS vérifié ici. La configuration existe (`npm run format`),
+# mais le code n'a pas été reformaté : 53 fichiers changeraient d'un coup.
+# La bascule est prévue en commit dédié — voir docs/design.md § 15 —, et
+# `format:check` deviendra bloquant dans ce même commit.
 # ─────────────────────────────────────────────────────────────────────────────
 # `src/app/components/ui/**` (hors index.tsx) est exclu du contrôle de types :
 # échafaudage shadcn/Figma jamais importé, aux specifiers versionnés
