@@ -10,7 +10,7 @@ type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
 const PROFIL_OPTIONS: { type: ProfilType; label: string; icon: LucideIcon }[] = [
   { type: 'fonctionnaire', label: 'Fonctionnaire', icon: Landmark },
   { type: 'prive', label: 'Secteur privé', icon: Briefcase },
-  { type: 'autre', label: 'Autre profil', icon: UserCircle },
+  { type: 'autre', label: 'Secteur informel', icon: UserCircle },
 ];
 
 const REVENUS_OPTIONS = [
