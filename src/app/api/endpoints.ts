@@ -681,6 +681,16 @@ export const staffApi = {
     attribuerConseiller: async (clientId: string): Promise<ValidationCompteResultat> =>
       (await api.post(`/staff/clients/${clientId}/attribuer-conseiller`)).data.data,
 
+    /**
+     * Réattribution manuelle vers un agent DÉSIGNÉ — déplace un dossier déjà
+     * suivi d'un conseiller vers un autre (départ, réorganisation). Réservée
+     * au super-admin côté serveur (permission `manage-staff`), à la
+     * différence de `attribuerConseiller` ci-dessus qui élit automatiquement
+     * l'agent le moins chargé.
+     */
+    reattribuerConseiller: async (clientId: string, conseillerId: string): Promise<ValidationCompteResultat> =>
+      (await api.put(`/staff/clients/${clientId}/conseiller`, { conseiller_id: conseillerId })).data.data,
+
     get: async (id: string): Promise<ClientData> =>
       (await api.get(`/staff/clients/${id}`)).data.data,
 

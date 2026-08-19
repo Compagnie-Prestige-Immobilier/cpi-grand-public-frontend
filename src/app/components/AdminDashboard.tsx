@@ -1362,6 +1362,14 @@ function DemandesView({ agentName }: { agentName: string }) {
   // d'affichage de App.tsx ('admin') — les deux vocabulaires coexistent.
   const { role } = usePermission();
   const peutPrendreLaMain = role === 'super-admin';
+  // Réattribution manuelle : gardée par `manage-staff` côté serveur, que seul
+  // le super-admin détient — même réserve que la prise en main ci-dessus.
+  const peutReattribuer = role === 'super-admin';
+
+  const qc = useQueryClient();
+  const staffQuery = useStaffQuery(peutReattribuer);
+  const agentsDisponibles = (staffQuery.data ?? []).map(toStaffAccount).filter(s => s.role === 'agent-cpi');
+  const [conseillerChoisi, setConseillerChoisi] = useState('');
 
   const impersonation = useMutation({
     // Cet écran affiche lui-même le message d'erreur : pas de toast en double.
@@ -1385,6 +1393,23 @@ function DemandesView({ agentName }: { agentName: string }) {
    * l'agent, qui énumère ce qui est possible, et c'est celui-là qui compte.
    */
   const failWith = (fallback: string) => (e: unknown) => notifier.error(apiErrorMessage(e, fallback));
+
+  const reattribution = useMutation({
+    meta: SILENCIEUX,
+    mutationFn: ({ clientId, conseillerId }: { clientId: string; conseillerId: string }) =>
+      staffApi.clients.reattribuerConseiller(clientId, conseillerId),
+    onSuccess: r => {
+      showToast(r.message);
+      setConseillerChoisi('');
+      void qc.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY });
+    },
+    onError: failWith('Réattribution impossible.'),
+  });
+  // Un choix laissé dans le menu déroulant ne doit jamais survivre au
+  // changement de dossier consulté — sans quoi rouvrir un AUTRE client avec
+  // une sélection encore active risquerait une réattribution à la mauvaise
+  // personne au premier clic distrait.
+  useEffect(() => { setConseillerChoisi(''); }, [selectedId]);
 
   // Banques partenaires + orientations : /staff/banks porte les deux.
   const banksQuery = useBanksQuery(true);
@@ -1584,6 +1609,38 @@ function DemandesView({ agentName }: { agentName: string }) {
                 {impersonationError}
               </div>
             )}
+
+            {/* Conseiller — lecture pour tous, réattribution réservée au
+                super-admin (le serveur referme la même porte via `manage-staff`). */}
+            <div className="p-3 mb-4" style={{ background: '#FAF7F7', borderRadius: 'var(--r-sm)' }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: A.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Conseiller</div>
+              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: A.text, marginBottom: peutReattribuer ? 10 : 0 }}>
+                {selected.c.conseiller ?? 'Non assigné'}
+              </div>
+              {peutReattribuer && (
+                <div className="flex gap-2 flex-wrap">
+                  <select
+                    value={conseillerChoisi}
+                    onChange={e => setConseillerChoisi(e.target.value)}
+                    style={{ flex: '1 1 160px', padding: '7px 10px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, fontSize: '0.75rem', color: A.text, background: 'white' }}
+                  >
+                    <option value="">Choisir un agent…</option>
+                    {agentsDisponibles.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    disabled={!conseillerChoisi || reattribution.isPending}
+                    onClick={() => reattribution.mutate({ clientId: selected.c.id, conseillerId: conseillerChoisi })}
+                    style={{ padding: '7px 14px', borderRadius: 'var(--r-sm)', border: 'none', fontSize: '0.75rem', fontWeight: 700, color: 'white',
+                      background: !conseillerChoisi || reattribution.isPending ? A.border : A.bordeaux,
+                      cursor: !conseillerChoisi || reattribution.isPending ? 'not-allowed' : 'pointer' }}
+                  >
+                    {reattribution.isPending ? 'Réattribution…' : 'Réattribuer'}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Parcours + étape */}
             <div className="p-3 mb-4" style={{ background: '#FAF7F7', borderRadius: 'var(--r-sm)' }}>
