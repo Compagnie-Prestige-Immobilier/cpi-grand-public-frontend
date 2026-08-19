@@ -17,6 +17,8 @@ export type ChantierMediaData        = App.Dto.ChantierMediaData;
 export type ChantierEventData        = App.Dto.ChantierEventData;
 export type NotificationData         = App.Dto.NotificationData;
 export type ActivityLogData          = App.Dto.ActivityLogData;
+/** État du compte : voir backend/docs/statuts.md. */
+export type StatutCompte             = App.Enums.StatutCompte;
 
 /** Réponse paginée de GET /staff/clients (50 dossiers par page). */
 export type PaginatedClients = Illuminate.LengthAwarePaginator<number, ClientData>;
@@ -122,6 +124,22 @@ export const auth = {
 
   onboardingStatus: async (): Promise<boolean> =>
     (await api.get('/auth/onboarding-status')).data.data.needsOnboarding,
+
+  /** Renvoie le lien de vérification d'adresse (limité en fréquence côté serveur). */
+  resendVerificationEmail: async (): Promise<void> => {
+    await api.post('/auth/email/resend');
+  },
+
+  /**
+   * Corrige les informations d'un compte REFUSÉ et le resoumet à validation.
+   * Le serveur refuse (409) si le compte n'est pas au statut « refusé » —
+   * ce n'est pas un simple PATCH de profil.
+   */
+  updateMonCompte: async (input: {
+    name?: string; phone?: string | null; employer?: string | null;
+    profile_type?: 'fonctionnaire' | 'prive' | 'autre' | null; revenus?: string | null;
+  }): Promise<AuthPayload> =>
+    (await api.put('/auth/mon-compte', input)).data.data,
 };
 
 // ─── Parcours du dossier (calculé côté serveur) ────────────
