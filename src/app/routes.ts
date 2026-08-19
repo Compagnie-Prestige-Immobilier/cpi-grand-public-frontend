@@ -34,6 +34,7 @@ export const STAFF_PATHS: Record<string, string> = {
   traites: '/admin/dossiers-traites',
   clients: '/admin/clients',
   demandes: '/admin/demandes',
+  'comptes-a-valider': '/admin/comptes-a-valider',
   utilisateurs: '/admin/utilisateurs',
   partenaires: '/admin/partenaires',
   'documents-clients': '/admin/documents-clients',

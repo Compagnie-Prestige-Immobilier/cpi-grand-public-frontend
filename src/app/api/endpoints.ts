@@ -573,8 +573,42 @@ const listClientsPage = async (page = 1): Promise<PaginatedClients> =>
 const listHistoriquePage = async (page = 1): Promise<PaginatedActivityLog> =>
   (await api.get('/staff/historique', { params: { page } })).data;
 
+export interface CompteEnAttenteData {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  employer: string | null;
+  profileType: string | null;
+  revenus: string | null;
+  createdAt: string;
+}
+
+export interface ValidationCompteResultat {
+  message: string;
+  conseiller: { id: string; name: string } | null;
+}
+
 export const staffApi = {
   // L'identité du staff vient de auth.me() — il n'existe pas de /staff/me.
+
+  /**
+   * Validation des comptes — réservé à `validate-accounts` (super-admin).
+   * Approuver déclenche l'attribution automatique d'un conseiller côté
+   * serveur ; `valider()` renvoie lequel a été choisi (ou `null` si aucun
+   * agent-cpi n'existe — le dossier reste alors sans conseiller).
+   */
+  comptes: {
+    enAttente: async (): Promise<CompteEnAttenteData[]> =>
+      (await api.get('/staff/comptes/en-attente')).data.data,
+
+    valider: async (userId: string): Promise<ValidationCompteResultat> =>
+      (await api.post(`/staff/comptes/${userId}/valider`)).data.data,
+
+    rejeter: async (userId: string, motif: string): Promise<void> => {
+      await api.post(`/staff/comptes/${userId}/rejeter`, { motif });
+    },
+  },
 
   /** Comptes du personnel CPI (administrateur uniquement). */
   staff: {

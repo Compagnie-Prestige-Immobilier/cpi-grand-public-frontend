@@ -5,6 +5,7 @@ import {
   LogOut, ChevronRight, Menu, X, Users,
   BarChart3, ShieldCheck, CreditCard, BookOpen, FolderOpen, LifeBuoy,
   Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye, MoreHorizontal,
+  UserCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import cpiLogo from '../../assets/image.png';
@@ -119,6 +120,9 @@ function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
   if (role === 'admin') return [
     { id: 'dashboard',          label: 'Vue globale',        icon: LayoutDashboard },
     { id: 'demandes',           label: 'Toutes les demandes',icon: FileText        },
+    // Réservé au super-admin côté serveur (`validate-accounts`) : le seul
+    // rôle qui atteint cette entrée de toute façon.
+    { id: 'comptes-a-valider',  label: 'Comptes à valider',  icon: UserCheck       },
     { id: 'utilisateurs',       label: 'Utilisateurs',       icon: Users           },
     { id: 'partenaires',        label: 'Partenaires',        icon: Building2       },
     { id: 'documents-clients',  label: 'Documents clients',  icon: FolderOpen      },

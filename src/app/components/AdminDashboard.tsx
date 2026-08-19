@@ -5,7 +5,7 @@ import {
   Clock, AlertCircle, XCircle, Shield, Banknote, ChevronRight, Server, Bell, Upload,
   Search, Download, Activity, X, ArrowRight, RefreshCw, PenLine,
   UserPlus, Copy, Mail, Plus, Trash2, Building2, Landmark,
-  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone, Eye, Loader2,
+  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone, Eye, Loader2, UserCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
@@ -216,6 +216,7 @@ function AdminOverview({ user, activeNav }: Props) {
   };
 
   const section = activeNav === 'utilisateurs' ? 'users'
+    : activeNav === 'comptes-a-valider' ? 'comptes-a-valider'
     : activeNav === 'partenaires' ? 'partners'
     : activeNav === 'demandes' ? 'demandes'
     : activeNav === 'systeme' ? 'systeme'
@@ -225,6 +226,7 @@ function AdminOverview({ user, activeNav }: Props) {
     overview: { kick: 'Accès Administrateur', title: 'Vue globale de la plateforme' },
     demandes: { kick: 'Dossiers', title: 'Toutes les demandes' },
     users:    { kick: 'Comptes', title: 'Utilisateurs' },
+    'comptes-a-valider': { kick: 'Inscriptions', title: 'Comptes à valider' },
     partners: { kick: 'Réseau', title: 'Partenaires' },
     systeme:  { kick: 'Configuration', title: 'Système' },
   };
@@ -820,6 +822,9 @@ function AdminOverview({ user, activeNav }: Props) {
 
       {/* ── UTILISATEURS (réel) ──────────────────────────────────────────────── */}
       {section === 'users' && <UsersView agentName={user.name} />}
+
+      {/* ── COMPTES À VALIDER (réel) ─────────────────────────────────────────── */}
+      {section === 'comptes-a-valider' && <ComptesAValiderView />}
 
       {/* ── PARTENAIRES (banques partenaires) ────────────────────────────────── */}
       {section === 'partners' && <PartnersView />}
@@ -2057,6 +2062,142 @@ function UsersView({ agentName }: { agentName: string }) {
     </div>
   );
 }
+
+// ─── Comptes à valider — file d'attente de validation administrative ──────────
+
+/**
+ * S'inscrire ne donne accès à rien tant qu'un administrateur n'a pas validé
+ * le compte (voir `CompteValide` côté serveur). Cette vue est le seul endroit
+ * de l'application où cette validation peut réellement se faire — sans elle,
+ * un compte en attente n'a aucun moyen d'en sortir autrement que par un appel
+ * direct à l'API.
+ *
+ * Approuver déclenche l'attribution automatique d'un conseiller côté serveur ;
+ * la réponse dit lequel (ou l'absence d'agent disponible), ce que le toast
+ * reprend tel quel plutôt que d'inventer son propre message de succès.
+ */
+function ComptesAValiderView() {
+  const qc = useQueryClient();
+  const [refusPour, setRefusPour] = useState<{ id: string; name: string } | null>(null);
+  const [motif, setMotif] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3200); };
+
+  const query = useQuery({
+    queryKey: ['staff', 'comptes-en-attente'],
+    queryFn: () => staffApi.comptes.enAttente(),
+  });
+
+  const invalider = () => void qc.invalidateQueries({ queryKey: ['staff', 'comptes-en-attente'] });
+
+  const validerMutation = useMutation({
+    mutationFn: (id: string) => staffApi.comptes.valider(id),
+    onSuccess: resultat => { invalider(); showToast(resultat.message); },
+    onError: e => showToast(apiErrorMessage(e, "La validation a échoué.")),
+  });
+
+  const rejeterMutation = useMutation({
+    mutationFn: ({ id, motif }: { id: string; motif: string }) => staffApi.comptes.rejeter(id, motif),
+    onSuccess: () => { invalider(); setRefusPour(null); setMotif(''); showToast('Compte refusé.'); },
+    onError: e => showToast(apiErrorMessage(e, "Le refus a échoué.")),
+  });
+
+  const comptes = query.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div style={{ ...cs, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <UserCheck className="w-4 h-4" style={{ color: A.bordeaux, flexShrink: 0 }} />
+        <p style={{ fontSize: '0.8125rem', color: A.muted, margin: 0, lineHeight: 1.6 }}>
+          Ces comptes ont vérifié leur adresse e-mail et attendent votre décision. Valider ouvre l'accès à la plateforme et attribue automatiquement le dossier à l'agent CPI le moins chargé ; refuser exige un motif, communiqué à la personne pour qu'elle puisse corriger et resoumettre.
+        </p>
+      </div>
+
+      {query.isPending ? (
+        <div style={{ ...cs, padding: 40, textAlign: 'center', fontSize: '0.8125rem', color: A.muted }}>Chargement…</div>
+      ) : query.isError ? (
+        <div role="alert" style={{ ...cs, padding: 40, textAlign: 'center' }}>
+          <p style={{ fontSize: '0.8125rem', color: A.red, margin: '0 0 12px' }}>{apiErrorMessage(query.error, 'Impossible de charger la file d\'attente.')}</p>
+          <button onClick={() => void query.refetch()} style={{ padding: '8px 16px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Réessayer</button>
+        </div>
+      ) : comptes.length === 0 ? (
+        <div style={{ ...cs, padding: 48, textAlign: 'center' }}>
+          <CheckCircle2 className="w-8 h-8" style={{ color: A.green, margin: '0 auto 10px' }} />
+          <p style={{ fontSize: '0.875rem', fontWeight: 700, color: A.text, margin: '0 0 4px' }}>Aucun compte en attente</p>
+          <p style={{ fontSize: '0.8125rem', color: A.muted, margin: 0 }}>Les nouvelles inscriptions vérifiées apparaîtront ici.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {comptes.map(c => (
+            <div key={c.id} style={{ ...cs, padding: '18px 22px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 240 }}>
+                  <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: A.text }}>{c.name}</div>
+                  <div style={{ fontSize: '0.8125rem', color: A.muted, marginTop: 2 }}>{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
+                  <div style={{ fontSize: '0.75rem', color: A.muted, marginTop: 6, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <span>Employeur : <strong style={{ color: A.text }}>{c.employer ?? '—'}</strong></span>
+                    <span>Profil : <strong style={{ color: A.text }}>{c.profileType ?? '—'}</strong></span>
+                    <span>Revenus : <strong style={{ color: A.text }}>{c.revenus ?? '—'}</strong></span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    onClick={() => validerMutation.mutate(c.id)}
+                    disabled={validerMutation.isPending}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 'var(--r-sm)', border: 'none', background: A.green, color: 'white', fontSize: '0.8125rem', fontWeight: 700, cursor: validerMutation.isPending ? 'wait' : 'pointer' }}
+                  >
+                    <CheckCircle2 size={14} /> Valider
+                  </button>
+                  <button
+                    onClick={() => { setRefusPour({ id: c.id, name: c.name }); setMotif(''); }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.red}`, background: 'transparent', color: A.red, fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    <XCircle size={14} /> Refuser
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal
+        open={refusPour !== null}
+        onClose={() => setRefusPour(null)}
+        titre={refusPour ? `Refuser le compte de ${refusPour.name}` : 'Refuser le compte'}
+        description="Le motif est communiqué à la personne, qui corrige et resoumet sa demande."
+        largeur={420}
+      >
+        <div style={{ padding: '22px 24px' }}>
+          <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: A.text, marginBottom: 4 }}>Refuser le compte de {refusPour?.name}</div>
+          <p style={{ fontSize: '0.75rem', color: A.muted, margin: '0 0 12px' }}>Le motif est communiqué à la personne : elle corrige et resoumet sa demande.</p>
+          <textarea
+            value={motif}
+            onChange={e => setMotif(e.target.value)}
+            rows={3}
+            placeholder="Ex. Numéro de téléphone invalide, merci de le corriger."
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, fontSize: '0.8125rem', boxSizing: 'border-box', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+            <button onClick={() => setRefusPour(null)} style={{ padding: '8px 16px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: 'transparent', color: A.muted, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+            <button
+              onClick={() => { if (refusPour && motif.trim()) rejeterMutation.mutate({ id: refusPour.id, motif: motif.trim() }); }}
+              disabled={!motif.trim() || rejeterMutation.isPending}
+              style={{ padding: '8px 18px', borderRadius: 'var(--r-sm)', border: 'none', background: A.red, color: 'white', fontSize: '0.8125rem', fontWeight: 700, cursor: !motif.trim() || rejeterMutation.isPending ? 'not-allowed' : 'pointer', opacity: !motif.trim() ? 0.6 : 1 }}
+            >
+              {rejeterMutation.isPending ? 'Envoi…' : 'Confirmer le refus'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: A.text, color: 'white', padding: '10px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, zIndex: 90, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', maxWidth: '90vw', textAlign: 'center' }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
 
 // ─── Partenaires — registre des banques partenaires ───────────────────────────
 
