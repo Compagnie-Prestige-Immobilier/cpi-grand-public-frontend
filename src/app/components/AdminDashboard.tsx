@@ -5,7 +5,7 @@ import {
   Clock, AlertCircle, XCircle, Shield, Banknote, ChevronRight, Server, Bell, Upload,
   Search, Download, Activity, X, ArrowRight, RefreshCw, PenLine,
   UserPlus, Copy, Mail, Plus, Trash2, Building2, Landmark,
-  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone, Eye, Loader2, UserCheck,
+  Gauge, Zap, Database, Timer, Wifi, HardDrive, Key, Smartphone, Eye, Loader2, UserCheck, UserX,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
@@ -217,6 +217,7 @@ function AdminOverview({ user, activeNav }: Props) {
 
   const section = activeNav === 'utilisateurs' ? 'users'
     : activeNav === 'comptes-a-valider' ? 'comptes-a-valider'
+    : activeNav === 'dossiers-non-attribues' ? 'dossiers-non-attribues'
     : activeNav === 'partenaires' ? 'partners'
     : activeNav === 'demandes' ? 'demandes'
     : activeNav === 'systeme' ? 'systeme'
@@ -227,6 +228,7 @@ function AdminOverview({ user, activeNav }: Props) {
     demandes: { kick: 'Dossiers', title: 'Toutes les demandes' },
     users:    { kick: 'Comptes', title: 'Utilisateurs' },
     'comptes-a-valider': { kick: 'Inscriptions', title: 'Comptes à valider' },
+    'dossiers-non-attribues': { kick: 'Portefeuilles', title: 'Dossiers non attribués' },
     partners: { kick: 'Réseau', title: 'Partenaires' },
     systeme:  { kick: 'Configuration', title: 'Système' },
   };
@@ -825,6 +827,9 @@ function AdminOverview({ user, activeNav }: Props) {
 
       {/* ── COMPTES À VALIDER (réel) ─────────────────────────────────────────── */}
       {section === 'comptes-a-valider' && <ComptesAValiderView />}
+
+      {/* ── DOSSIERS NON ATTRIBUÉS (réel) ────────────────────────────────────── */}
+      {section === 'dossiers-non-attribues' && <DossiersNonAttribuesView />}
 
       {/* ── PARTENAIRES (banques partenaires) ────────────────────────────────── */}
       {section === 'partners' && <PartnersView />}
@@ -2190,6 +2195,91 @@ function ComptesAValiderView() {
           </div>
         </div>
       </Modal>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: A.text, color: 'white', padding: '10px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, zIndex: 90, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', maxWidth: '90vw', textAlign: 'center' }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
+
+// ─── Dossiers non attribués — attribution manuelle (STEP 4) ───────────────────
+
+/**
+ * Le cloisonnement par conseiller est désormais STRICT : un agent-cpi ne voit
+ * que son propre portefeuille, plus aucun dossier « orphelin » comme filet de
+ * sécurité. `AttributionConseiller` en attribue un automatiquement dès la
+ * validation d'un compte — cette vue couvre les cas résiduels que
+ * l'automatisme ne voit pas : aucun agent-cpi disponible à l'époque de
+ * l'approbation, ou dossier créé directement par le personnel (`store()`
+ * n'attribue jamais de conseiller). Sans cet écran, ces dossiers deviendraient
+ * invisibles de TOUT LE MONDE — exactement l'angle mort que l'ancienne règle
+ * (« tout agent voit les dossiers non attribués ») était censée éviter.
+ */
+function DossiersNonAttribuesView() {
+  const qc = useQueryClient();
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3200); };
+
+  const query = useQuery({
+    queryKey: ['staff', 'clients', 'non-attribues'],
+    queryFn: () => staffApi.clients.listNonAttribues(),
+  });
+
+  const attribuerMutation = useMutation({
+    mutationFn: (clientId: string) => staffApi.clients.attribuerConseiller(clientId),
+    onSuccess: resultat => {
+      void qc.invalidateQueries({ queryKey: ['staff', 'clients', 'non-attribues'] });
+      void qc.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY });
+      showToast(resultat.message);
+    },
+    onError: e => showToast(apiErrorMessage(e, "L'attribution a échoué.")),
+  });
+
+  const dossiers = query.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div style={{ ...cs, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <UserX className="w-4 h-4" style={{ color: A.bordeaux, flexShrink: 0 }} />
+        <p style={{ fontSize: '0.8125rem', color: A.muted, margin: 0, lineHeight: 1.6 }}>
+          Ces dossiers n'ont pas de conseiller — invisibles de tout agent-cpi depuis que le cloisonnement est strict. « Attribuer maintenant » applique la même règle que la validation automatique : l'agent-cpi le moins chargé.
+        </p>
+      </div>
+
+      {query.isPending ? (
+        <div style={{ ...cs, padding: 40, textAlign: 'center', fontSize: '0.8125rem', color: A.muted }}>Chargement…</div>
+      ) : query.isError ? (
+        <div role="alert" style={{ ...cs, padding: 40, textAlign: 'center' }}>
+          <p style={{ fontSize: '0.8125rem', color: A.red, margin: '0 0 12px' }}>{apiErrorMessage(query.error, 'Impossible de charger la liste.')}</p>
+          <button onClick={() => void query.refetch()} style={{ padding: '8px 16px', borderRadius: 'var(--r-sm)', border: `1px solid ${A.border}`, background: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Réessayer</button>
+        </div>
+      ) : dossiers.length === 0 ? (
+        <div style={{ ...cs, padding: 48, textAlign: 'center' }}>
+          <CheckCircle2 className="w-8 h-8" style={{ color: A.green, margin: '0 auto 10px' }} />
+          <p style={{ fontSize: '0.875rem', fontWeight: 700, color: A.text, margin: '0 0 4px' }}>Aucun dossier non attribué</p>
+          <p style={{ fontSize: '0.8125rem', color: A.muted, margin: 0 }}>Tous les dossiers ont un conseiller.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {dossiers.map(d => (
+            <div key={d.id} style={{ ...cs, padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 240 }}>
+                <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: A.text }}>{d.name}</div>
+                <div style={{ fontSize: '0.8125rem', color: A.muted, marginTop: 2 }}>{d.ref}{d.email ? ` · ${d.email}` : ''}</div>
+              </div>
+              <button
+                onClick={() => attribuerMutation.mutate(d.id)}
+                disabled={attribuerMutation.isPending}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 'var(--r-sm)', border: 'none', background: A.bordeaux, color: 'white', fontSize: '0.8125rem', fontWeight: 700, cursor: attribuerMutation.isPending ? 'wait' : 'pointer' }}
+              >
+                <UserCheck size={14} /> Attribuer maintenant
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: A.text, color: 'white', padding: '10px 18px', borderRadius: 'var(--r-sm)', fontSize: '0.8125rem', fontWeight: 600, zIndex: 90, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', maxWidth: '90vw', textAlign: 'center' }}>{toast}</div>

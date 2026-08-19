@@ -5,7 +5,7 @@ import {
   LogOut, ChevronRight, Menu, X, Users,
   BarChart3, ShieldCheck, CreditCard, BookOpen, FolderOpen, LifeBuoy,
   Phone, Mail, Banknote, ScrollText, History, Settings, MessageSquare, HardHat, Eye, MoreHorizontal,
-  UserCheck,
+  UserCheck, UserX,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import cpiLogo from '../../assets/image.png';
@@ -123,6 +123,10 @@ function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
     // Réservé au super-admin côté serveur (`validate-accounts`) : le seul
     // rôle qui atteint cette entrée de toute façon.
     { id: 'comptes-a-valider',  label: 'Comptes à valider',  icon: UserCheck       },
+    // Cloisonnement strict (STEP 4) : un dossier sans conseiller n'est plus
+    // visible d'aucun agent — cette entrée est le seul endroit d'où il reste
+    // atteignable.
+    { id: 'dossiers-non-attribues', label: 'Dossiers non attribués', icon: UserX },
     { id: 'utilisateurs',       label: 'Utilisateurs',       icon: Users           },
     { id: 'partenaires',        label: 'Partenaires',        icon: Building2       },
     { id: 'documents-clients',  label: 'Documents clients',  icon: FolderOpen      },

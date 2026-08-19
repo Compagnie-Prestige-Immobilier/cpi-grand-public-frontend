@@ -655,6 +655,32 @@ export const staffApi = {
       return all;
     },
 
+    /**
+     * Dossiers sans conseiller — réservé de fait au super-admin : pour un
+     * agent, le cloisonnement strict a déjà tout restreint à son portefeuille
+     * (jamais vide) avant que ce filtre ne s'applique, la réponse est donc
+     * mécaniquement vide plutôt qu'un refus. Voir `PortefeuilleConseiller`.
+     */
+    listNonAttribues: async (): Promise<ClientData[]> => {
+      const first = await api.get('/staff/clients', { params: { page: 1, non_attribues: 1 } });
+      const donnees: PaginatedClients = first.data;
+      const all = [...donnees.data];
+      for (let page = 2; page <= donnees.meta.last_page; page++) {
+        const suite = await api.get('/staff/clients', { params: { page, non_attribues: 1 } });
+        all.push(...(suite.data as PaginatedClients).data);
+      }
+      return all;
+    },
+
+    /**
+     * Attribution manuelle au conseiller le moins chargé — complète
+     * l'attribution automatique de la validation de compte pour les dossiers
+     * qui y ont échappé (aucun agent disponible à l'époque, ou dossier créé
+     * directement par le personnel).
+     */
+    attribuerConseiller: async (clientId: string): Promise<ValidationCompteResultat> =>
+      (await api.post(`/staff/clients/${clientId}/attribuer-conseiller`)).data.data,
+
     get: async (id: string): Promise<ClientData> =>
       (await api.get(`/staff/clients/${id}`)).data.data,
 
