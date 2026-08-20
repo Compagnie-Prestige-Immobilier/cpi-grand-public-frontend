@@ -4,7 +4,8 @@ import AuthPage from './components/AuthPage';
 import OnboardingPage from './components/OnboardingPage';
 import { PermissionProvider } from './auth/PermissionContext';
 import type { Permission, UserRole as ApiUserRole } from './auth/permissions';
-import { auth, type AuthPayload, type UserData } from './api/endpoints';
+import { auth, type AuthPayload, type UserData, type StatutCompte } from './api/endpoints';
+import CompteEnAttentePage from './components/CompteEnAttentePage';
 import { apiErrorMessage, getToken, setToken, clearToken, UNAUTHENTICATED_EVENT } from './api/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -27,6 +28,24 @@ export interface AuthUser {
   clientId?: string;
   /** URL affichable de la photo de profil (lien signé R2 ou URL Google). */
   avatarUrl?: string | null;
+  /**
+   * État de validation du compte. `null` pour le personnel (non soumis à la
+   * règle — voir `User::estPersonnel()` côté serveur) : ne jamais l'utiliser
+   * pour bloquer un accès sans vérifier `estClient` d'abord.
+   */
+  statutCompte: StatutCompte | null;
+  motifRejet: string | null;
+}
+
+/**
+ * Un compte client non validé n'entre PAS dans `AppShell` : y entrer
+ * déclencherait des appels vers des routes que `compte.valide` referme (403 en
+ * boucle) pour un espace qui n'a de toute façon rien à montrer. Le personnel
+ * n'est jamais concerné — ces comptes sont validés par construction.
+ */
+function compteBloque(user: AuthUser): boolean {
+  return user.role !== 'agent-cpi' && user.role !== 'admin'
+    && user.statutCompte !== null && user.statutCompte !== 'valide';
 }
 
 /**
@@ -133,6 +152,13 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   // Restauration de session (token présent) ou retour du callback Google.
   const [booting, setBooting] = useState(() => Boolean(getToken()) || googleCallbackCode() !== null);
+  /**
+   * « Je viens de m'inscrire » vs « je me reconnecte » — seule l'accroche du
+   * message affiché à un compte bloqué en dépend. Par défaut « connexion » :
+   * c'est le cas d'une restauration de session silencieuse ou d'un retour
+   * Google, ni l'un ni l'autre n'étant une inscription fraîche.
+   */
+  const [authContexte, setAuthContexte] = useState<'inscription' | 'connexion'>('connexion');
 
   /**
    * Applique une session et emmène l'utilisateur au bon endroit.
@@ -141,20 +167,30 @@ export default function App() {
    * de connexion : sans cela, un lien profond reçu par courriel ramenait
    * systématiquement à l'accueil après authentification.
    */
-  const applyAuth = (payload: AuthPayload, to?: string) => {
+  const applyAuth = (payload: AuthPayload, to?: string, contexte?: 'inscription' | 'connexion') => {
     const u = payload.user;
     const role = mapApiRole(payload.role, u.profileType);
     setApiRole(payload.role);
     setPermissions(payload.permissions as Permission[]);
     setNeedsOnboarding(u.needsOnboarding);
-    setAuthUser({
+    if (contexte) setAuthContexte(contexte);
+    const nextUser: AuthUser = {
       role,
       name: u.name,
       email: u.email,
       clientId: payload.role === 'client' ? (u.clientId ?? u.id) : undefined,
       avatarUrl: u.avatarUrl ?? null,
-    });
-    routerNavigate(to ?? homePath(areaForRole(role)), { replace: true });
+      statutCompte: u.statutCompte,
+      motifRejet: u.motifRejet,
+    };
+    setAuthUser(nextUser);
+    // Un compte bloqué (onboarding en attente ou validation administrative
+    // non faite) reste où il est : le faire naviguer vers le tableau de bord
+    // d'un espace qu'il ne peut pas encore voir n'aurait aucun sens, et
+    // l'écran affiché ne dépend de toute façon pas de l'URL (voir plus bas).
+    if (!u.needsOnboarding && !compteBloque(nextUser)) {
+      routerNavigate(to ?? homePath(areaForRole(role)), { replace: true });
+    }
   };
 
   // Au montage : échange du code Google, ou restauration de session via /auth/me.
@@ -191,6 +227,8 @@ export default function App() {
             email: payload.user.email,
             clientId: payload.role === 'client' ? (payload.user.clientId ?? payload.user.id) : undefined,
             avatarUrl: payload.user.avatarUrl ?? null,
+            statutCompte: payload.user.statutCompte,
+            motifRejet: payload.user.motifRejet,
           });
         }
       } catch (err) {
@@ -212,7 +250,13 @@ export default function App() {
   const handleLogin = (payload: AuthPayload) => {
     if (payload.token) setToken(payload.token);
     const from = (location.state as { from?: string } | null)?.from;
-    applyAuth(payload, from);
+    // `onLogin` est le même callback pour LoginScreen et RegisterScreen : seule
+    // l'URL sur laquelle on se trouve encore (avant toute navigation) distingue
+    // les deux. Sert uniquement à choisir l'accroche du message affiché à un
+    // compte bloqué — « merci pour votre inscription » n'a pas de sens pour
+    // quelqu'un qui se reconnecte.
+    const contexte = location.pathname === PUBLIC_PATHS.register ? 'inscription' : 'connexion';
+    applyAuth(payload, from, contexte);
   };
 
   const handleOnboardingComplete = (user: UserData) => {
@@ -274,31 +318,54 @@ export default function App() {
 
   if (booting) return <AppLoader />;
 
+  // Les utilisateurs Google au profil incomplet doivent d'abord le compléter :
+  // l'onboarding prime sur tout, y compris un lien profond. Vérifié AVANT le
+  // blocage de compte : un compte Google fraîchement créé est déjà en attente
+  // de validation dès sa création, et le renvoyer directement sur l'écran
+  // d'attente le priverait de la seule occasion de compléter employeur,
+  // profil et revenus — des informations dont l'administrateur a besoin pour
+  // juger le compte.
+  if (authUser && needsOnboarding) {
+    return (
+      <OnboardingPage
+        userName={authUser.name}
+        onComplete={handleOnboardingComplete}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  /*
+   * Compte client non validé : reste ICI, avant `<Routes>`, quelle que soit
+   * l'URL affichée. C'est délibéré — l'énoncé demande que la personne « reste
+   * sur la page de connexion » : elle ne doit jamais voir passer l'espace
+   * applicatif, même une fraction de seconde, et un lien profond ouvert
+   * directement (favori, historique) ne doit pas non plus y donner accès.
+   */
+  if (authUser && compteBloque(authUser)) {
+    return (
+      <CompteEnAttentePage
+        email={authUser.email ?? ''}
+        statutCompte={authUser.statutCompte ?? 'en-attente-validation'}
+        motifRejet={authUser.motifRejet}
+        contexte={authContexte}
+        onLogout={handleLogout}
+        onEtatMisAJour={payload => applyAuth(payload)}
+      />
+    );
+  }
+
   const publicScreen = (page: Exclude<AppPage, 'dashboard'>) => (
     <AuthPage page={page} onLogin={handleLogin} onNavigate={navigatePublic} />
   );
 
-  // Les utilisateurs Google au profil incomplet doivent d'abord le compléter :
-  // l'onboarding prime sur toute route, y compris un lien profond.
-  const authenticatedArea = () => {
-    if (!authUser) return null;
-    if (needsOnboarding) {
-      return (
-        <OnboardingPage
-          userName={authUser.name}
-          onComplete={handleOnboardingComplete}
-          onLogout={handleLogout}
-        />
-      );
-    }
-    return (
-      <PermissionProvider role={apiRole} permissions={permissions}>
-        <Suspense fallback={<AppLoader />}>
-          <AppShell user={authUser} onLogout={handleLogout} />
-        </Suspense>
-      </PermissionProvider>
-    );
-  };
+  const authenticatedArea = () => (
+    <PermissionProvider role={apiRole} permissions={permissions}>
+      <Suspense fallback={<AppLoader />}>
+        <AppShell user={authUser!} onLogout={handleLogout} />
+      </Suspense>
+    </PermissionProvider>
+  );
 
   return (
     <Routes>

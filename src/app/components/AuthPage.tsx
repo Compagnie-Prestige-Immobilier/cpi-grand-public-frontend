@@ -61,7 +61,7 @@ const PROFIL_OPTIONS: {
   },
   {
     type: 'autre',
-    label: 'Autre profil',
+    label: 'Secteur informel',
     sub: 'Profession libérale, indépendant, diaspora',
     icon: UserCircle,
     color: 'var(--accent-text)',
@@ -280,9 +280,25 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
       {/* Topbar */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '20px 40px',
+        padding: '20px 40px', gap: '12px', flexWrap: 'wrap',
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <img src={cpiLogo} alt="CPI — Compagnie Prestige Immobilier" style={{ height: '64px', width: '64px', objectFit: 'cover', borderRadius: '50%', clipPath: 'circle(50%)', display: 'block' }} />
+          <a href="https://cpi.sn" target="_blank" rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(255,255,255,0.95)',
+              border: '1px solid rgba(0,0,0,0.07)',
+              borderRadius: '99px',
+              padding: '8px 14px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', fontWeight: 700,
+              color: 'var(--foreground)', textDecoration: 'none',
+            }}>
+            <ArrowLeft size={14} style={{ color: 'var(--primary)' }} />
+            Retour sur cpi.sn
+          </a>
+        </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           background: 'rgba(255,255,255,0.95)',
@@ -471,12 +487,6 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
           </button>
         </div>
 
-        <a href="https://cpi.sn" target="_blank" rel="noopener noreferrer"
-          style={{ marginTop: '12px', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', color: 'var(--muted-foreground)', textDecoration: 'none' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--primary)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--muted-foreground)'; }}>
-          ← Retour sur cpi.sn
-        </a>
       </main>
 
       <footer className="welcome-footer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '0 24px 18px', color: 'var(--muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '0.6875rem', textAlign: 'center' }}>
