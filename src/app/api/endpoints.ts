@@ -17,6 +17,8 @@ export type ChantierMediaData        = App.Dto.ChantierMediaData;
 export type ChantierEventData        = App.Dto.ChantierEventData;
 export type NotificationData         = App.Dto.NotificationData;
 export type ActivityLogData          = App.Dto.ActivityLogData;
+/** État du compte : voir backend/docs/statuts.md. */
+export type StatutCompte             = App.Enums.StatutCompte;
 
 /** Réponse paginée de GET /staff/clients (50 dossiers par page). */
 export type PaginatedClients = Illuminate.LengthAwarePaginator<number, ClientData>;
@@ -122,6 +124,22 @@ export const auth = {
 
   onboardingStatus: async (): Promise<boolean> =>
     (await api.get('/auth/onboarding-status')).data.data.needsOnboarding,
+
+  /** Renvoie le lien de vérification d'adresse (limité en fréquence côté serveur). */
+  resendVerificationEmail: async (): Promise<void> => {
+    await api.post('/auth/email/resend');
+  },
+
+  /**
+   * Corrige les informations d'un compte REFUSÉ et le resoumet à validation.
+   * Le serveur refuse (409) si le compte n'est pas au statut « refusé » —
+   * ce n'est pas un simple PATCH de profil.
+   */
+  updateMonCompte: async (input: {
+    name?: string; phone?: string | null; employer?: string | null;
+    profile_type?: 'fonctionnaire' | 'prive' | 'autre' | null; revenus?: string | null;
+  }): Promise<AuthPayload> =>
+    (await api.put('/auth/mon-compte', input)).data.data,
 };
 
 // ─── Parcours du dossier (calculé côté serveur) ────────────
@@ -555,8 +573,42 @@ const listClientsPage = async (page = 1): Promise<PaginatedClients> =>
 const listHistoriquePage = async (page = 1): Promise<PaginatedActivityLog> =>
   (await api.get('/staff/historique', { params: { page } })).data;
 
+export interface CompteEnAttenteData {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  employer: string | null;
+  profileType: string | null;
+  revenus: string | null;
+  createdAt: string;
+}
+
+export interface ValidationCompteResultat {
+  message: string;
+  conseiller: { id: string; name: string } | null;
+}
+
 export const staffApi = {
   // L'identité du staff vient de auth.me() — il n'existe pas de /staff/me.
+
+  /**
+   * Validation des comptes — réservé à `validate-accounts` (super-admin).
+   * Approuver déclenche l'attribution automatique d'un conseiller côté
+   * serveur ; `valider()` renvoie lequel a été choisi (ou `null` si aucun
+   * agent-cpi n'existe — le dossier reste alors sans conseiller).
+   */
+  comptes: {
+    enAttente: async (): Promise<CompteEnAttenteData[]> =>
+      (await api.get('/staff/comptes/en-attente')).data.data,
+
+    valider: async (userId: string): Promise<ValidationCompteResultat> =>
+      (await api.post(`/staff/comptes/${userId}/valider`)).data.data,
+
+    rejeter: async (userId: string, motif: string): Promise<void> => {
+      await api.post(`/staff/comptes/${userId}/rejeter`, { motif });
+    },
+  },
 
   /** Comptes du personnel CPI (administrateur uniquement). */
   staff: {
@@ -602,6 +654,42 @@ export const staffApi = {
       }
       return all;
     },
+
+    /**
+     * Dossiers sans conseiller — réservé de fait au super-admin : pour un
+     * agent, le cloisonnement strict a déjà tout restreint à son portefeuille
+     * (jamais vide) avant que ce filtre ne s'applique, la réponse est donc
+     * mécaniquement vide plutôt qu'un refus. Voir `PortefeuilleConseiller`.
+     */
+    listNonAttribues: async (): Promise<ClientData[]> => {
+      const first = await api.get('/staff/clients', { params: { page: 1, non_attribues: 1 } });
+      const donnees: PaginatedClients = first.data;
+      const all = [...donnees.data];
+      for (let page = 2; page <= donnees.meta.last_page; page++) {
+        const suite = await api.get('/staff/clients', { params: { page, non_attribues: 1 } });
+        all.push(...(suite.data as PaginatedClients).data);
+      }
+      return all;
+    },
+
+    /**
+     * Attribution manuelle au conseiller le moins chargé — complète
+     * l'attribution automatique de la validation de compte pour les dossiers
+     * qui y ont échappé (aucun agent disponible à l'époque, ou dossier créé
+     * directement par le personnel).
+     */
+    attribuerConseiller: async (clientId: string): Promise<ValidationCompteResultat> =>
+      (await api.post(`/staff/clients/${clientId}/attribuer-conseiller`)).data.data,
+
+    /**
+     * Réattribution manuelle vers un agent DÉSIGNÉ — déplace un dossier déjà
+     * suivi d'un conseiller vers un autre (départ, réorganisation). Réservée
+     * au super-admin côté serveur (permission `manage-staff`), à la
+     * différence de `attribuerConseiller` ci-dessus qui élit automatiquement
+     * l'agent le moins chargé.
+     */
+    reattribuerConseiller: async (clientId: string, conseillerId: string): Promise<ValidationCompteResultat> =>
+      (await api.put(`/staff/clients/${clientId}/conseiller`, { conseiller_id: conseillerId })).data.data,
 
     get: async (id: string): Promise<ClientData> =>
       (await api.get(`/staff/clients/${id}`)).data.data,

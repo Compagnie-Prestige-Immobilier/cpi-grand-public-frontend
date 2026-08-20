@@ -207,6 +207,9 @@ readonly needsOnboarding: boolean,
 readonly role: string | null,
 readonly permissions: string[],
 readonly clientId: string | null,
+readonly statutCompte: App.Enums.StatutCompte | null,
+readonly emailVerifie: boolean,
+readonly motifRejet: string | null,
 };
 }
 namespace Enums {
@@ -214,6 +217,7 @@ export type BankAssignmentStatut = 'en-attente' | 'accord' | 'refus';
 export type ChantierStatut = 'non-demarre' | 'en-cours' | 'suspendu' | 'en-retard' | 'termine' | 'livre';
 export type CpiDocStatut = 'brouillon' | 'disponible' | 'a-signer' | 'signe' | 'archive';
 export type RequisDocStatut = 'en-attente' | 'depose' | 'verification' | 'accepte' | 'refuse' | 'a-remplacer';
+export type StatutCompte = 'email-a-verifier' | 'en-attente-validation' | 'valide' | 'rejete';
 }
 }
 declare namespace Illuminate {
