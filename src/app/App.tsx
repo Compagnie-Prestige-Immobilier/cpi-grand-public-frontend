@@ -21,6 +21,15 @@ export type UserRole = 'client-fonctionnaire' | 'client-public' | 'agent-cpi' | 
 
 export interface AuthUser {
   role: UserRole;
+  /**
+   * Profil choisi à l'inscription (`fonctionnaire`, `prive`, `autre`,
+   * `diaspora`), `null` pour le personnel. Plus fin que `role`, qui ne
+   * distingue que fonctionnaire/public : c'est CE champ qui doit trancher un
+   * accès propre à un profil précis (voir `peutVoirSimulateur`) — `role` ne
+   * le pourrait pas sans perdre l'information dès qu'un profil autre que
+   * fonctionnaire a lui aussi besoin d'une règle qui lui est propre.
+   */
+  profileType: string | null;
   name: string;
   /** Identifiant de connexion (renvoyé par /auth/me). */
   email?: string;
@@ -75,6 +84,25 @@ function mapApiRole(role: ApiUserRole, profileType: string | null): UserRole {
 /** Espace de navigation d'un rôle : les URL ne sont pas les mêmes. */
 export function areaForRole(role: UserRole): NavArea {
   return role === 'agent-cpi' || role === 'admin' ? 'staff' : 'client';
+}
+
+/**
+ * Profils autorisés à voir le simulateur de financement — pour l'instant
+ * réservé aux fonctionnaires, à la demande de CPI. Tranché sur `profileType`
+ * et non sur `role` : `role` ne distingue que fonctionnaire/public, une seule
+ * porte binaire — ajouter `'prive'` ou `'diaspora'` ici suffirait à leur
+ * ouvrir l'accès sans y perdre les autres profils regroupés sous
+ * `client-public`. Seul point à modifier pour changer qui voit le
+ * simulateur : la navigation (`AppShell::getNavItems`), la route elle-même
+ * (fermée via `allowedNavs`, qui dérive de la même liste), la page
+ * d'atterrissage après connexion (`routes.ts::homePath`) et le raccourci du
+ * tableau de bord (`ClientDashboardHome`) s'ajustent automatiquement.
+ */
+export const PROFILS_AVEC_SIMULATEUR: readonly string[] = ['fonctionnaire'];
+
+/** Ce profil voit-il le simulateur ? */
+export function peutVoirSimulateur(profileType: string | null): boolean {
+  return profileType !== null && PROFILS_AVEC_SIMULATEUR.includes(profileType);
 }
 
 /** Vrai lorsque le navigateur est sur l'URL de retour du fournisseur Google. */
@@ -176,6 +204,7 @@ export default function App() {
     if (contexte) setAuthContexte(contexte);
     const nextUser: AuthUser = {
       role,
+      profileType: u.profileType,
       name: u.name,
       email: u.email,
       clientId: payload.role === 'client' ? (u.clientId ?? u.id) : undefined,
@@ -189,7 +218,7 @@ export default function App() {
     // d'un espace qu'il ne peut pas encore voir n'aurait aucun sens, et
     // l'écran affiché ne dépend de toute façon pas de l'URL (voir plus bas).
     if (!u.needsOnboarding && !compteBloque(nextUser)) {
-      routerNavigate(to ?? homePath(areaForRole(role)), { replace: true });
+      routerNavigate(to ?? homePath(areaForRole(role), peutVoirSimulateur(u.profileType)), { replace: true });
     }
   };
 
@@ -223,6 +252,7 @@ export default function App() {
           setNeedsOnboarding(payload.user.needsOnboarding);
           setAuthUser({
             role,
+            profileType: payload.user.profileType,
             name: payload.user.name,
             email: payload.user.email,
             clientId: payload.role === 'client' ? (payload.user.clientId ?? payload.user.id) : undefined,
@@ -266,6 +296,7 @@ export default function App() {
       // Le profil vient d'être renseigné : on recalcule le rôle du dashboard
       // (fonctionnaire vs public) à partir du profileType choisi.
       role: apiRole ? mapApiRole(apiRole, user.profileType) : prev.role,
+      profileType: user.profileType,
       name: user.name,
       email: user.email,
       clientId: apiRole === 'client' ? (user.clientId ?? user.id) : undefined,
@@ -310,7 +341,7 @@ export default function App() {
   /** Traduit l'API historique d'`AuthPage` en navigation d'URL. */
   const navigatePublic = (p: AppPage) => {
     if (p === 'dashboard') {
-      routerNavigate(authUser ? homePath(areaForRole(authUser.role)) : PUBLIC_PATHS.welcome);
+      routerNavigate(authUser ? homePath(areaForRole(authUser.role), peutVoirSimulateur(authUser.profileType)) : PUBLIC_PATHS.welcome);
       return;
     }
     routerNavigate(PUBLIC_PATHS[p]);
@@ -379,11 +410,11 @@ export default function App() {
       <Route path={PUBLIC_PATHS.terms} element={publicScreen('terms')} />
       <Route
         path={PUBLIC_PATHS.login}
-        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role))} replace /> : publicScreen('login')}
+        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role), peutVoirSimulateur(authUser.profileType))} replace /> : publicScreen('login')}
       />
       <Route
         path={PUBLIC_PATHS.register}
-        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role))} replace /> : publicScreen('register')}
+        element={authUser ? <Navigate to={homePath(areaForRole(authUser.role), peutVoirSimulateur(authUser.profileType))} replace /> : publicScreen('register')}
       />
 
       {/*

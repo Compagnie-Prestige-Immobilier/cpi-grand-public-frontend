@@ -48,7 +48,7 @@ export interface RegisterInput {
 export interface OnboardingInput {
   phone: string;
   employer: string;
-  profile_type: 'fonctionnaire' | 'prive' | 'autre';
+  profile_type: 'fonctionnaire' | 'prive' | 'autre' | 'diaspora';
   revenus: string;
 }
 
@@ -137,7 +137,7 @@ export const auth = {
    */
   updateMonCompte: async (input: {
     name?: string; phone?: string | null; employer?: string | null;
-    profile_type?: 'fonctionnaire' | 'prive' | 'autre' | null; revenus?: string | null;
+    profile_type?: 'fonctionnaire' | 'prive' | 'autre' | 'diaspora' | null; revenus?: string | null;
   }): Promise<AuthPayload> =>
     (await api.put('/auth/mon-compte', input)).data.data,
 };

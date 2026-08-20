@@ -129,12 +129,12 @@ export type Inscription = z.infer<typeof schemaInscription>;
 
 /**
  * POST /auth/onboarding — `phone: required|string`, `employer: required|string`,
- * `profile_type: required|in:fonctionnaire,prive,autre`, `revenus: required|string`.
+ * `profile_type: required|in:fonctionnaire,prive,autre,diaspora`, `revenus: required|string`.
  */
 export const schemaOnboarding = z.object({
   phone: telephoneSenegal,
   employer: texteRequis(255, "L'employeur"),
-  profile_type: z.enum(['fonctionnaire', 'prive', 'autre'] as const, {
+  profile_type: z.enum(['fonctionnaire', 'prive', 'autre', 'diaspora'] as const, {
     message: 'Sélectionnez votre situation professionnelle.',
   }),
   revenus: z.string().min(1, 'Sélectionnez une tranche de revenus.'),

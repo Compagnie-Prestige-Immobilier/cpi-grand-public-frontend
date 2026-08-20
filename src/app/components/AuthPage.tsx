@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Shield, Zap, Headphones, Handshake, Lock,
   ChevronRight, ChevronDown, ArrowLeft, CheckSquare, Square,
   Landmark, Briefcase, UserCircle, ArrowRight, CheckCircle,
-  Mail, Building2, AlertCircle, Check,
+  Mail, Building2, AlertCircle, Check, Globe,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AppPage } from '../App';
@@ -21,7 +21,7 @@ import cpiLogo from '../../assets/image.png';
 import ConditionsPage, { ConditionsModal } from './ConditionsPage';
 import { fondPhoto } from '../lib/images';
 
-type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
+type ProfilType = 'fonctionnaire' | 'prive' | 'autre' | 'diaspora';
 
 const PROFIL_OPTIONS: {
   type: ProfilType;
@@ -62,7 +62,7 @@ const PROFIL_OPTIONS: {
   {
     type: 'autre',
     label: 'Secteur informel',
-    sub: 'Profession libérale, indépendant, diaspora',
+    sub: 'Profession libérale, indépendant',
     icon: UserCircle,
     color: 'var(--accent-text)',
     bg: 'rgba(200,146,26,0.08)',
@@ -70,6 +70,18 @@ const PROFIL_OPTIONS: {
     textColor: 'var(--foreground)',
     subColor: 'var(--muted-foreground)',
     borderColor: 'rgba(200,146,26,0.14)',
+  },
+  {
+    type: 'diaspora',
+    label: 'Diaspora',
+    sub: 'Sénégalais résidant à l’étranger',
+    icon: Globe,
+    color: '#7C3AED',
+    bg: 'rgba(124,58,237,0.08)',
+    cardBg: 'var(--card)',
+    textColor: 'var(--foreground)',
+    subColor: 'var(--muted-foreground)',
+    borderColor: 'rgba(124,58,237,0.14)',
   },
 ];
 
@@ -358,9 +370,9 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
         {/* Profile cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gap: '14px',
-          width: '100%', maxWidth: '720px',
+          width: '100%', maxWidth: '960px',
           marginBottom: '20px',
           animationDelay: '80ms',
         }} className="profile-grid cpi-animate-in">
@@ -477,14 +489,6 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
               </div>
             );
           })}
-        </div>
-
-        {/* Accès professionnel CPI */}
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <button type="button" onClick={() => onNavigate('login')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', textDecoration: 'underline' }}>
-            Espace professionnel CPI (Agent / Administrateur) →
-          </button>
         </div>
 
       </main>
@@ -811,6 +815,27 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
     }
   });
 
+  /**
+   * Même échange que sur l'écran de connexion : `handleGoogleCallback` côté
+   * API crée le compte à la volée si l'adresse Google est inconnue, puis
+   * renvoie `needsOnboarding: true` — la sélection de profil et le
+   * formulaire ci-dessus n'ont donc aucun rôle à jouer dans ce chemin, le
+   * profil sera demandé après coup par `OnboardingPage`. Le bouton existait
+   * déjà sur l'écran de connexion mais pas ici : un visiteur qui atterrit
+   * directement sur l'inscription (lien partagé, mémoire du navigateur)
+   * pouvait raisonnablement penser que Google n'était pas une option pour
+   * CRÉER un compte, seulement pour s'identifier sur un compte existant.
+   */
+  const handleGoogle = async () => {
+    setError('');
+    try {
+      const url = await auth.googleRedirect();
+      window.location.href = url;
+    } catch (err) {
+      setError(apiErrorMessage(err, "La connexion Google n'est pas disponible pour le moment."));
+    }
+  };
+
   const REVENUS_OPTIONS = [
     { value: '150000-250000', label: '150 000 – 250 000 FCFA / mois' },
     { value: '250000-400000', label: '250 000 – 400 000 FCFA / mois' },
@@ -904,7 +929,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
               Sélectionnez votre situation professionnelle pour un accompagnement adapté.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '24px' }}>
               {PROFIL_OPTIONS.map(p => {
                 const Icon = p.icon;
                 const isHov = hovered === p.type;
@@ -944,6 +969,35 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
                 );
               })}
             </div>
+
+            {/* Google crée le compte directement, sans passer par le choix de
+                profil ci-dessus (redemandé ensuite par l'onboarding) — d'où sa
+                place ICI plutôt qu'à la fin du formulaire de l'étape 2. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', maxWidth: '400px', margin: '0 auto 16px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ou</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            </div>
+            <div style={{ maxWidth: '400px', margin: '0 auto 20px' }}>
+              <button type="button" onClick={handleGoogle}
+                style={{
+                  width: '100%', padding: '12px 24px', background: 'var(--card)',
+                  border: '1.5px solid var(--border)', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--foreground)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--muted-foreground)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}>
+                <GoogleIcon /> S'inscrire avec Google
+              </button>
+            </div>
+
+            {error && (
+              <div style={{ maxWidth: '400px', margin: '0 auto 16px', padding: '10px 12px', background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '0.8125rem', color: 'var(--destructive)', textAlign: 'center' }}>
+                {error}
+              </div>
+            )}
 
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--muted-foreground)', textAlign: 'center' }}>
               Déjà inscrit ?{' '}
