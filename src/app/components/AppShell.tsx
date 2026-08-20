@@ -13,7 +13,7 @@ import type { AuthUser, UserRole } from '../App';
 import { ClientProvider } from '../contexts/ClientContext';
 import { NavigationProvider, useNavigate } from '../contexts/NavigationContext';
 import { Navigate, useLocation } from 'react-router';
-import { areaForRole } from '../App';
+import { areaForRole, peutVoirSimulateur } from '../App';
 import { homePath } from '../routes';
 import type { ClientSummary } from '../data/demoStore';
 import { useClientsQuery, useMyProfileQuery, toClientSummary } from '../data/clientRegistry';
@@ -84,8 +84,8 @@ function getMobileTabs(role: UserRole): MobileTab[] {
   ];
 }
 
-function getMobileMoreItems(role: UserRole, hasChantier: boolean): NavItem[] {
-  const all = getNavItems(role, hasChantier);
+function getMobileMoreItems(role: UserRole, profileType: string | null, hasChantier: boolean): NavItem[] {
+  const all = getNavItems(role, profileType, hasChantier);
   const tabs = new Set(getMobileTabs(role).map(item => item.id));
   const extras = all.filter(item => !tabs.has(item.id));
   if (role === 'client-fonctionnaire' || role === 'client-public') {
@@ -94,9 +94,13 @@ function getMobileMoreItems(role: UserRole, hasChantier: boolean): NavItem[] {
   return extras;
 }
 
-function getNavItems(role: UserRole, hasChantier = false): NavItem[] {
+function getNavItems(role: UserRole, profileType: string | null, hasChantier = false): NavItem[] {
   if (role === 'client-fonctionnaire' || role === 'client-public') return [
-    { id: 'simulateur',   label: 'Simulateur',       icon: CreditCard      },
+    // Réservé aux profils listés dans `App.tsx::PROFILS_AVEC_SIMULATEUR` (le
+    // fonctionnaire, pour l'instant) — absent de la liste, l'entrée disparaît
+    // du menu ET la route se ferme d'elle-même : `allowedNavs`, plus bas dans
+    // ce fichier, dérive de `navItems`, pas d'une liste séparée à tenir à jour.
+    ...(peutVoirSimulateur(profileType) ? [{ id: 'simulateur', label: 'Simulateur', icon: CreditCard } as NavItem] : []),
     { id: 'dashboard',    label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'ma-demande',   label: 'Ma demande',       icon: FileText        },
     { id: 'mon-dossier',  label: 'Mon dossier',      icon: FolderOpen      },
@@ -476,9 +480,9 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
   // la seule source que le client possède : le cache des décaissements n'est
   // alimenté que côté personnel et laissait l'entrée invisible pour tout client.
   const { hasChantier } = useChantierState();
-  const navItems = getNavItems(user.role, isClientRole && hasChantier);
+  const navItems = getNavItems(user.role, user.profileType, isClientRole && hasChantier);
   const mobileTabs = getMobileTabs(user.role);
-  const mobileMoreItems = getMobileMoreItems(user.role, isClientRole && hasChantier);
+  const mobileMoreItems = getMobileMoreItems(user.role, user.profileType, isClientRole && hasChantier);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -531,7 +535,7 @@ function AppShellInner({ user, onLogout }: AppShellProps) {
   // La racine « / » n'appartient pas à l'espace du personnel : on l'y emmène
   // chez lui plutôt que de lui présenter une 404 après connexion.
   if (activeNav === null && location.pathname === '/') {
-    return <Navigate to={homePath(areaForRole(user.role))} replace />;
+    return <Navigate to={homePath(areaForRole(user.role), peutVoirSimulateur(user.profileType))} replace />;
   }
 
   return (

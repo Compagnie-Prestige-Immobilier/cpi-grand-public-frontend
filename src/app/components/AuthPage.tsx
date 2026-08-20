@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Shield, Zap, Headphones, Handshake, Lock,
   ChevronRight, ChevronDown, ArrowLeft, CheckSquare, Square,
   Landmark, Briefcase, UserCircle, ArrowRight, CheckCircle,
-  Mail, Building2, AlertCircle, Check,
+  Mail, Building2, AlertCircle, Check, Globe,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AppPage } from '../App';
@@ -21,7 +21,7 @@ import cpiLogo from '../../assets/image.png';
 import ConditionsPage, { ConditionsModal } from './ConditionsPage';
 import { fondPhoto } from '../lib/images';
 
-type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
+type ProfilType = 'fonctionnaire' | 'prive' | 'autre' | 'diaspora';
 
 const PROFIL_OPTIONS: {
   type: ProfilType;
@@ -62,7 +62,7 @@ const PROFIL_OPTIONS: {
   {
     type: 'autre',
     label: 'Secteur informel',
-    sub: 'Profession libérale, indépendant, diaspora',
+    sub: 'Profession libérale, indépendant',
     icon: UserCircle,
     color: 'var(--accent-text)',
     bg: 'rgba(200,146,26,0.08)',
@@ -70,6 +70,18 @@ const PROFIL_OPTIONS: {
     textColor: 'var(--foreground)',
     subColor: 'var(--muted-foreground)',
     borderColor: 'rgba(200,146,26,0.14)',
+  },
+  {
+    type: 'diaspora',
+    label: 'Diaspora',
+    sub: 'Sénégalais résidant à l’étranger',
+    icon: Globe,
+    color: '#7C3AED',
+    bg: 'rgba(124,58,237,0.08)',
+    cardBg: 'var(--card)',
+    textColor: 'var(--foreground)',
+    subColor: 'var(--muted-foreground)',
+    borderColor: 'rgba(124,58,237,0.14)',
   },
 ];
 
@@ -358,9 +370,9 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
         {/* Profile cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gap: '14px',
-          width: '100%', maxWidth: '720px',
+          width: '100%', maxWidth: '960px',
           marginBottom: '20px',
           animationDelay: '80ms',
         }} className="profile-grid cpi-animate-in">
@@ -477,14 +489,6 @@ function WelcomeScreen({ onNavigate, onProfileSelect }: {
               </div>
             );
           })}
-        </div>
-
-        {/* Accès professionnel CPI */}
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <button type="button" onClick={() => onNavigate('login')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--muted-foreground)', textDecoration: 'underline' }}>
-            Espace professionnel CPI (Agent / Administrateur) →
-          </button>
         </div>
 
       </main>
@@ -904,7 +908,7 @@ function RegisterScreen({ onLogin, onNavigate, initialProfile }: {
               Sélectionnez votre situation professionnelle pour un accompagnement adapté.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '24px' }}>
               {PROFIL_OPTIONS.map(p => {
                 const Icon = p.icon;
                 const isHov = hovered === p.type;

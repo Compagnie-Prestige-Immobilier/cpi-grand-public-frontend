@@ -55,11 +55,18 @@ export function pathsFor(area: NavArea): Record<string, string> {
   return area === 'staff' ? STAFF_PATHS : CLIENT_PATHS;
 }
 
-/** Page d'atterrissage après connexion. */
-export function homePath(area: NavArea): string {
-  // Le client arrive sur le simulateur : c'est la porte d'entrée du parcours,
-  // et le seul écran utile avant qu'un dossier existe.
-  return area === 'staff' ? STAFF_PATHS.dashboard : CLIENT_PATHS.simulateur;
+/**
+ * Page d'atterrissage après connexion.
+ *
+ * `simulateurAutorise` vient de `App.tsx::peutVoirSimulateur(role)` — ce
+ * module reste volontairement sans notion de rôle ou de profil, l'appelant
+ * tranche. Un client qui y a droit arrive sur le simulateur (porte d'entrée
+ * du parcours, seul écran utile avant qu'un dossier existe) ; les autres sur
+ * le tableau de bord.
+ */
+export function homePath(area: NavArea, simulateurAutorise = false): string {
+  if (area === 'staff') return STAFF_PATHS.dashboard;
+  return simulateurAutorise ? CLIENT_PATHS.simulateur : CLIENT_PATHS.dashboard;
 }
 
 /** Chemin d'un identifiant de navigation, ou `null` s'il est inconnu. */

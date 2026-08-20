@@ -23,6 +23,19 @@ interface MonProfilPageProps {
   onLogout?: () => void;
 }
 
+/**
+ * Libellé du profil choisi à l'inscription — lu sur `profileType` (fin :
+ * fonctionnaire / privé / informel / diaspora), pas sur `role` (qui ne
+ * distingue que fonctionnaire/public et confondait encore récemment le
+ * secteur privé, le secteur informel et la diaspora sous un même libellé).
+ */
+const LIBELLE_PROFIL: Record<string, string> = {
+  fonctionnaire: 'Fonctionnaire',
+  prive: 'Secteur privé',
+  autre: 'Secteur informel',
+  diaspora: 'Diaspora',
+};
+
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -477,7 +490,7 @@ function ClientProfile({ user }: { user: AuthUser }) {
     region: '—',
     pays: '—',
     codePostal: '—',
-    typeProfile: user.role === 'client-fonctionnaire' ? 'Fonctionnaire' : 'Secteur privé / Autre',
+    typeProfile: (user.profileType && LIBELLE_PROFIL[user.profileType]) || 'Non renseigné',
     employeur: clientData.employer,
     ministere: '—',
     fonction: clientData.fonction,

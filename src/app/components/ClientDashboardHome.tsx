@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AuthUser } from '../App';
+import { peutVoirSimulateur } from '../App';
 import type { ActivityType } from '../data/activityLog';
 import { useClientData } from '../data/useClientData';
 import { useDocState } from '../data/docStateContext';
@@ -365,8 +366,10 @@ export default function ClientDashboardHome({ user }: Props) {
               description="Voir l'état de votre dossier" onClick={() => navigate('ma-demande')} />
             <ActionRow icon={<FolderOpen size={16} />} label="Ouvrir mon dossier"
               description="Documents et pièces justificatives" onClick={() => navigate('mon-dossier')} />
-            <ActionRow icon={<Calculator size={16} />} label="Simuler mon prêt"
-              description="Tableau d'amortissement complet" onClick={() => navigate('simulateur')} />
+            {peutVoirSimulateur(user.profileType) && (
+              <ActionRow icon={<Calculator size={16} />} label="Simuler mon prêt"
+                description="Tableau d'amortissement complet" onClick={() => navigate('simulateur')} />
+            )}
             <ActionRow icon={<Phone size={16} />} label="Contacter mon conseiller"
               description={hasConseiller ? `${client.conseiller} — CPI Immobilier` : 'Support CPI Immobilier'} onClick={() => navigate('support')} />
           </div>

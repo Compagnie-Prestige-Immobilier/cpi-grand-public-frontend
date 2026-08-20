@@ -1,16 +1,17 @@
 import { useState, useId } from 'react';
-import { Landmark, Briefcase, UserCircle, Lock, Check, AlertCircle } from 'lucide-react';
+import { Landmark, Briefcase, UserCircle, Globe, Lock, Check, AlertCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { auth, type UserData, type OnboardingInput } from '../api/endpoints';
 import { apiErrorMessage } from '../api/client';
 import { schemaOnboarding, erreursDe } from '../lib/schemas';
 
-type ProfilType = 'fonctionnaire' | 'prive' | 'autre';
+type ProfilType = 'fonctionnaire' | 'prive' | 'autre' | 'diaspora';
 
 const PROFIL_OPTIONS: { type: ProfilType; label: string; icon: LucideIcon }[] = [
   { type: 'fonctionnaire', label: 'Fonctionnaire', icon: Landmark },
   { type: 'prive', label: 'Secteur privé', icon: Briefcase },
   { type: 'autre', label: 'Secteur informel', icon: UserCircle },
+  { type: 'diaspora', label: 'Diaspora', icon: Globe },
 ];
 
 const REVENUS_OPTIONS = [
@@ -123,7 +124,7 @@ export default function OnboardingPage({ userName, onComplete, onLogout }: {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span id={idProfil} style={labelStyle}>Votre profil *</span>
-            <div role="radiogroup" aria-labelledby={idProfil} aria-invalid={Boolean(erreurs.profile_type) || undefined} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <div role="radiogroup" aria-labelledby={idProfil} aria-invalid={Boolean(erreurs.profile_type) || undefined} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
               {PROFIL_OPTIONS.map(p => {
                 const Icon = p.icon;
                 const active = profil === p.type;
